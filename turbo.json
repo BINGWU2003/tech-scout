@@ -1,0 +1,25 @@
+{
+  "$schema": "https://turborepo.dev/schema.json",
+  "globalDependencies": [".node-version"],
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**"],
+      "env": ["VITE_CLERK_PUBLISHABLE_KEY"]
+    },
+    "test": {
+      "outputs": [],
+      "env": ["CI", "VITEST_BROWSER_CHANNEL"]
+    },
+    "test:e2e": {
+      "outputs": []
+    },
+    "knip": {
+      "outputs": []
+    },
+    "dev": {
+      "cache": false,
+      "persistent": true
+    }
+  }
+}
