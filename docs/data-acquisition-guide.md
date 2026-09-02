@@ -231,6 +231,15 @@ data/
 
 相同 hash 的文件不得重复处理；相同文件名但 hash 变化时必须生成新的来源版本。
 
+当前项目使用以下命令生成和复核来源登记：
+
+```powershell
+pnpm data:manifest generate --data-root "D:\files\project-data" --snapshot 2026-09-02
+pnpm data:manifest verify --manifest "D:\files\project-data\releases\source-2026-09-02\manifest.json"
+```
+
+生成结果包括 `manifest.json` 和 `SHA256SUMS.txt`。登记工具对文件进行顺序流式读取，不会将大型文件整体载入内存；`verify` 会重新计算全部 SHA-256，并在文件缺失、大小变化、内容变化或出现未登记文件时失败。
+
 ## 7. Raw、Bronze、Silver 与 Catalog
 
 ### 7.1 Raw

@@ -1,0 +1,364 @@
+{
+  "schemaVersion": "1.0.0",
+  "datasets": {
+    "uspto-pvannual": {
+      "provider": "USPTO",
+      "name": "PatentsView Annualized Patent Data",
+      "sourceUrl": "https://data.uspto.gov/bulkdata/datasets",
+      "publishedAt": null,
+      "schemaVersion": null,
+      "license": {
+        "status": "not_recorded",
+        "note": "Use is limited to the locally downloaded official USPTO dataset; confirm applicable USPTO terms before redistribution."
+      }
+    },
+    "uspto-pvgpatdis": {
+      "provider": "USPTO",
+      "name": "PatentsView Granted Patent Disambiguated Data",
+      "sourceUrl": "https://data.uspto.gov/bulkdata/datasets/pvgpatdis?fileDataFromDate=1976-01-01&fileDataToDate=2025-12-31",
+      "publishedAt": null,
+      "schemaVersion": "PV_grant_data_dictionary.pdf",
+      "license": {
+        "status": "not_recorded",
+        "note": "Use is limited to the locally downloaded official USPTO dataset; confirm applicable USPTO terms before redistribution."
+      }
+    },
+    "gleif-level1": {
+      "provider": "GLEIF",
+      "name": "GLEIF Level 1 Golden Copy",
+      "sourceUrl": "https://www.gleif.org/en/lei-data/gleif-golden-copy/download-the-golden-copy#/",
+      "publishedAt": "2026-09-02",
+      "schemaVersion": null,
+      "license": {
+        "status": "recorded",
+        "identifier": "CC0-1.0",
+        "note": "GLEIF Golden Copy data is provided under CC0."
+      }
+    },
+    "gleif-level2": {
+      "provider": "GLEIF",
+      "name": "GLEIF Level 2 Relationship Golden Copy",
+      "sourceUrl": "https://www.gleif.org/en/lei-data/gleif-golden-copy/download-the-golden-copy#/",
+      "publishedAt": "2026-09-02",
+      "schemaVersion": null,
+      "license": {
+        "status": "recorded",
+        "identifier": "CC0-1.0",
+        "note": "GLEIF Golden Copy data is provided under CC0."
+      }
+    },
+    "sec-company-tickers": {
+      "provider": "SEC",
+      "name": "SEC Company Tickers",
+      "sourceUrl": "https://www.sec.gov/files/company_tickers_exchange.json",
+      "publishedAt": null,
+      "schemaVersion": null,
+      "license": {
+        "status": "not_recorded",
+        "note": "Retain the official SEC source URL and comply with applicable SEC data-access policies."
+      }
+    }
+  },
+  "files": [
+    {
+      "dataset": "uspto-pvannual",
+      "role": "raw",
+      "path": "raw/2015.zip",
+      "format": "csv",
+      "compression": "zip",
+      "dataCoverage": "2015"
+    },
+    {
+      "dataset": "uspto-pvannual",
+      "role": "extracted",
+      "path": "patents/2015.csv",
+      "format": "csv",
+      "compression": "none",
+      "dataCoverage": "2015",
+      "archivePath": "raw/2015.zip",
+      "archiveMember": "2015.csv"
+    },
+    {
+      "dataset": "uspto-pvannual",
+      "role": "raw",
+      "path": "raw/2016.zip",
+      "format": "csv",
+      "compression": "zip",
+      "dataCoverage": "2016"
+    },
+    {
+      "dataset": "uspto-pvannual",
+      "role": "extracted",
+      "path": "patents/2016.csv",
+      "format": "csv",
+      "compression": "none",
+      "dataCoverage": "2016",
+      "archivePath": "raw/2016.zip",
+      "archiveMember": "2016.csv"
+    },
+    {
+      "dataset": "uspto-pvannual",
+      "role": "raw",
+      "path": "raw/2017.zip",
+      "format": "csv",
+      "compression": "zip",
+      "dataCoverage": "2017"
+    },
+    {
+      "dataset": "uspto-pvannual",
+      "role": "extracted",
+      "path": "patents/2017.csv",
+      "format": "csv",
+      "compression": "none",
+      "dataCoverage": "2017",
+      "archivePath": "raw/2017.zip",
+      "archiveMember": "2017.csv"
+    },
+    {
+      "dataset": "uspto-pvannual",
+      "role": "raw",
+      "path": "raw/2018.zip",
+      "format": "csv",
+      "compression": "zip",
+      "dataCoverage": "2018"
+    },
+    {
+      "dataset": "uspto-pvannual",
+      "role": "extracted",
+      "path": "patents/2018.csv",
+      "format": "csv",
+      "compression": "none",
+      "dataCoverage": "2018",
+      "archivePath": "raw/2018.zip",
+      "archiveMember": "2018.csv"
+    },
+    {
+      "dataset": "uspto-pvannual",
+      "role": "raw",
+      "path": "raw/2019.zip",
+      "format": "csv",
+      "compression": "zip",
+      "dataCoverage": "2019"
+    },
+    {
+      "dataset": "uspto-pvannual",
+      "role": "extracted",
+      "path": "patents/2019.csv",
+      "format": "csv",
+      "compression": "none",
+      "dataCoverage": "2019",
+      "archivePath": "raw/2019.zip",
+      "archiveMember": "2019.csv"
+    },
+    {
+      "dataset": "uspto-pvannual",
+      "role": "raw",
+      "path": "raw/2020.zip",
+      "format": "csv",
+      "compression": "zip",
+      "dataCoverage": "2020"
+    },
+    {
+      "dataset": "uspto-pvannual",
+      "role": "extracted",
+      "path": "patents/2020.csv",
+      "format": "csv",
+      "compression": "none",
+      "dataCoverage": "2020",
+      "archivePath": "raw/2020.zip",
+      "archiveMember": "2020.csv"
+    },
+    {
+      "dataset": "uspto-pvannual",
+      "role": "raw",
+      "path": "raw/2021.zip",
+      "format": "csv",
+      "compression": "zip",
+      "dataCoverage": "2021"
+    },
+    {
+      "dataset": "uspto-pvannual",
+      "role": "extracted",
+      "path": "patents/2021.csv",
+      "format": "csv",
+      "compression": "none",
+      "dataCoverage": "2021",
+      "archivePath": "raw/2021.zip",
+      "archiveMember": "2021.csv"
+    },
+    {
+      "dataset": "uspto-pvannual",
+      "role": "raw",
+      "path": "raw/2022.zip",
+      "format": "csv",
+      "compression": "zip",
+      "dataCoverage": "2022"
+    },
+    {
+      "dataset": "uspto-pvannual",
+      "role": "extracted",
+      "path": "patents/2022.csv",
+      "format": "csv",
+      "compression": "none",
+      "dataCoverage": "2022",
+      "archivePath": "raw/2022.zip",
+      "archiveMember": "2022.csv"
+    },
+    {
+      "dataset": "uspto-pvannual",
+      "role": "raw",
+      "path": "raw/2023.zip",
+      "format": "csv",
+      "compression": "zip",
+      "dataCoverage": "2023"
+    },
+    {
+      "dataset": "uspto-pvannual",
+      "role": "extracted",
+      "path": "patents/2023.csv",
+      "format": "csv",
+      "compression": "none",
+      "dataCoverage": "2023",
+      "archivePath": "raw/2023.zip",
+      "archiveMember": "2023.csv"
+    },
+    {
+      "dataset": "uspto-pvannual",
+      "role": "raw",
+      "path": "raw/2024.zip",
+      "format": "csv",
+      "compression": "zip",
+      "dataCoverage": "2024"
+    },
+    {
+      "dataset": "uspto-pvannual",
+      "role": "extracted",
+      "path": "patents/2024.csv",
+      "format": "csv",
+      "compression": "none",
+      "dataCoverage": "2024",
+      "archivePath": "raw/2024.zip",
+      "archiveMember": "2024.csv"
+    },
+    {
+      "dataset": "uspto-pvannual",
+      "role": "raw",
+      "path": "raw/2025.zip",
+      "format": "csv",
+      "compression": "zip",
+      "dataCoverage": "2025"
+    },
+    {
+      "dataset": "uspto-pvannual",
+      "role": "extracted",
+      "path": "patents/2025.csv",
+      "format": "csv",
+      "compression": "none",
+      "dataCoverage": "2025",
+      "archivePath": "raw/2025.zip",
+      "archiveMember": "2025.csv"
+    },
+    {
+      "dataset": "uspto-pvgpatdis",
+      "role": "raw",
+      "path": "raw/g_patent.tsv.zip",
+      "format": "tsv",
+      "compression": "zip",
+      "dataCoverage": "1976-01-01/2025-12-31"
+    },
+    {
+      "dataset": "uspto-pvgpatdis",
+      "role": "extracted",
+      "path": "patents/g_patent.tsv",
+      "format": "tsv",
+      "compression": "none",
+      "dataCoverage": "1976-01-01/2025-12-31",
+      "archivePath": "raw/g_patent.tsv.zip",
+      "archiveMember": "g_patent.tsv"
+    },
+    {
+      "dataset": "uspto-pvgpatdis",
+      "role": "extracted",
+      "path": "raw/PV_grant_data_dictionary.pdf",
+      "format": "pdf",
+      "compression": "none",
+      "dataCoverage": null,
+      "archivePath": "raw/g_patent.tsv.zip",
+      "archiveMember": "PV_grant_data_dictionary.pdf",
+      "contentGroup": "pv-grant-data-dictionary"
+    },
+    {
+      "dataset": "uspto-pvgpatdis",
+      "role": "extracted",
+      "path": "patents/PV_grant_data_dictionary.pdf",
+      "format": "pdf",
+      "compression": "none",
+      "dataCoverage": null,
+      "archivePath": "raw/g_patent.tsv.zip",
+      "archiveMember": "PV_grant_data_dictionary.pdf",
+      "contentGroup": "pv-grant-data-dictionary"
+    },
+    {
+      "dataset": "uspto-pvgpatdis",
+      "role": "raw",
+      "path": "raw/g_cpc_at_issue.tsv.zip",
+      "format": "tsv",
+      "compression": "zip",
+      "dataCoverage": "1976-01-01/2025-12-31"
+    },
+    {
+      "dataset": "uspto-pvgpatdis",
+      "role": "extracted",
+      "path": "patents/g_cpc_at_issue.tsv",
+      "format": "tsv",
+      "compression": "none",
+      "dataCoverage": "1976-01-01/2025-12-31",
+      "archivePath": "raw/g_cpc_at_issue.tsv.zip",
+      "archiveMember": "g_cpc_at_issue.tsv"
+    },
+    {
+      "dataset": "gleif-level1",
+      "role": "raw",
+      "path": "raw/20260902-0000-gleif-goldencopy-lei2-golden-copy.csv.zip",
+      "format": "csv",
+      "compression": "zip",
+      "dataCoverage": "2026-09-02"
+    },
+    {
+      "dataset": "gleif-level1",
+      "role": "extracted",
+      "path": "company/20260902-0000-gleif-goldencopy-lei2-golden-copy.csv",
+      "format": "csv",
+      "compression": "none",
+      "dataCoverage": "2026-09-02",
+      "archivePath": "raw/20260902-0000-gleif-goldencopy-lei2-golden-copy.csv.zip",
+      "archiveMember": "20260902-0000-gleif-goldencopy-lei2-golden-copy.csv"
+    },
+    {
+      "dataset": "gleif-level2",
+      "role": "raw",
+      "path": "raw/20260902-0000-gleif-goldencopy-rr-golden-copy.csv.zip",
+      "format": "csv",
+      "compression": "zip",
+      "dataCoverage": "2026-09-02"
+    },
+    {
+      "dataset": "gleif-level2",
+      "role": "extracted",
+      "path": "company/20260902-0000-gleif-goldencopy-rr-golden-copy.csv",
+      "format": "csv",
+      "compression": "none",
+      "dataCoverage": "2026-09-02",
+      "archivePath": "raw/20260902-0000-gleif-goldencopy-rr-golden-copy.csv.zip",
+      "archiveMember": "20260902-0000-gleif-goldencopy-rr-golden-copy.csv"
+    },
+    {
+      "dataset": "sec-company-tickers",
+      "role": "raw",
+      "path": "company/company_tickers_exchange.json",
+      "format": "json",
+      "compression": "none",
+      "dataCoverage": null
+    }
+  ]
+}
