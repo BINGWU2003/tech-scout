@@ -1,732 +1,784 @@
-# TechScout 垂直领域公司—专利数据库建设与数据导入说明
+# TechScout 离线公司—专利数据库构建与导入说明
 
-> 文档状态：方案基线 v1.1  
-> 适用阶段：Data Spike 与 MVP  
+> 文档状态：离线方案基线 v2.0  
+> 适用阶段：Data Foundation、Data Gate 与 MVP  
 > 更新日期：2026-09-01  
 > 关联文档：[TechScout 产品需求文档](./product-requirements.md)
 
 ## 1. 文档目的
 
-本文档补充说明 TechScout 在没有商业全量公司库和专利库的情况下，如何合法、可重复地获得足以跑通产品流程的数据。
+本文档定义 TechScout 在运行时不调用第三方数据 API 的前提下，如何通过官方批量文件建立一个规模可控、可重复构建、只覆盖指定技术领域的公司—专利数据库。
 
-重点回答以下问题：
+重点回答：
 
-- 公司和专利数据从哪里来。
-- 是否需要提前将数据放入自己的数据库。
-- 数据库中的初始数据如何生成，而不是手写 SQL。
-- 如何从专利权人反向发现和核验公司。
-- 如何先构建最小可用的垂直领域公司—专利数据库。
+- 公司和专利批量文件从哪里获得。
+- 如何从大型原始文件中只保留目标领域数据。
+- 数据如何经过 Raw、Bronze、Silver 再进入 PostgreSQL。
+- 如何从专利申请人和受让人识别规范公司主体。
+- PostgreSQL 的表、导入顺序、幂等和版本如何设计。
 - 数据底座达到什么条件后才能进入完整产品开发。
-- 第一阶段应该采集多少数据，以及如何判断数据链路可行。
 
-## 2. 核心结论
+## 2. 最终方案
 
-TechScout 采用“垂直领域公司—专利主库 + 研究工作集 + Fixture/Replay”的分层策略：
+TechScout MVP 采用完全离线的数据运行方式：
 
-1. 完整产品开发前，先建立最小可查询的公司—专利数据库，并通过 Data Gate。
-2. 垂直领域主库是产品核心数据资产，持续积累公司、专利、主体关系和来源历史。
-3. 第一版主库由小规模种子数据集初始化；Data Gate 通过后再逐步扩充，不等待数据库达到最终规模。
-4. 用户发起真实研究时优先查询主库，再通过公开数据源增量补充研究工作集和主库。
-5. 不镜像全球公司、专利、论文或新闻数据库。
-6. 数据集的权威来源是 JSONL/Parquet、manifest 和构建记录，而不是 SQL 插入语句或数据库 dump。
-7. PostgreSQL 是运行载体；MinIO 保存原始快照；Git 只保存构建代码、查询配置、人工审核映射和少量 Fixture。
-
-### 2.1 正确开发顺序
+1. 从官方数据门户手动或定期下载 ZIP、XML、TSV、CSV、JSON 等批量文件。
+2. 原始批量文件保存在本地 Raw 层，不直接进入业务数据库。
+3. 使用 DuckDB、Polars、PyArrow 和 XML 流式解析构建 Bronze Parquet。
+4. 根据领域规则只筛选 AI 芯片、工业视觉等目标数据，生成 Silver 数据包。
+5. 使用本地 GLEIF、SEC 等公司文件完成公司身份匹配，不调用在线查询 API。
+6. Silver 数据通过 PostgreSQL `COPY` 进入 staging，再通过事务性 `UPSERT` 发布到 catalog。
+7. React、NestJS 和 Agent 运行时只查询本地 PostgreSQL、MinIO 和本地检索索引。
+8. 数据更新通过下载下一期官方批量文件并发布新的 dataset release 完成。
 
 ```text
-数据库 migration 与数据构建脚本
+官方批量文件
   ↓
-采集 200–500 件专利并核验至少 10 家公司
+Raw 原始归档
   ↓
-建立公司—专利关系和来源追溯
+Bronze 源结构 Parquet
   ↓
-通过 Data Gate
+领域规则过滤 + 标准化 + 实体消歧
   ↓
-开发完整 React / NestJS / Agent 产品
+Silver 垂直领域数据包
   ↓
-产品开发与垂直领域主库扩充并行
+PostgreSQL staging
+  ↓
+catalog 公司—专利数据库
+  ↓
+React / NestJS / Agent 只查询本地数据
 ```
 
-“先构建数据库”指先完成最小可用数据底座，不是先下载全球全部数据。数据库不存在一次性“全部建完”的时刻。
+## 3. 范围与非目标
 
-## 3. 总体数据链路
+### 3.1 首批领域
 
-```text
-用户输入技术问题
-  ↓
-Planner 生成关键词、CPC、排除条件和时间范围
-  ↓
-EPO OPS / USPTO ODP 检索专利
-  ↓
-提取申请人、受让人和专利族
-  ↓
-公司名称归一化并生成实体候选
-  ↓
-GLEIF / SEC / Companies House 核验法律主体
-  ↓
-OpenAlex / ROR 补充科研活动
-GDELT / RSS / 官网补充新闻和产品证据
-  ↓
-高置信度自动确认，中低置信度人工审核
-  ↓
-原始快照写入 MinIO
-规范化实体和事实写入 PostgreSQL
-数据包输出为 JSONL/Parquet
-  ↓
-Agent 检索、排序、引用和生成报告
-```
+- AI 芯片 / 边缘推理加速。
+- 工业视觉 / AI 质检。
 
-该链路以专利作为企业发现主线，但不会把“拥有专利”当作企业存在或商业能力的唯一证明。
+若 Data Gate 表明其中一个领域的公司产出率或准确率明显不足，可以用自动驾驶感知替换。
 
-## 4. 数据获取原则
+### 3.2 初始时间与区域
 
-### 4.1 先检索，后获取详情
+- 时间范围：2015–2026 年。
+- 专利区域：第一版以美国 USPTO 数据为主。
+- 公司区域：优先美国和能够通过 GLEIF 映射的全球主体。
+- 英国公司：需要时加入 Companies House 批量数据。
+- 全球专利：后续通过正式 PATSTAT 等批量数据产品扩展。
 
-外部数据访问分两步：
+### 3.3 PostgreSQL 只保存
 
-1. `search`：仅获取候选 ID、标题、名称、日期等轻量结果。
-2. `fetch`：只对进入研究工作集的候选获取完整详情。
+- 命中目标领域的专利和专利族。
+- 这些专利涉及的申请人、受让人和规范公司。
+- 公司别名、外部 ID、母子关系和公司—专利关系。
+- 领域匹配规则、分数和命中原因。
+- 来源文件、数据版本、导入记录和人工审核结果。
 
-这样可以减少 API 调用、存储量和无效数据清洗工作。
+### 3.4 暂不保存
 
-### 4.2 保存垂直领域主库和研究工作集
+- 全球全部专利。
+- 与目标领域无关的全部 GLEIF 公司。
+- 专利图片和完整 PDF。
+- 全量权利要求全文。
+- 全量新闻、网页和论文。
+- 来源不明的 Kaggle 公司或专利数据。
 
-MVP 保存三类数据：
+完整 GLEIF、USPTO 等文件可以保存在 Raw/Bronze 层用于离线匹配，但不需要全部写进 PostgreSQL。
 
-- 垂直领域主库：属于 AI 芯片和工业视觉范围的公司、专利族、权利主体及其关系。
-- 研究工作集：用户某次研究实际命中的数据和最终报告引用。
-- 测试数据：为实体消歧、评测、Fixture 和 Replay 所需的小样本。
+## 4. 官方批量数据来源
 
-不保存与当前领域无关的全量返回结果。主库数据必须满足领域范围、来源许可和最低质量要求。
+### 4.1 USPTO 专利批量数据
 
-### 4.3 原始数据与推断分离
+官方入口：
 
-必须区分：
+- [USPTO Open Data Portal](https://data.uspto.gov/)
+- [USPTO Bulk Data](https://bulkdata.uspto.gov/)
 
-- 来源原始记录。
-- 经过规则清洗的规范化数据。
-- 模型抽取的事实。
-- 模型归纳或推断的结论。
-- 用户人工确认的数据。
+第一优先级是 USPTO ODP 中当前可下载的 PatentsView 分析型批量表，选择以下数据类别：
 
-模型推断不能覆盖来源原文，也不能直接成为权威工商事实。
+- 专利或申请基础信息。
+- 专利摘要。
+- 申请人和受让人。
+- 专利—受让人关联表。
+- CPC 分类。
+- 发明人和地址，可在需要时加入。
 
-## 5. 专利数据获取
+PatentsView 分析表的优势是部分受让人和发明人已经经过消歧，适合直接建立公司—专利关系。
 
-### 5.1 EPO Open Patent Services
+如果当前 ODP 产品不包含需要的分析表，则下载 USPTO 授权专利和申请公开 XML：
 
-官方入口：[EPO OPS](https://developers.epo.org/)
+- 按年份或批次下载 ZIP。
+- 使用流式 XML 解析，不能一次性加载整个文件到内存。
+- 不同年份的 XML schema 可能变化，解析器必须按文档版本路由。
 
-MVP 用途：
+旧 `api.patentsview.org` 及旧 API schema 不作为新项目依赖。
 
-- 按关键词、CPC、申请人和时间检索全球专利。
-- 获取书目信息、优先权、申请人、发明人和专利族。
-- 获取可用的法律状态、摘要、全文或图像信息。
+### 4.2 GLEIF 公司身份批量数据
 
-接入要求：
+官方入口：[GLEIF Golden Copy](https://www.gleif.org/en/lei-data/gleif-golden-copy/download-the-golden-copy#/)
 
-- 注册开发者账号。
-- 创建应用并获得 OAuth 凭证。
-- 遵守 OPS 使用条款、fair-use 和账户配额。
-- 实施前以账号控制台确认当前速率和周期配额。
+建议下载：
 
-限制：
-
-- 不适合系统性镜像全球专利库。
-- 不同国家、年份和文献的字段完整度不同。
-- “数据来自全球数据库”不代表每件专利都有同等完整的全文、图像和法律状态。
-- 连接器必须允许字段为空，并记录数据覆盖情况。
-
-### 5.2 USPTO Open Data Portal / PatentsView
-
-官方入口：[USPTO Open Data Portal](https://data.uspto.gov/)
-
-MVP 用途：
-
-- 补充美国专利和申请数据。
-- 获取适合分析的专利字段。
-- 利用 PatentsView 相关数据改善美国发明人和受让人消歧。
-
-接入要求：
-
-- 按新 ODP 合约申请 API key。
-- 开发前验证当前 endpoint、schema、分页和限额。
-- 将 ODP 实现封装为可替换连接器。
-
-注意事项：
-
-- 旧 `api.patentsview.org` 已迁移，不能作为新项目依赖。
-- 不能假定旧接口字段与新接口完全一致。
-- 迁移期必须保留契约样本和连接器测试。
-
-### 5.3 人工核验入口
-
-- Espacenet：核验 EPO 相关专利和专利族。
-- Google Patents：提供用户人工查看和搜索链接。
-- CNIPA：核验中国专利权威页面。
-
-Google Patents 没有适合作为系统稳定依赖的官方公共开发者 API，MVP 不批量爬取其网页。
-
-### 5.4 专利标准化字段
-
-进入 PostgreSQL 的专利记录至少包含：
-
-- 来源及来源外部 ID。
-- 出版号、申请号和规范化号码。
-- 标题和摘要。
-- 优先权日、申请日和公开日。
-- 申请人、受让人和发明人。
-- CPC/IPC 分类。
-- 专利族 ID。
-- 可用法律状态及其来源时间。
-- 来源 URL、采集时间和内容 hash。
-- 原始响应的 MinIO URI。
-- 与技术方向的相关性及计算依据。
-
-## 6. 公司数据获取
-
-公司数据不是先购买一个全量库，而是从专利、论文、新闻和用户清单产生候选，再逐个核验。
-
-### 6.1 GLEIF
-
-官方入口：[GLEIF API](https://www.gleif.org/en/lei-data/gleif-api/)
+- Level 1 法律实体数据。
+- 可用的 Level 2 关系数据。
+- CSV、JSON 或 XML 中选择一种固定格式，MVP 优先 CSV。
 
 用途：
 
-- 查询拥有 LEI 的全球法律实体。
-- 获取规范名称、地址、注册机关信息和部分母子关系。
-- 根据名称和地址帮助实体消歧。
+- 根据 LEI、公司名、国家和地址匹配专利受让人。
+- 获取规范名称、其他名称、注册地址和实体状态。
+- 补充直接母公司和最终母公司关系。
 
-特点：
+GLEIF 采用 CC0，但只覆盖拥有 LEI 的主体。未命中 GLEIF 不能推导公司不存在。
 
-- API 和数据可免费访问。
-- GLEIF 数据采用 CC0。
-- LEI 不覆盖所有公司，未命中不能推导公司不存在。
+完整 GLEIF 文件保留在 Raw/Bronze；只有与目标专利主体匹配的公司进入 PostgreSQL catalog。
 
-### 6.2 SEC EDGAR
+### 4.3 SEC 公司批量数据
 
-官方入口：[SEC EDGAR API](https://www.sec.gov/search-filings/edgar-application-programming-interfaces)
+官方入口：
 
-用途：
+- [SEC Company Tickers](https://www.sec.gov/files/company_tickers_exchange.json)
+- [SEC EDGAR Bulk Data](https://www.sec.gov/edgar/sec-api-documentation)
 
-- 核验美国 SEC 申报主体。
-- 获取 CIK、名称、曾用名、ticker、交易所和申报历史。
-- 补充公开申报和 XBRL 财务事实。
+MVP 先使用 Company Tickers 文件获取：
 
-接入要求：
+- CIK。
+- 公司名称。
+- ticker。
+- 交易所。
 
-- 无需 API key。
-- 请求必须声明合规的 User-Agent 和联系方式。
-- 总请求速率不超过 SEC 当前官方限制；实现时默认控制在 10 请求/秒以内，并预留更保守配置。
+Company Tickers 文件较小，可以完整保存在 Bronze；只有匹配到目标领域公司的主体进入 catalog。EDGAR submissions 和 company facts 批量文件属于后续公司详情扩展，不是 Data Gate 必需项。
 
-### 6.3 Companies House
+### 4.4 Companies House 批量数据
 
-官方入口：[Companies House API](https://developer.company-information.service.gov.uk/)
+官方入口：[Companies House Free Company Data](https://download.companieshouse.gov.uk/en_output.html)
 
-用途：
+提供 ZIP + CSV 形式的英国公司基础数据。只有当首批领域出现较多英国主体时才下载和处理，不作为第一轮硬依赖。
 
-- 核验英国公司。
-- 获取公司状态、地址、高管和申报历史等字段。
+### 4.5 全球专利扩展
 
-接入要求：
+需要全球批量专利数据时，优先评估：
 
-- 注册应用并获得 API key。
-- 遵守当前速率限制，默认按官方 5 分钟 600 次请求配置限流。
-- 每次构建数据集前重新核查许可和速率说明。
+- EPO PATSTAT 等正式批量数据产品。
+- 已经合法导出的 Google Patents Public Datasets 垂直领域文件。
 
-### 6.4 OpenAlex 与 ROR
+EPO OPS 是查询 API，不属于本离线方案。MVP 不使用 EPO OPS，也不批量爬取 Google Patents、Espacenet 或 CNIPA 网页。
 
-用途：
+## 5. 本地数据目录
 
-- 查询企业或研究机构参与的论文。
-- 补充科研主题、作者机构和论文证据。
-- 使用 ROR、Wikidata 等 ID 辅助机构对齐。
-
-限制：
-
-- 它们是科研知识来源，不是工商权威数据库。
-- OpenAlex 中的 `company` 机构也不代表覆盖全部商业公司。
-
-### 6.5 OpenCorporates
-
-MVP 暂不作为默认依赖。
-
-原因：
-
-- 需要申请 API key。
-- 免费使用通常带有开放、署名和 share-alike 等条件。
-- 私有作品演示或未来商业使用需要确认适用许可或购买方案。
-
-只有许可明确后才能新增对应连接器。
-
-## 7. 中国公司和专利数据边界
-
-个人 MVP 暂不承诺完整的中国工商或专利数据。
-
-可实施方案：
-
-- 通过 EPO OPS 获取其覆盖范围内的中国专利元数据。
-- 通过 CNIPA 人工核验重点专利。
-- 通过国家企业信用信息公示系统人工核验重点公司。
-- 接受用户上传 CSV，补充统一社会信用代码、官网和公司别名。
-- 在报告中显示“中国工商字段可能不完整”。
-
-禁止事项：
-
-- 绕过验证码或登录限制。
-- 批量抓取国家企业信用信息公示系统、CNIPA、企查查或天眼查网页。
-- 未经合同授权调用商业数据接口或保存其数据。
-
-企查查、天眼查等未来只能作为取得正式授权后的 `CompanySourceAdapter` 接入。
-
-## 8. 首批 AI 领域
-
-### 8.1 AI 芯片 / 边缘推理加速
-
-建议范围：
-
-- NPU、神经网络加速器和张量处理器。
-- 边缘 AI SoC 和低功耗推理。
-- 硬件量化、稀疏计算和模型压缩。
-- 存内计算、类脑或神经形态计算。
-
-初始检索骨架：
-
-- CPC 起点：`G06N 3/063`。
-- 关键词：`neural processing unit`、`neural accelerator`、`tensor processor`、`edge inference`、`in-memory computing`。
-- 再与处理器、存储、集成电路和边缘设备分类交叉。
-
-排除：
-
-- 没有 AI 特定权利要求的通用 CPU/GPU。
-- 纯晶圆制造、封装和散热。
-- 纯云调度、模型 API 和普通软件优化。
-
-### 8.2 工业视觉 / AI 质检
-
-建议范围：
-
-- AOI 自动光学检测。
-- 表面缺陷、晶圆、焊点和零部件检测。
-- 产线 2D/3D 视觉、视觉测量和异常检测。
-- 工业相机和边缘视觉控制器。
-
-初始检索骨架：
-
-- CPC 起点：`G06V`、`G06T`。
-- 与 `B07C` 分选、`G01N` 材料检测和具体制造工艺交叉。
-- 关键词：`automated optical inspection`、`surface defect detection`、`machine vision inspection`。
-
-排除：
-
-- 医学影像。
-- 人脸识别和公共安防。
-- 自动驾驶感知。
-- 普通消费相机算法。
-
-### 8.3 查询策略要求
-
-- 不只使用关键词，否则会产生大量语义误报。
-- 不只使用 CPC，否则容易漏掉新术语和跨分类专利。
-- 使用“CPC 交集 + 标题/摘要/权利要求关键词 + 排除词”的混合策略。
-- Data Spike 期间保留所有查询版本和过滤统计。
-
-## 9. 垂直领域主库与种子数据集
-
-垂直领域主库是长期运行的 PostgreSQL/MinIO 数据资产；种子数据集是它的首个可重建版本。种子数据集由四部分组成：
-
-1. 原始来源快照。
-2. 规范化 JSONL/Parquet 数据包。
-3. 人工审核的实体映射。
-4. 描述来源和构建过程的 manifest。
-
-它不是：
-
-- 手工维护的 SQL `INSERT` 文件。
-- 一份无法追溯来源的数据库 dump。
-- 每次启动都重新调用外部 API 的临时数据。
-- 全球数据源的本地完整镜像。
-
-## 10. 数据库首批数据如何产生
-
-### 10.1 构建配置
-
-每个领域维护一份查询配置。以下仅为格式示意，实际字段需根据连接器实现确定：
-
-```yaml
-dataset: ai-edge-accelerator
-version: 2026-09-v1
-sources:
-  - provider: epo-ops
-    queries:
-      - cpc: G06N/3/063
-        keywords:
-          - neural accelerator
-          - edge inference
-        exclude:
-          - thermal package
-  - provider: openalex
-    queries:
-      - edge AI accelerator
-  - provider: gdelt
-    queries:
-      - edge AI chip
-limits:
-  patents: 500
-  companies: 30
-  news: 200
-```
-
-### 10.2 构建步骤
-
-1. Builder 读取领域查询配置。
-2. 连接器调用公开 API，并把原始响应写入 MinIO。
-3. Parser 将不同来源转换为内部标准结构。
-4. Patent Normalizer 规范化号码、日期、分类、申请人和专利族。
-5. Candidate Extractor 从申请人、论文机构和新闻实体产生公司候选。
-6. Entity Matcher 使用名称、外部 ID、官网、地址和司法辖区匹配公司。
-7. 高置信度候选自动确认，中低置信度候选输出审核 CSV。
-8. 用户人工确认关键别名、母子公司和 IP 控股主体。
-9. Builder 生成规范化 JSONL/Parquet 和 manifest。
-10. Loader 根据业务唯一键幂等写入 PostgreSQL。
-11. 从完整数据集中裁剪少量 Fixture。
-12. 生成连接器和 Agent 的 Replay 记录。
-
-### 10.3 建议命令
-
-以下是计划中的命令边界，不代表当前仓库已经实现：
-
-```text
-python -m intelligence.datasets build ai-edge-accelerator --version 2026-09-v1
-python -m intelligence.datasets review ai-edge-accelerator-2026-09-v1
-python -m intelligence.datasets load ai-edge-accelerator-2026-09-v1
-python -m intelligence.datasets verify ai-edge-accelerator-2026-09-v1
-```
-
-### 10.4 人工审核 CSV
-
-审核文件建议包含：
-
-| 字段 | 说明 |
-| --- | --- |
-| candidate_name | 专利或新闻中的原始名称 |
-| normalized_name | 规则归一化后的名称 |
-| candidate_company_id | 建议匹配的规范公司 |
-| external_ids | LEI、CIK、注册号等 |
-| website | 建议官网 |
-| jurisdiction | 司法辖区 |
-| confidence | 自动匹配置信度 |
-| match_features | 命中的匹配特征 |
-| decision | `accept`、`reject` 或 `new_entity` |
-| reviewer_note | 人工说明 |
-
-人工确认结果应当被版本控制，但不能包含许可受限或敏感数据。
-
-## 11. 数据库建设规模
-
-### 11.1 Data Gate 最小规模
-
-- 每个领域检索 200–500 件专利。
-- 每个领域提取 20–50 个唯一受让人候选。
-- 每个领域人工确认至少 10–15 家公司。
-- 每家公司补充少量论文、官网和新闻证据。
-
-这些数据需要真正导入 PostgreSQL，并能够按技术查询公司、按公司查询专利。它们不是只放在文件中的演示样本。
-
-### 11.2 Data Gate 通过后的 MVP 目标
-
-- 两个领域合计形成 200–500 个候选公司主体。
-- 逐步积累 5000–20000 个去重后的相关专利族。
-- 建立规范公司、别名、专利权人、母子公司和 IP 控股主体关系。
-- 为重点公司补充论文、官网、新闻和公开活动证据。
-
-该目标与产品开发并行完成，不作为启动 React/NestJS 开发的前置硬门槛。来源配额或许可不支持目标规模时，应降低规模或改用正式批量数据方案，不能违规扩大 API 抓取。
-
-### 11.3 规模扩展原则
-
-- 优先增加相关专利族，不按同族多国文献虚增数量。
-- 优先保证公司—专利关系和来源正确，再增加记录数。
-- 先增加能稳定映射到法律主体的公司，再处理低置信度长尾主体。
-- 当主库达到数百万专利并出现明显分析压力后，再评估 DuckDB、ClickHouse 或搜索集群。
-
-## 12. 数据集文件结构
-
-建议本地目录：
+建议目录：
 
 ```text
 data/
-  datasets/
-    ai-edge-accelerator/
-      2026-09-v1/
-        manifest.json
-        companies.jsonl
-        company-aliases.jsonl
-        patents.parquet
-        patent-parties.parquet
-        publications.parquet
-        news-events.jsonl
-        entity-review.csv
-  raw/
-    epo-ops/
-    uspto-odp/
+  inbound/                 人工放入、尚未登记的下载文件
+  raw/                     已登记、不可修改的官方原始文件
+    2026-09/
+      gleif/
+      sec/
+      uspto/
+  bronze/                  保持来源结构的 Parquet
     gleif/
-    openalex/
-    gdelt/
-  replay/
-  fixtures/
+    sec/
+    uspto/
+  silver/                  规范化后的垂直领域数据
+    ai-domains/
+      2026-09-v1/
+  releases/                manifest、统计、审核结果和发布记录
+  fixtures/                许可明确的小型测试数据
+  replay/                  Agent 和工具事件重放数据
 ```
 
-完整 `data/` 默认加入 `.gitignore`。仓库只保留少量许可明确的 Fixture、查询配置和审核映射。
+目录规则：
 
-### 12.1 manifest 示例字段
+- `raw` 文件不可原地修改。
+- `bronze` 可以从 `raw` 重新生成。
+- `silver` 可以从 `bronze`、领域规则和审核结果重新生成。
+- `data` 大型目录默认加入 `.gitignore`。
+- Git 只保存 schema、构建代码、领域规则、manifest 模板、审核映射和小型 Fixture。
+
+## 6. 数据文件登记
+
+每个下载文件进入处理流程前必须登记：
+
+- 来源机构。
+- 官方下载页面。
+- 原始文件名。
+- 数据发布日期。
+- 下载时间。
+- 文件大小。
+- SHA-256。
+- 格式和压缩类型。
+- schema 或文档版本。
+- 许可和本地使用说明。
+
+示例：
 
 ```json
 {
-  "dataset": "ai-edge-accelerator",
-  "version": "2026-09-v1",
-  "createdAt": "2026-09-01T00:00:00Z",
-  "schemaVersion": "1",
-  "sources": [
-    {
-      "provider": "epo-ops",
-      "queryConfigHash": "...",
-      "retrievedAt": "...",
-      "licensePolicy": "local-research",
-      "recordCount": 500
-    }
-  ],
+  "release": "uspto-ai-domains-2026-09-v1",
   "files": [
     {
-      "path": "patents.parquet",
+      "provider": "uspto",
+      "path": "raw/2026-09/uspto/patent.tsv.zip",
       "sha256": "...",
-      "recordCount": 500
+      "publishedAt": "2026-09-01",
+      "format": "tsv.zip",
+      "schemaVersion": "..."
     }
   ]
 }
 ```
 
-## 13. 数据库存储
+相同 hash 的文件不得重复处理；相同文件名但 hash 变化时必须生成新的来源版本。
 
-### 13.1 PostgreSQL
+## 7. Raw、Bronze、Silver 与 Catalog
 
-建议至少建立以下表：
+### 7.1 Raw
 
-- `company_entity`
-- `company_alias`
-- `company_relation`
-- `external_identifier`
-- `entity_match`
-- `patent`
-- `patent_family`
-- `patent_party`
-- `company_patent_relation`
-- `publication`
-- `news_event`
-- `source_record`
-- `fact_claim`
-- `dataset_version`
-- `dataset_record`
+保存官方 ZIP、XML、CSV 和 JSON，不做字段或编码修改。
 
-数据库 migration 只负责表、索引和约束，不负责生成业务数据。
+### 7.2 Bronze
 
-Loader 从 JSONL/Parquet 读取数据，并根据以下业务键执行 upsert：
+将不同来源转换为容易本地查询的 Parquet，尽量保持源字段：
 
-- 公司：内部规范 ID；强标识使用 LEI、CIK 或注册号唯一约束。
-- 专利：来源 + 规范化出版号或申请号。
-- 专利族：来源 + 专利族 ID。
-- 来源记录：来源 + 外部 ID + 内容 hash。
-- 数据集记录：数据集版本 + 实体类型 + 实体 ID。
+```text
+bronze/uspto/patent.parquet
+bronze/uspto/abstract.parquet
+bronze/uspto/assignee.parquet
+bronze/uspto/patent_assignee.parquet
+bronze/uspto/cpc.parquet
+bronze/gleif/entities.parquet
+bronze/gleif/relationships.parquet
+bronze/sec/companies.parquet
+```
 
-### 13.2 MinIO
+推荐工具：
 
-保存：
+- Polars：CSV、TSV 清洗和分批处理。
+- PyArrow：Parquet schema 和输出。
+- DuckDB：本地 SQL 过滤、连接和聚合。
+- `lxml.iterparse`：USPTO 大型 XML 流式解析。
 
-- API 原始 JSON/XML。
-- 允许保存的 HTML 和 PDF。
-- 用户上传文件。
-- 大型正文、图片和专利文档。
+### 7.3 Silver
 
-PostgreSQL 只保存对象 URI、hash、MIME、来源、许可和保留期限。
+只保存目标领域的规范数据：
 
-### 13.3 pgvector
+```text
+silver/ai-domains/2026-09-v1/
+  manifest.json
+  domains.jsonl
+  companies.parquet
+  company_aliases.parquet
+  external_identifiers.parquet
+  company_relations.parquet
+  patents.parquet
+  patent_families.parquet
+  patent_parties.parquet
+  patent_classifications.parquet
+  patent_domain_matches.parquet
+  company_patent_relations.parquet
+  entity_review.csv
+  quality_report.json
+```
 
-只向量化：
+### 7.4 Catalog
 
-- 最终报告可能使用的专利摘要或权利要求片段。
-- 选中网页的必要证据片段。
-- 用户上传文档的有效分块。
+Catalog 是 PostgreSQL 中供 NestJS、Python Agent 和本地检索使用的正式数据。只有已经通过验证的 Silver release 可以发布到 catalog。
 
-不对全部原始数据无差别生成向量。
+## 8. 领域规则
 
-## 14. 公司实体消歧
+领域选择不能只依赖关键词，也不能只依赖 CPC。每个领域使用“CPC + 关键词 + 排除词 + 时间范围”的确定性规则。
 
-### 14.1 归一化规则
+示例：
 
-名称预处理可以：
+```yaml
+version: ai-domain-rules-v1
+domains:
+  - id: ai-edge-accelerator
+    name: AI 芯片与边缘推理
+    year_from: 2015
+    year_to: 2026
+    cpc_prefixes:
+      - G06N
+      - G06N3/063
+    keywords:
+      - neural accelerator
+      - neural processing unit
+      - edge inference
+      - tensor processor
+      - in-memory computing
+    exclude_keywords:
+      - generic processor
+      - thermal package
 
-- 统一大小写、Unicode 和空白。
-- 移除仅用于比较的常见公司后缀，如 `Inc.`、`Ltd.`、`LLC`。
-- 保留原始名称，不能只保存清洗结果。
-- 保存中文名、英文名和历史名称之间的别名关系。
+  - id: industrial-vision
+    name: 工业视觉与 AI 质检
+    year_from: 2015
+    year_to: 2026
+    cpc_prefixes:
+      - G06V
+      - G06T
+      - B07C
+      - G01N
+    keywords:
+      - automated optical inspection
+      - surface defect detection
+      - machine vision inspection
+    exclude_keywords:
+      - medical imaging
+      - surveillance
+      - autonomous driving
+```
 
-### 14.2 匹配优先级
+领域规则需要版本化。任何规则变化必须生成新的 Silver release，不直接修改已发布结果。
 
-1. LEI、CIK、注册号等强标识完全一致。
-2. 官方域名和司法辖区一致。
-3. 地址和规范名称高度一致。
-4. 名称相似且专利、论文或新闻上下文一致。
-5. 仅名称相似但缺少辅助证据。
+## 9. 专利过滤与标准化
 
-第 1–2 类可以在无冲突时自动确认；第 3–5 类应进入人工审核。
+### 9.1 CPC 粗筛
 
-### 14.3 不能自动合并的情况
+先使用 DuckDB 从 Bronze CPC 表筛选候选专利：
 
-- 集团公司和其运营子公司。
-- 品牌名和法律主体。
-- IP 控股公司和实际产品公司。
-- 并购前后主体。
-- 相同名称但不同司法辖区的公司。
-- 大学实验室、研究机构和其孵化企业。
+```sql
+SELECT DISTINCT patent_id
+FROM bronze_patent_cpc
+WHERE cpc_code LIKE 'G06N%'
+   OR cpc_code LIKE 'G06V%'
+   OR cpc_code LIKE 'G06T%'
+   OR cpc_code LIKE 'B07C%'
+   OR cpc_code LIKE 'G01N%';
+```
 
-这些关系应建模为显式关系，而不是简单覆盖成同一公司。
+### 9.2 关键词精筛
 
-## 15. Live、Fixture 与 Replay
+建议初始规则：
 
-### 15.1 Live
+- 标题关键词命中：4 分。
+- 摘要关键词命中：2 分。
+- 权利要求关键词命中：1 分，若当前数据包含权利要求。
+- CPC 精确分类命中：4 分。
+- 排除词命中：减分或直接排除。
 
-- 调用真实公开数据源。
-- 先复用未过期缓存，再增量获取。
-- 保存本次研究使用的数据和来源快照。
-- 受速率、配额和来源可用性影响。
+每个判断必须保存：
 
-### 15.2 Fixture
+```text
+patent_id
+domain_id
+rule_version
+matched_cpc
+matched_keywords
+excluded_keywords
+relevance_score
+decision
+```
 
-- 仓库内保存几十条许可明确的小样本。
-- 不访问网络。
-- 用于单元、集成和端到端测试。
-- 内容覆盖正常、缺失、冲突和实体歧义场景。
+导入流水线不使用 LLM 决定专利是否进入数据库，以保证可重复性。后续 Agent 可以对已入库数据重新排序，但不能静默修改领域归属。
 
-### 15.3 Replay
+### 9.3 专利标准字段
 
-- 重放历史工具响应、状态事件和模型结构化输出。
-- 用于稳定产品演示和 UI 调试。
-- 每条 Replay 绑定连接器、提示词、工作流和数据集版本。
+- 来源和来源外部 ID。
+- 出版号、申请号。
+- 标题、摘要。
+- 优先权日、申请日、公开日。
+- 申请人、受让人、发明人。
+- CPC/IPC。
+- 专利族 ID，来源支持时保存。
+- 引用关系，来源支持时保存。
+- 来源文件 ID、数据版本和原始记录定位信息。
 
-## 16. 数据更新策略
+## 10. 公司候选与实体消歧
 
-- 每个来源独立配置 TTL。
-- 专利书目和专利族可使用较长 TTL。
-- 法律状态、公司状态和新闻使用更短 TTL。
-- 活跃领域主库最多每周执行一次计划增量刷新；用户研究仍可按需补充单条或小批量数据。
-- 固定评测始终绑定特定数据集版本，不随 Live 数据变化。
-- 新数据先进入暂存区，完成去重和实体审核后再发布新版本。
-- 报告显示数据截止时间和每个来源的采集时间。
+### 10.1 候选来源
 
-## 17. 合规和许可检查
+从目标领域专利中提取：
 
-每个连接器实现前必须记录：
+- 申请人。
+- 原始受让人。
+- 当前受让人，来源支持时保存。
+- 国家、地址和来源专利。
 
-- 官方入口和开发者文档。
-- 是否需要注册、API key 或 OAuth。
-- 当前速率和配额。
-- 是否允许缓存、长期保存和再分发。
-- 原始正文与派生元数据的权利差异。
-- User-Agent、署名或引用要求。
-- 数据删除或更正机制。
+### 10.2 名称归一化
 
-新闻特别规则：
+- 统一 Unicode、大小写、标点和多余空白。
+- 仅用于比较时移除 `Inc.`、`Ltd.`、`LLC` 等常见后缀。
+- 永远保留来源原始名称。
+- 中文名、英文名和历史名称建成别名，不相互覆盖。
 
-- GDELT 的新闻索引和派生数据不等于拥有新闻正文版权。
-- 默认保存标题、URL、时间、来源和必要引用片段。
-- 只有来源条款允许时才保存完整正文快照。
+### 10.3 本地匹配顺序
 
-## 18. 最小数据库与 Data Gate 执行计划
+1. LEI、CIK、注册号等强 ID。
+2. 规范名称 + 国家。
+3. 名称 + 地址。
+4. 名称 + 官网域名，批量文件包含时使用。
+5. 名称相似度。
 
-### 第 1–2 天：账户与连接器验证
+使用 DuckDB 在本地连接 Bronze GLEIF/SEC，而不是调用查询 API：
 
-- 注册 EPO OPS。
-- 申请 USPTO ODP API key。
-- 验证 GLEIF、OpenAlex 和 GDELT 请求。
-- 记录认证、字段、分页、限流和错误样本。
-- 确定原始响应的 MinIO 命名规则。
+```sql
+SELECT
+  candidate.original_name,
+  gleif.lei,
+  gleif.legal_name,
+  gleif.country
+FROM company_candidates candidate
+JOIN gleif_entities gleif
+  ON candidate.normalized_name = gleif.normalized_name
+ AND candidate.country = gleif.country;
+```
 
-### 第 3–4 天：专利最小链路
+### 10.4 审核状态
 
-- 实现 EPO `search` 和 `fetch`。
-- 为两个领域各抽取 200 件专利。
-- 规范化专利号、日期、CPC 和申请人。
-- 完成初步专利族归并。
+- `auto_accepted`：强 ID 或名称、国家、地址高度一致。
+- `needs_review`：存在多个候选或仅名称近似。
+- `unmatched`：没有匹配到本地公司参考数据。
+- `rejected`：人工确认不是同一主体。
 
-### 第 5 天：企业候选与核验
+待审核结果导出为 CSV，可直接使用 Excel 查看和填写：
 
-- 提取唯一受让人。
-- 清洗名称并查询 GLEIF。
-- 输出 `entity-review.csv`。
+```text
+candidate_name
+candidate_country
+matched_company
+lei
+cik
+confidence
+match_reason
+decision
+reviewer_note
+```
+
+人工审核是 Silver 构建输入的一部分，必须版本化。人工确认不能被后续自动导入覆盖。
+
+## 11. PostgreSQL schema
+
+推荐使用三个 schema：
+
+```text
+staging   批量导入暂存
+catalog   正式公司—专利数据
+app       后续产品业务数据
+```
+
+### 11.1 staging
+
+```text
+staging.company_candidate
+staging.company_match
+staging.patent
+staging.patent_family
+staging.patent_party
+staging.patent_classification
+staging.patent_domain_match
+staging.company_patent_relation
+```
+
+Staging 可以按 import job 清空或分区，不作为产品查询来源。
+
+### 11.2 catalog
+
+```text
+catalog.company_entity
+catalog.company_alias
+catalog.external_identifier
+catalog.company_relation
+
+catalog.patent
+catalog.patent_family
+catalog.patent_party
+catalog.patent_classification
+catalog.patent_domain_match
+catalog.company_patent_relation
+
+catalog.source_file
+catalog.dataset_release
+catalog.dataset_record
+catalog.import_job
+catalog.entity_review
+```
+
+### 11.3 app
+
+完整产品开发后再增加：
+
+```text
+app.research_project
+app.research_run
+app.candidate_company
+app.report
+app.citation
+```
+
+数据库 migration 必须只有一个所有者。建议使用独立、工具无关的 SQL migration 目录，NestJS 和 Python 都不能自行修改 catalog schema。
+
+## 12. 导入顺序
+
+按外键依赖导入：
+
+```text
+1. source_file
+2. dataset_release
+3. staging 数据
+4. company_entity
+5. company_alias
+6. external_identifier
+7. company_relation
+8. patent_family
+9. patent
+10. patent_classification
+11. patent_party
+12. patent_domain_match
+13. company_patent_relation
+14. dataset_record
+15. entity_review
+```
+
+公司主体可以先于专利导入，但公司—专利关系必须在两侧实体都成功发布后创建。
+
+## 13. COPY 与 UPSERT
+
+禁止通过 ORM 逐行插入大型数据集。推荐：
+
+```text
+Silver Parquet
+  ↓
+PyArrow 分批读取
+  ↓
+psycopg COPY 到 staging
+  ↓
+数据质量检查
+  ↓
+事务内 UPSERT 到 catalog
+  ↓
+记录导入统计
+```
+
+伪代码：
+
+```python
+def import_release(release_path):
+    manifest = validate_manifest(release_path)
+    job = create_import_job(manifest)
+
+    copy_to_staging("patents", release_path / "patents.parquet", job)
+    copy_to_staging("companies", release_path / "companies.parquet", job)
+    copy_to_staging(
+        "company_patent_relations",
+        release_path / "company_patent_relations.parquet",
+        job,
+    )
+
+    validate_staging(job)
+
+    with transaction():
+        upsert_companies(job)
+        upsert_company_aliases(job)
+        upsert_external_identifiers(job)
+        upsert_patent_families(job)
+        upsert_patents(job)
+        upsert_patent_classifications(job)
+        upsert_patent_parties(job)
+        upsert_domain_matches(job)
+        upsert_company_patent_relations(job)
+        publish_dataset_release(job)
+```
+
+## 14. 幂等与版本控制
+
+每次发布使用唯一版本，例如：
+
+```text
+uspto-ai-domains-2026-09-v1
+```
+
+建议唯一约束：
+
+```sql
+UNIQUE (source, external_id)
+UNIQUE (source, publication_number)
+UNIQUE (company_id, patent_id, relation_type)
+UNIQUE (patent_id, domain_id, rule_version)
+UNIQUE (dataset_release_id, entity_type, entity_id)
+```
+
+同一个 release 重复导入必须满足：
+
+- 不产生重复专利、公司或关系。
+- 不覆盖人工审核结果。
+- 不改变已发布历史版本。
+- 数据量和质量统计一致。
+
+发布状态：
+
+```text
+registered → parsing → building → validated → published
+```
+
+失败状态必须记录失败阶段和可否重试。
+
+## 15. 索引与本地查询
+
+MVP 使用 PostgreSQL 即可：
+
+- `patent.publication_number`。
+- `patent.application_number`。
+- `patent.filing_date`。
+- `patent_classification.cpc_code`。
+- `patent_party.normalized_name`。
+- `company_entity.canonical_name`。
+- `external_identifier(identifier_type, identifier_value)`。
+- `company_patent_relation(company_id, patent_id)`。
+- `patent_domain_match(domain_id, relevance_score)`。
+
+标题和摘要使用 PostgreSQL 全文检索。pgvector 在 Agent/RAG 阶段按需加入，不是 Data Gate 必需项。
+
+本地数据库必须支持：
+
+- 按领域查相关专利。
+- 按领域统计唯一申请人和受让人。
+- 按技术发现公司。
+- 按公司查询专利和技术分类。
+- 查看公司匹配依据和人工审核状态。
+- 从任何正式记录追溯到来源文件和数据版本。
+
+## 16. 数据质量检查
+
+每个 release 发布前检查：
+
+- 原始文件 SHA-256 是否匹配。
+- 文件行数是否出现异常变化。
+- 专利号、申请号是否重复。
+- 专利是否缺少标题、日期或来源定位。
+- CPC 是否能够解析。
+- 申请人和受让人缺失率。
+- 公司自动匹配率、待审核率和未匹配率。
+- 公司—专利关系是否存在孤儿记录。
+- 领域命中是否保存规则版本和原因。
+- 相同 release 重复导入是否幂等。
+- 正式记录是否全部能追溯到 source file。
+
+建议生成 `quality_report.json`，未达到阈值时禁止发布。
+
+## 17. 离线增量更新
+
+不使用 API 时，更新流程为：
+
+```text
+人工检查官方门户的新批量文件
+  ↓
+下载并登记发布日期和 SHA-256
+  ↓
+只解析新增或变化文件
+  ↓
+生成新的 Bronze / Silver
+  ↓
+执行质量检查
+  ↓
+发布新的 dataset release
+```
+
+更新原则：
+
+- 不物理删除旧 release。
+- 名称、受让人或关系变化通过版本和有效时间表达。
+- 固定评测绑定固定 release。
+- 当前产品默认查询最新已发布 release。
+- 数据截止时间显示在研究报告中。
+
+## 18. Data Gate
+
+完整 React、NestJS 和多 Agent 产品开发前，必须满足：
+
+- USPTO、GLEIF 和 SEC 至少各完成一次批量文件登记与解析。
+- 至少一个领域获得 200 件以上有效专利。
+- 至少发现并人工核验 10 家公司。
+- 可以按技术查询公司、按公司查询专利。
+- 公司—专利关系保存角色、匹配依据和审核状态。
+- 每条正式记录能够追溯到原始文件、hash 和 release。
+- 同一 release 重复导入不会产生重复数据。
+- Fixture 可以完全离线运行。
+- 可以从本地数据生成一份关键事实带引用的最小报告。
+
+通过 Data Gate 后，数据库不会停止建设。完整产品开发与垂直主库扩充并行推进。
+
+## 19. Data Foundation 实施计划
+
+### 第 1–2 天：文件和 schema
+
+- 下载一批 USPTO、GLEIF 和 SEC 官方文件。
+- 建立文件登记和 SHA-256 校验。
+- 创建 Raw/Bronze/Silver 目录。
+- 建立 SQL migration、staging、catalog 和 dataset release 表。
+
+### 第 3–4 天：Bronze 构建
+
+- 将 GLEIF 和 SEC 转换成 Parquet。
+- 解析 USPTO 分析表或 XML。
+- 验证年份、编码、字段和 schema 差异。
+- 记录 Bronze 行数和错误统计。
+
+### 第 5–6 天：领域过滤
+
+- 实现领域 YAML 和规则版本。
+- 使用 CPC 粗筛。
+- 使用标题、摘要和排除词精筛。
+- 生成专利、分类和领域匹配 Silver 表。
+
+### 第 7 天：公司实体
+
+- 提取申请人和受让人候选。
+- 本地匹配 GLEIF 和 SEC Bronze。
+- 导出 `entity_review.csv`。
 - 人工确认至少 10 家公司。
 
-### 第 6–7 天：补充证据与入库
+### 第 8–9 天：导入与质量
 
-- 接入 OpenAlex 和 GDELT 最小查询。
-- 补充论文、新闻和官网证据。
-- 输出第一版 JSONL/Parquet 和 manifest。
-- Loader 幂等导入 PostgreSQL。
-- 原始快照写入 MinIO。
+- 生成完整 Silver release。
+- 使用 `COPY + UPSERT` 导入 catalog。
+- 验证幂等、外键、孤儿关系和来源追溯。
+- 建立全文和关系查询索引。
 
-### 第 8–10 天：Data Gate 评估与最小报告
+### 第 10 天：Data Gate 验收
 
-- 比较两个领域的唯一受让人数量。
-- 统计实体映射率、误报率和头部集中度。
-- 建立 Fixture 和 Replay。
-- 生成一份带引用的最小公司研究报告。
-- 决定是否保留两个领域，或用自动驾驶感知替换表现较差的领域。
+- 按技术查询公司。
+- 按公司查询专利。
+- 生成质量报告。
+- 构建 Fixture。
+- 生成一份最小本地研究报告。
+- 决定两个领域是否保留或替换。
 
-## 19. Data Gate 验收标准
+## 20. 规模规划
 
-满足以下条件才进入完整 React、NestJS 和 Agent 产品开发：
+### Data Gate
 
-- 至少一个领域获取 200 件以上相关专利。
-- 至少发现并核验 10 家公司。
-- 每家核心公司能够关联至少一种二次证据。
-- 每条规范化专利能够追溯到原始来源。
-- 公司匹配结果能够区分自动确认和人工确认。
-- 同一数据集可以重复导入且不产生重复记录。
-- Fixture 模式可以完全离线运行。
-- Replay 模式可以稳定重放一次完整研究。
-- 最小报告的关键事实具有引用。
-- 已记录 API 配额、许可和字段覆盖风险。
+- 每个领域处理 200–500 件候选专利。
+- 至少一个领域保留 200 件有效专利。
+- 人工核验 10–15 家公司。
 
-通过 Data Gate 后，数据库不停止建设。完整产品开发与以下工作并行推进：
+### MVP 目标
 
-- 将有效专利族逐步扩充到目标范围。
-- 增加 USPTO、SEC、Companies House 等连接器。
-- 持续审核公司别名、母子关系和权利转让。
-- 生成新的主库增量版本并执行质量回归。
+- 两个领域合计 5000–20000 个相关专利族或专利记录，取决于来源字段。
+- 200–500 个公司候选主体。
+- 核心公司拥有已确认的别名和公司—专利关系。
 
-## 20. 暂不实施事项
+规模是目标区间，不要求一次性导满。优先保证公司映射、领域规则和来源追溯正确。
 
-- 全球专利全量同步。
-- OpenAlex 全量快照下载。
-- Common Crawl 全量下载。
-- 新闻正文批量归档。
-- 中国工商网站或商业数据网站爬虫。
-- 为全部原始文本生成向量。
-- 复杂知识图谱、ClickHouse 或大规模搜索集群。
-- 自动判断所有母子公司和并购关系。
+当数据达到数百万专利并出现明显分析压力后，再考虑 DuckDB 常驻分析、ClickHouse 或专用搜索集群。
 
-当垂直领域主库达到数百万专利并需要大规模离线统计时，再考虑 Parquet、DuckDB 或 ClickHouse；MVP 不让 PostgreSQL 承担全球分析仓库职责。
+## 21. 实施检查清单
 
-## 21. 实施前检查清单
-
-- [ ] EPO OPS 账号、OAuth 和配额已验证。
-- [ ] USPTO ODP key 和新接口 schema 已验证。
-- [ ] GLEIF 查询和匹配样本已验证。
-- [ ] 两个 AI 领域查询配置已人工检查。
-- [ ] 原始、规范化、推断和人工确认数据已分层。
-- [ ] MinIO、PostgreSQL 和本地数据包分工已确定。
-- [ ] 数据集 manifest schema 已定义。
-- [ ] 实体审核 CSV 字段已定义。
-- [ ] Git 忽略规则覆盖原始数据、数据卷和密钥。
-- [ ] 每个连接器的许可和限流说明已记录。
-- [ ] Fixture 和 Replay 不包含不可再分发内容。
-- [ ] Data Gate 验收指标已自动化统计。
-- [ ] Data Gate 未通过前不启动完整产品页面和多 Agent 主链开发。
+- [ ] 首批领域、时间和区域范围已确认。
+- [ ] USPTO 批量文件已从官方门户下载。
+- [ ] GLEIF Golden Copy 已下载。
+- [ ] SEC Company Tickers 已下载。
+- [ ] 每个原始文件已记录发布日期、大小和 SHA-256。
+- [ ] Raw 文件不可变，Bronze 和 Silver 可以重建。
+- [ ] USPTO XML schema 或分析表字段已经验证。
+- [ ] 领域 YAML、CPC、关键词和排除词已经版本化。
+- [ ] 公司候选仅使用本地文件进行匹配。
+- [ ] 人工审核 CSV 和状态模型已经定义。
+- [ ] staging、catalog、app schema 边界已经确定。
+- [ ] SQL migration 只有一个所有者。
+- [ ] Silver 使用 `COPY + UPSERT` 幂等导入。
+- [ ] 数据质量不通过时禁止发布 release。
+- [ ] PostgreSQL 只保存目标领域数据。
+- [ ] 产品运行时不会调用第三方数据 API。
+- [ ] Data Gate 未通过前不开发完整产品页面和多 Agent 主链。
