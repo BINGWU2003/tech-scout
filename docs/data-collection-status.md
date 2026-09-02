@@ -1,15 +1,22 @@
 # TechScout 数据收集状态
 
-> 文档状态：数据收集阶段记录  
+> 文档状态：第一轮数据收集的历史阶段记录
 > 检查日期：2026-09-02  
 > 数据目录：`D:\files\project-data`  
+> 当前统一入口：[数据库与数据资产状态](./database-and-data-status.md)
 > 关联文档：[产品需求](./product-requirements.md) · [数据获取指南](./data-acquisition-guide.md)
+
+本文档保留第一轮下载、核验和构建过程，不再作为“当前状态”的唯一入口。最新数据库表结构、已导入数据和后续路线以[数据库与数据资产状态](./database-and-data-status.md)为准。
+
+> 后续状态：带引用的最小报告已经生成并通过独立验证，Data Gate 已通过；接口、Agent 和前端开发尚未开始，当前暂缓。
 
 ## 1. 当前结论
 
-USPTO 授权专利数据以及 GLEIF、SEC 公司参考数据已经完成第一轮下载和结构验证。现有文件足以开始构建专利与公司 Bronze 层，并支持基于“授权年份 + 专利标题 + CPC + 受让人”的第一版领域筛选，以及基于公司名称、国家、LEI 和 CIK 的本地实体匹配。
+USPTO 授权专利数据以及 GLEIF、SEC 公司参考数据已经完成第一轮下载、来源登记、Bronze 构建和首版 AI 领域 Silver 构建。2019–2025 年 AI 芯片/边缘推理与工业视觉/AI 质检筛选已经完成，公司候选也已使用本地 GLEIF、SEC 数据完成保守匹配。
 
-数据底座尚未通过 Data Gate。原始文件登记已经完成，当前主要缺口已经转为 Bronze/Silver 构建、领域规则执行、公司实体匹配和人工审核。
+Silver 发布门槛已经通过：用户确认了 10 家公司，新的 `2026-09-v2` 已完成重建和独立复核，当前为 `status=passed`、`publishable=true`。仍有 495 个候选处于待审核或未匹配状态，但不会阻塞首版发布；未命中不能解释为主体不存在。
+
+`2026-09-v2` 已通过 `COPY + UPSERT` 发布到本地 PostgreSQL `tech-scout` 数据库，并完成相同 release 重跑、逐表行数和孤儿关系复核。当前 `catalog` 有 19 张表，`staging` 有 14 张导入后清空的暂存表；自动清理回收 Staging 临时页后，数据库复核时约占 199 MiB。物理大小会随自动清理和索引维护波动。带引用的最小报告已经生成并验证，整体 Data Gate 已通过。
 
 首个正式分析 release 建议使用 **2019–2025 年美国授权专利**。2015–2018 年数据保留为历史储备，但不作为首轮领域筛选的硬依赖。
 
@@ -61,6 +68,7 @@ USPTO 授权专利数据以及 GLEIF、SEC 公司参考数据已经完成第一�
 
 - `g_patent.tsv` 固定为 8 列，没有空专利 ID 或异常列数。
 - `g_cpc_at_issue.tsv` 固定为 9 列，没有空专利 ID 或异常列数。
+- `g_cpc_at_issue.tsv` 有 535 行缺少 `cpc_group`，但专利 ID 完整；这是来源缺失，Bronze 原样保留并纳入质量基线。
 - 两张表均以换行正常结束，没有发现明显截断。
 - 年度专利号与 `g_patent.tsv` 的分年抽样关联率为 100%。
 - 2016–2025 年专利号与 `g_cpc_at_issue.tsv` 的分年抽样关联率为 100%。
@@ -145,7 +153,7 @@ Level 1 可用于获取规范名称、其他名称、LEI、国家、注册地址
 - 所有记录均为 54 列，没有发现坏行或文件尾部截断。
 - 没有重复关系，所有关系起点和终点均为合法的 20 位 LEI。
 - 所有起点 LEI 都能关联同日 Level 1。
-- 有 6 个终点 LEI 未出现在同日 Level 1，属于极小的快照差异；应保留关系并将终点标记为未解析。
+- 有 6 条关系的终点未出现在同日 Level 1，对应 5 个不同 LEI；这是极小的快照差异，应保留关系并将终点标记为未解析。
 - 486,114 条关系状态为 `ACTIVE`；其余状态也应在 Bronze 中保留。
 
 Level 2 包含直接合并母公司、最终合并母公司、基金管理、子基金和国际分支等关系。公司匹配时不能把所有关系都等同为普通母子公司关系。
@@ -174,7 +182,7 @@ Companies House Free Company Data 暂不下载。只有在首轮专利受让人�
 
 没有匹配到 GLEIF 或 SEC 的受让人不能被判定为公司不存在，应标记为未核验主体。
 
-## 4. 原始文件与可追溯性
+## 4. 原始文件、Bronze 与可追溯性
 
 原始压缩包已经统一保留在：
 
@@ -223,6 +231,81 @@ D:\files\project-data\
 
 当前 `raw` 目录仍是按文件类型集中存放的扁平结构，尚未按来源和快照日期分层。这不影响数据处理；manifest 已明确记录每个原始文件、解压文件及其对应关系。
 
+Bronze release 已生成并完成独立全量复核：
+
+```text
+D:\files\project-data\bronze\source-2026-09-02-v1\
+  manifest.json
+  quality_report.json
+  uspto\pvannual.parquet
+  uspto\patent.parquet
+  uspto\cpc_at_issue.parquet
+  gleif\entities.parquet
+  gleif\relationships.parquet
+  sec\companies.parquet
+```
+
+| Bronze 表           |       数据行数 | 字段数 |               文件大小 |
+| ------------------- | -------------: | -----: | ---------------------: |
+| USPTO PVANNUAL      |      3,723,286 |     66 |       267,310,789 字节 |
+| USPTO Patent        |      9,454,161 |     12 |       194,576,524 字节 |
+| USPTO CPC at issue  |     25,022,251 |     13 |       321,103,516 字节 |
+| GLEIF Entities      |      3,418,434 |    342 |       412,712,970 字节 |
+| GLEIF Relationships |        486,499 |     58 |        19,001,471 字节 |
+| SEC Companies       |         10,391 |      8 |           188,970 字节 |
+| **合计**            | **42,115,022** |      — | **1,214,894,240 字节** |
+
+Bronze 使用 DuckDB 1.5.5 和 ZSTD 压缩构建。来源字段全部保留，并为每行增加 `_source_release`、`_source_path`、`_source_sha256` 和 `_source_row_number` 四个追溯字段。质量报告包含 40 项检查，全部通过；独立 `verify` 再次确认了 6 个 Parquet 的 SHA-256、文件大小、行数和列数。
+
+Silver release 已生成并完成独立全量复核：
+
+```text
+D:\files\project-data\silver\ai-domains\2026-09-v2\
+  manifest.json
+  quality_report.json
+  domains.jsonl
+  patent_domain_evaluations.parquet
+  patents.parquet
+  patent_classifications.parquet
+  patent_parties.parquet
+  patent_domain_matches.parquet
+  company_candidates.parquet
+  entity_matches.parquet
+  companies.parquet
+  company_aliases.parquet
+  external_identifiers.parquet
+  company_relations.parquet
+  company_patent_relations.parquet
+  entity_review.csv
+```
+
+| Silver 产物                   |    数据行数 | 说明                                        |
+| ----------------------------- | ----------: | ------------------------------------------- |
+| 领域筛选审计                  |     263,421 | 所有 CPC 候选及命中词、分数和排除原因       |
+| 去重专利                      |       2,863 | AI 1,882 件，工业视觉 981 件，无跨域重叠    |
+| 完整 CPC 分类                 |      18,175 | 只保留入选专利，但保留其全部 CPC            |
+| 专利受让人                    |       2,934 | 对应 731 个名称和国家组合                   |
+| 公司实体建议                  |         760 | 每个模糊候选最多 5 个建议                   |
+| 已纳入公司                    |         274 | 含自动/人工接受主体及可解析关系终点         |
+| 公司—专利关系                 |       1,719 | 其中 142 条来自 10 家人工确认公司           |
+| 待审核/未匹配公司候选         |         495 | 已全量导出到 `entity_review.csv`            |
+| **manifest 登记的 14 个文件** | **296,729** | **14,410,482 字节，不含 manifest/报告本身** |
+
+Silver 使用规则 `config/domains/ai-domains-v1.yaml` 构建，记录 Bronze manifest hash、规则 hash、审核文件 hash、每个输出的 SHA-256、行列数和 schema。用户确认记录保存在 `reviews\ai-domains\2026-09-v1-user-confirmed-10.json`，SHA-256 为 `0c3ddda13609d0d25bf31f8654a1b1e349040ae6e99c9f78230d76353fd10580`。质量报告的 29 项结构及基线检查全部通过；独立 `verify` 又验证了 Bronze 输入、审核输入、14 个 Silver 文件和 release 文件集合。当前自动接受 226 个候选、人工接受 10 个候选，状态为 `passed`，且已发布到本地 PostgreSQL Catalog。
+
+PostgreSQL 导入结果：
+
+| Catalog 数据                      |    行数 |
+| --------------------------------- | ------: |
+| Silver 业务及审核记录             | 296,729 |
+| `dataset_record` release 逐行登记 | 296,729 |
+| `source_file` 文件登记            |      14 |
+| `dataset_release` 已发布 release  |       1 |
+| `import_job` 成功导入任务         |       1 |
+| 导入完成后的全部 staging 表       |       0 |
+
+`dataset_record` 是版本—记录映射，不是第二份业务数据。它用于证明某条记录属于哪个 Silver release，因此数据库行数和占用空间会高于 Parquet 文件本体。
+
 ## 5. 当前可支持的处理流程
 
 现有专利和公司数据可以执行：
@@ -254,30 +337,28 @@ GLEIF 和 SEC 不覆盖全球所有公司。未命中的受让人仍应保留原
 
 ## 6. Data Gate 完成度
 
-| 验收项                           | 当前状态 | 说明                                                     |
-| -------------------------------- | -------- | -------------------------------------------------------- |
-| USPTO 批量文件完成一次登记与解析 | 进行中   | 来源文件已登记并通过 hash 复核，尚未形成 Bronze          |
-| GLEIF 批量文件完成登记与解析     | 进行中   | Level 1、Level 2 已登记并通过 hash 复核，尚未形成 Bronze |
-| SEC 公司文件完成登记与解析       | 进行中   | JSON 已登记并通过 hash 复核，尚未形成 Bronze             |
-| 至少一个领域获得 200 件有效专利  | 未开始   | 尚未执行领域规则                                         |
-| 发现并人工核验至少 10 家公司     | 未开始   | 公司参考数据已具备，尚未运行实体匹配和人工审核           |
-| 按技术查询公司、按公司查询专利   | 未开始   | 尚未生成 Silver/Catalog                                  |
-| 正式记录可追溯到原始文件和 hash  | 已满足   | 33 个文件已登记 SHA-256，manifest 已建立并通过全量复核   |
-| 同一 release 重复导入保持幂等    | 未开始   | 导入流水线尚未实现                                       |
-| Fixture 完全离线运行             | 未开始   | 尚未构建 Fixture                                         |
-| 生成带引用的最小报告             | 未开始   | 尚未构建 Silver/Catalog                                  |
+| 验收项                           | 当前状态 | 说明                                                   |
+| -------------------------------- | -------- | ------------------------------------------------------ |
+| USPTO 批量文件完成一次登记与解析 | 已满足   | 来源文件已登记，三张 Bronze Parquet 已构建并复核       |
+| GLEIF 批量文件完成登记与解析     | 已满足   | Level 1、Level 2 Bronze 已构建并复核                   |
+| SEC 公司文件完成登记与解析       | 已满足   | SEC Companies Bronze 已构建并复核                      |
+| 至少一个领域获得 200 件有效专利  | 已满足   | 两个领域分别获得 1,882 和 981 件专利                   |
+| 发现并人工核验至少 10 家公司     | 已满足   | 自动接受 226 个，用户人工确认 10 个                    |
+| 按技术查询公司、按公司查询专利   | 已满足   | PostgreSQL Catalog 已发布，可使用关系表执行双向查询    |
+| 正式记录可追溯到原始文件和 hash  | 已满足   | 33 个文件已登记 SHA-256，manifest 已建立并通过全量复核 |
+| 同一 release 重复导入保持幂等    | 已满足   | 重跑只复核 manifest 和数据库行数，不重复写入           |
+| Fixture 完全离线运行             | 已满足   | Silver fixture 覆盖筛选、排除、匹配、审核和不可变校验  |
+| 生成带引用的最小报告             | 已满足   | AI 芯片报告已生成并验证，关键事实引用覆盖率为 100%     |
 
-## 7. 下一步行动
+## 7. 后续行动（当前暂缓）
 
-按优先级执行：
+本阶段已经收尾。以下内容留作恢复开发后的建议顺序，当前不执行：
 
-1. 将年度 CSV、`g_patent.tsv` 和 `g_cpc_at_issue.tsv` 转换为专利 Bronze Parquet。
-2. 将 GLEIF Level 1、Level 2 和 SEC JSON 转换为公司 Bronze Parquet。
-3. 以 2019–2025 为范围，实现 AI 芯片/边缘推理和工业视觉/AI 质检的 CPC + 标题规则。
-4. 提取受让人候选，并使用 GLEIF、SEC Bronze 进行本地公司匹配。
-5. 将 GLEIF Level 2 的关系类型映射为明确的公司、基金和分支关系，禁止统一解释为普通母子公司。
-6. 导出 `entity_review.csv`，人工确认至少 10 家公司。
-7. 生成 Silver release、质量报告和最小本地研究报告。
+1. 为 NestJS 增加只读 Catalog 查询接口。
+2. 在只读查询层稳定后再接入 Agent 工具和前端页面。
+3. 495 个剩余候选可按专利数继续分批审核；每批审核必须作为新输入并生成新 Silver 版本，不能改写 v2。
+4. 后续 Silver release 继续使用同一幂等导入命令增量发布。
+5. 本地运行稳定后，再根据部署需求决定是否同步到 Supabase。
 
 ## 8. 当前数据边界
 

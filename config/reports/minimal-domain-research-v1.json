@@ -1,0 +1,18 @@
+{
+  "schemaVersion": "1.0.0",
+  "reportType": "minimal-domain-research",
+  "queryVersion": "minimal-domain-research-v1",
+  "language": "zh-CN",
+  "domainDisplayNames": {
+    "ai_chips_edge_inference": "AI 芯片与边缘推理",
+    "industrial_vision_quality_inspection": "工业视觉与 AI 质检"
+  },
+  "topCompanyCount": 10,
+  "representativePatentCount": 3,
+  "topCpcGroupCount": 15,
+  "companyAliasCount": 5,
+  "companyCpcGroupCount": 5,
+  "minimumPatentCount": 200,
+  "minimumAcceptedCompanyCount": 10,
+  "requiredUnavailableFields": ["abstract", "claim_text", "patent_family_id"]
+}

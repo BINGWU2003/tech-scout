@@ -15,6 +15,7 @@ dist-ssr
 *.tsbuildinfo
 
 .env
+db.txt
 
 # Editor directories and files
 .vscode/*
@@ -30,6 +31,13 @@ dist-ssr
 
 # Test coverage
 coverage
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.venv/
 
 # Vitest artifacts (browser screenshots/attachments)
 **/__screenshots__/

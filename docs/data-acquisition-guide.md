@@ -1,5 +1,7 @@
 # TechScout 离线公司—专利数据库构建与导入说明
 
+> 当前数据库结构、已导入数据和路线图见[数据库与数据资产状态](./database-and-data-status.md)。本文档继续作为数据获取、构建和导入的详细操作规范。
+
 > 文档状态：离线方案基线 v2.0  
 > 适用阶段：Data Foundation、Data Gate 与 MVP  
 > 更新日期：2026-09-01  
@@ -182,7 +184,7 @@ data/
     uspto/
   silver/                  规范化后的垂直领域数据
     ai-domains/
-      2026-09-v1/
+      2026-09-v2/
   releases/                manifest、统计、审核结果和发布记录
   fixtures/                许可明确的小型测试数据
   replay/                  Agent 和工具事件重放数据
@@ -248,18 +250,30 @@ pnpm data:manifest verify --manifest "D:\files\project-data\releases\source-2026
 
 ### 7.2 Bronze
 
-将不同来源转换为容易本地查询的 Parquet，尽量保持源字段：
+将不同来源转换为容易本地查询的 Parquet，尽量保持源字段。当前 release 为：
 
 ```text
-bronze/uspto/patent.parquet
-bronze/uspto/abstract.parquet
-bronze/uspto/assignee.parquet
-bronze/uspto/patent_assignee.parquet
-bronze/uspto/cpc.parquet
-bronze/gleif/entities.parquet
-bronze/gleif/relationships.parquet
-bronze/sec/companies.parquet
+bronze/source-2026-09-02-v1/
+  manifest.json
+  quality_report.json
+  uspto/pvannual.parquet
+  uspto/patent.parquet
+  uspto/cpc_at_issue.parquet
+  gleif/entities.parquet
+  gleif/relationships.parquet
+  sec/companies.parquet
 ```
+
+`PVANNUAL` 在 Bronze 中保持 62 个来源字段，不提前生成规范化受让人实体；受让人候选、别名和专利—公司关系在 Silver 阶段生成。当前未下载摘要，因此不创建空的 `abstract.parquet`。
+
+构建和复核命令：
+
+```powershell
+pnpm data:bronze build --data-root "D:\files\project-data" --source-manifest "D:\files\project-data\releases\source-2026-09-02\manifest.json" --version v1
+pnpm data:bronze verify --manifest "D:\files\project-data\bronze\source-2026-09-02-v1\manifest.json"
+```
+
+每行增加 `_source_release`、`_source_path`、`_source_sha256` 和 `_source_row_number`。构建器先验证输入 SHA-256，再按 4 GB 内存上限、4 个线程和 ZSTD 压缩顺序处理；相同 release 已存在时只执行验证，不覆盖产物。
 
 推荐工具：
 
@@ -273,26 +287,49 @@ bronze/sec/companies.parquet
 只保存目标领域的规范数据：
 
 ```text
-silver/ai-domains/2026-09-v1/
+silver/ai-domains/2026-09-v2/
   manifest.json
+  quality_report.json
   domains.jsonl
+  patent_domain_evaluations.parquet
+  patents.parquet
+  patent_classifications.parquet
+  patent_parties.parquet
+  patent_domain_matches.parquet
+  company_candidates.parquet
+  entity_matches.parquet
   companies.parquet
   company_aliases.parquet
   external_identifiers.parquet
   company_relations.parquet
-  patents.parquet
-  patent_families.parquet
-  patent_parties.parquet
-  patent_classifications.parquet
-  patent_domain_matches.parquet
   company_patent_relations.parquet
   entity_review.csv
-  quality_report.json
 ```
+
+当前 release 已实际生成并通过独立验证：AI 芯片/边缘推理 1,882 件、工业视觉/AI 质检 981 件，共 2,863 件去重专利；731 个受让人候选中有 226 个按“唯一 GLEIF 名称或别名 + 国家一致”自动接受，用户另行确认 10 个候选，剩余审核队列为 495 个。manifest 明确记录 `status=passed`、`publishable=true`。
+
+构建和复核命令：
+
+```powershell
+pnpm data:silver build --bronze-manifest "D:\files\project-data\bronze\source-2026-09-02-v1\manifest.json" --rules config/domains/ai-domains-v1.yaml --version 2026-09-v2 --review-file "D:\files\project-data\reviews\ai-domains\2026-09-v1-user-confirmed-10.json"
+pnpm data:silver verify --manifest "D:\files\project-data\silver\ai-domains\2026-09-v2\manifest.json"
+```
+
+相同版本存在时只验证、不覆盖。规则、Bronze manifest 或审核文件的 hash 变化时，必须指定新的版本。人工审核使用 `--review-file` 输入新版本，支持审核 CSV 或结构化 JSON。来源未提供摘要、权利要求文本和专利族 ID，因此 Silver manifest 将这些字段声明为不可用，不生成虚假空表。
 
 ### 7.4 Catalog
 
 Catalog 是 PostgreSQL 中供 NestJS、Python Agent 和本地检索使用的正式数据。只有已经通过验证的 Silver release 可以发布到 catalog。
+
+当前 `2026-09-v2` 已发布到本地 PostgreSQL。连接参数从不受版本控制的 `db.txt` 读取，密码不会写入 migration、manifest 或日志：
+
+```powershell
+pnpm data:catalog migrate --db-config "D:\files\tech-scout\db.txt"
+pnpm data:catalog import --db-config "D:\files\tech-scout\db.txt" --manifest "D:\files\project-data\silver\ai-domains\2026-09-v2\manifest.json"
+pnpm data:catalog verify --db-config "D:\files\tech-scout\db.txt" --release 2026-09-v2 --manifest "D:\files\project-data\silver\ai-domains\2026-09-v2\manifest.json"
+```
+
+导入前会重新验证 Bronze、规则、人工审核文件和全部 Silver 文件哈希。相同 release 和 manifest 再次执行 `import` 时只做复核，不重写正式表；同名 release 对应不同 manifest 时直接拒绝。
 
 ## 8. 领域规则
 
@@ -436,7 +473,7 @@ JOIN gleif_entities gleif
 
 ### 10.4 审核状态
 
-- `auto_accepted`：强 ID 或名称、国家、地址高度一致。
+- `auto_accepted`：当前首版仅允许唯一 GLEIF 法律名称/别名且国家一致。
 - `needs_review`：存在多个候选或仅名称近似。
 - `unmatched`：没有匹配到本地公司参考数据。
 - `rejected`：人工确认不是同一主体。
@@ -470,14 +507,20 @@ app       后续产品业务数据
 ### 11.1 staging
 
 ```text
-staging.company_candidate
-staging.company_match
+staging.patent_domain_evaluation
 staging.patent
-staging.patent_family
-staging.patent_party
 staging.patent_classification
+staging.patent_party
 staging.patent_domain_match
+staging.company_candidate
+staging.entity_match
+staging.company_entity
+staging.company_alias
+staging.external_identifier
+staging.company_relation
 staging.company_patent_relation
+staging.entity_review
+staging.domain
 ```
 
 Staging 可以按 import job 清空或分区，不作为产品查询来源。
@@ -485,16 +528,19 @@ Staging 可以按 import job 清空或分区，不作为产品查询来源。
 ### 11.2 catalog
 
 ```text
+catalog.domain
+catalog.patent_domain_evaluation
+catalog.patent
+catalog.patent_classification
+catalog.patent_party
+catalog.patent_domain_match
+
+catalog.company_candidate
+catalog.entity_match
 catalog.company_entity
 catalog.company_alias
 catalog.external_identifier
 catalog.company_relation
-
-catalog.patent
-catalog.patent_family
-catalog.patent_party
-catalog.patent_classification
-catalog.patent_domain_match
 catalog.company_patent_relation
 
 catalog.source_file
@@ -502,7 +548,10 @@ catalog.dataset_release
 catalog.dataset_record
 catalog.import_job
 catalog.entity_review
+catalog.schema_migration
 ```
+
+当前不创建 `patent_family`：Silver manifest 已明确声明来源不支持专利族字段，不能用空值构造虚假关系。
 
 ### 11.3 app
 
@@ -547,9 +596,9 @@ app.citation
 禁止通过 ORM 逐行插入大型数据集。推荐：
 
 ```text
-Silver Parquet
+Silver Parquet / CSV / JSONL
   ↓
-PyArrow 分批读取
+DuckDB / 流式读取器分批读取
   ↓
 psycopg COPY 到 staging
   ↓
@@ -706,7 +755,7 @@ MVP 使用 PostgreSQL 即可：
 - Fixture 可以完全离线运行。
 - 可以从本地数据生成一份关键事实带引用的最小报告。
 
-通过 Data Gate 后，数据库不会停止建设。完整产品开发与垂直主库扩充并行推进。
+Data Gate 已通过。当前按项目安排在数据阶段收尾，NestJS 接口、Agent 和前端尚未开始并暂缓；恢复产品开发后，可让产品建设与垂直主库扩充并行推进。
 
 ## 19. Data Foundation 实施计划
 
@@ -774,20 +823,20 @@ MVP 使用 PostgreSQL 即可：
 
 ## 21. 实施检查清单
 
-- [ ] 首批领域、时间和区域范围已确认。
-- [ ] USPTO 批量文件已从官方门户下载。
-- [ ] GLEIF Golden Copy 已下载。
-- [ ] SEC Company Tickers 已下载。
-- [ ] 每个原始文件已记录发布日期、大小和 SHA-256。
-- [ ] Raw 文件不可变，Bronze 和 Silver 可以重建。
-- [ ] USPTO XML schema 或分析表字段已经验证。
-- [ ] 领域 YAML、CPC、关键词和排除词已经版本化。
-- [ ] 公司候选仅使用本地文件进行匹配。
-- [ ] 人工审核 CSV 和状态模型已经定义。
-- [ ] staging、catalog、app schema 边界已经确定。
-- [ ] SQL migration 只有一个所有者。
-- [ ] Silver 使用 `COPY + UPSERT` 幂等导入。
-- [ ] 数据质量不通过时禁止发布 release。
-- [ ] PostgreSQL 只保存目标领域数据。
+- [x] 首批领域、时间和区域范围已确认。
+- [x] USPTO 批量文件已从官方门户下载。
+- [x] GLEIF Golden Copy 已下载。
+- [x] SEC Company Tickers 已下载。
+- [x] 每个现有原始文件已记录大小和 SHA-256；无法还原的发布日期明确为 `null`。
+- [x] Raw 文件不可变，Bronze 和 Silver 可以重建。
+- [x] USPTO 分析表字段已经验证。
+- [x] 领域 YAML、CPC、关键词和排除词已经版本化。
+- [x] 公司候选仅使用本地文件进行匹配。
+- [x] 人工审核 CSV 和状态模型已经定义。
+- [x] staging、catalog、app schema 边界已经确定。
+- [x] SQL migration 只有一个所有者。
+- [x] Silver 使用 `COPY + UPSERT` 幂等导入。
+- [x] 数据质量不通过时禁止发布 release。
+- [x] PostgreSQL 只保存目标领域数据。
 - [ ] 产品运行时不会调用第三方数据 API。
-- [ ] Data Gate 未通过前不开发完整产品页面和多 Agent 主链。
+- [x] Data Gate 已通过；接口、Agent 和前端尚未开始，当前暂缓。

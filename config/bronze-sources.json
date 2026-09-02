@@ -1,0 +1,117 @@
+{
+  "schemaVersion": "1.0.0",
+  "pipelineVersion": "bronze-v1",
+  "qualityProfile": "tech-scout-2026-09-02",
+  "duckdb": {
+    "memoryLimit": "4GB",
+    "threads": 4,
+    "compression": "zstd",
+    "rowGroupSize": 100000
+  },
+  "tables": [
+    {
+      "id": "uspto-pvannual",
+      "outputPath": "uspto/pvannual.parquet",
+      "input": {
+        "dataset": "uspto-pvannual",
+        "role": "extracted",
+        "format": "csv"
+      },
+      "parser": "delimited",
+      "delimiter": ",",
+      "expectedInputCount": 11,
+      "expectedSourceColumns": 62,
+      "expectedRows": 3723286,
+      "requiredColumns": ["patent_number", "grant_year", "assignee"],
+      "nonEmptyColumns": ["patent_number", "grant_year"]
+    },
+    {
+      "id": "uspto-patent",
+      "outputPath": "uspto/patent.parquet",
+      "input": {
+        "path": "patents/g_patent.tsv"
+      },
+      "parser": "delimited",
+      "delimiter": "\t",
+      "expectedInputCount": 1,
+      "expectedSourceColumns": 8,
+      "expectedRows": 9454161,
+      "requiredColumns": ["patent_id", "patent_date", "patent_title"],
+      "nonEmptyColumns": ["patent_id"]
+    },
+    {
+      "id": "uspto-cpc-at-issue",
+      "outputPath": "uspto/cpc_at_issue.parquet",
+      "input": {
+        "path": "patents/g_cpc_at_issue.tsv"
+      },
+      "parser": "delimited",
+      "delimiter": "\t",
+      "expectedInputCount": 1,
+      "expectedSourceColumns": 9,
+      "expectedRows": 25022251,
+      "requiredColumns": ["patent_id", "cpc_group", "cpc_type"],
+      "nonEmptyColumns": ["patent_id"],
+      "expectedEmptyCounts": {
+        "cpc_group": 535
+      }
+    },
+    {
+      "id": "gleif-entities",
+      "outputPath": "gleif/entities.parquet",
+      "input": {
+        "dataset": "gleif-level1",
+        "role": "extracted",
+        "format": "csv"
+      },
+      "parser": "delimited",
+      "delimiter": ",",
+      "expectedInputCount": 1,
+      "expectedSourceColumns": 338,
+      "expectedRows": 3418434,
+      "requiredColumns": ["LEI", "Entity.LegalName", "Entity.EntityStatus"],
+      "nonEmptyColumns": ["LEI", "Entity.LegalName"],
+      "uniqueColumns": ["LEI"]
+    },
+    {
+      "id": "gleif-relationships",
+      "outputPath": "gleif/relationships.parquet",
+      "input": {
+        "dataset": "gleif-level2",
+        "role": "extracted",
+        "format": "csv"
+      },
+      "parser": "delimited",
+      "delimiter": ",",
+      "expectedInputCount": 1,
+      "expectedSourceColumns": 54,
+      "expectedRows": 486499,
+      "requiredColumns": [
+        "Relationship.StartNode.NodeID",
+        "Relationship.EndNode.NodeID",
+        "Relationship.RelationshipType"
+      ],
+      "nonEmptyColumns": [
+        "Relationship.StartNode.NodeID",
+        "Relationship.EndNode.NodeID",
+        "Relationship.RelationshipType"
+      ]
+    },
+    {
+      "id": "sec-companies",
+      "outputPath": "sec/companies.parquet",
+      "input": {
+        "dataset": "sec-company-tickers",
+        "role": "raw",
+        "format": "json"
+      },
+      "parser": "sec-company-tickers-json",
+      "expectedInputCount": 1,
+      "expectedSourceColumns": 4,
+      "expectedRows": 10391,
+      "requiredColumns": ["cik", "name", "ticker", "exchange"],
+      "nonEmptyColumns": ["cik", "name", "ticker"],
+      "uniqueColumns": ["ticker"]
+    }
+  ]
+}

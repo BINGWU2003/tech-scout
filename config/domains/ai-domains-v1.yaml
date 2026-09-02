@@ -1,0 +1,142 @@
+schemaVersion: 1.0.0
+ruleVersion: ai-domains-v1
+releaseName: ai-domains
+period:
+  fromYear: 2019
+  toYear: 2025
+scoring:
+  exactCpc: 4
+  broadCpc: 2
+  strongTitle: 4
+  generalTitle: 2
+  threshold: 6
+normalization:
+  version: company-name-v1
+  companySuffixes:
+    - incorporated
+    - corporation
+    - company
+    - limited
+    - holdings
+    - technologies
+    - technology
+    - inc
+    - corp
+    - co
+    - ltd
+    - llc
+    - plc
+    - lp
+    - llp
+    - gmbh
+    - ag
+    - sa
+    - sas
+    - srl
+    - bv
+    - nv
+    - oy
+    - ab
+    - spa
+matching:
+  fuzzyThreshold: 0.94
+  prefixLength: 4
+  maxSuggestions: 5
+  minimumHumanAcceptances: 10
+duckdb:
+  memoryLimit: 4GB
+  threads: 4
+  compression: zstd
+  rowGroupSize: 100000
+qualityBaseline:
+  domainCounts:
+    ai_chips_edge_inference: 1882
+    industrial_vision_quality_inspection: 981
+  distinctPatents: 2863
+  crossDomainOverlap: 0
+  minimumPerDomain: 200
+domains:
+  - id: ai_chips_edge_inference
+    name: AI chips and edge inference
+    exactCpcPrefixes:
+      - G06N3/063
+    broadCpcPrefixes:
+      - G06N
+    generalTitleTerms:
+      - neural network
+      - neural processing
+      - neural processor
+      - neural accelerator
+      - ai accelerator
+      - artificial intelligence accelerator
+      - deep learning accelerator
+      - tensor process
+      - inference accelerator
+      - edge inference
+      - in-memory comput
+      - processing-in-memory
+      - processing in memory
+      - compute-in-memory
+      - compute in memory
+      - neuromorphic
+      - spiking neural
+      - systolic array
+    strongTitleTerms:
+      - neural processing unit
+      - neural processing accelerator
+      - neural processing device
+      - neural processor
+      - neural accelerator
+      - ai accelerator
+      - artificial intelligence accelerator
+      - deep learning accelerator
+      - tensor process
+      - inference accelerator
+      - edge inference
+      - in-memory comput
+      - processing-in-memory
+      - processing in memory
+      - compute-in-memory
+      - compute in memory
+      - neuromorphic
+      - spiking neural
+      - systolic array
+    exclusionTitleTerms:
+      - generic processor
+      - thermal package
+      - heat sink
+      - cooling package
+  - id: industrial_vision_quality_inspection
+    name: Industrial vision and AI quality inspection
+    exactCpcPrefixes: []
+    broadCpcPrefixes:
+      - G06V
+      - G06T
+      - B07C
+      - G01N
+    generalTitleTerms: []
+    strongTitleTerms:
+      - automated optical inspection
+      - automatic optical inspection
+      - machine vision
+      - visual inspection
+      - surface defect
+      - defect detect
+      - defect inspection
+      - quality inspection
+      - wafer inspection
+      - image inspection
+      - optical inspection
+      - industrial inspection
+      - component inspection
+      - product inspection
+    exclusionTitleTerms:
+      - medical
+      - patient
+      - diagnos
+      - surveillance
+      - face recognition
+      - facial recognition
+      - autonomous driv
+      - vehicle perception
+      - consumer camera
