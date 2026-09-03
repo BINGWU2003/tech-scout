@@ -553,7 +553,7 @@ Git 保存代码、migration、版本化规则、测试和文档；大型 Raw、
 
 ## 13. 技术架构
 
-详细架构已经独立到[产品与系统架构](./architecture.md)。本 PRD 只保留以下产品级约束：
+详细架构已经独立到[产品与系统架构](./architecture.md)，框架、数据库客户端、契约和测试工具见[技术选型](./technology-stack.md)。本 PRD 只保留以下产品级约束：
 
 - 浏览器只调用 NestJS。
 - NestJS 负责产品 API、鉴权、业务状态和 `app` schema。

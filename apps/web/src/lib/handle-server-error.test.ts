@@ -1,5 +1,5 @@
-import { AxiosError } from 'axios'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { ApiClientError } from './api-client-error'
 import { handleServerError } from './handle-server-error'
 
 const toastError = vi.hoisted(() => vi.fn())
@@ -27,40 +27,16 @@ describe('handleServerError', () => {
     expect(toastError).toHaveBeenCalledWith('No content.')
   })
 
-  it('prefers the API title when the error is an Axios error with response data', () => {
-    const error = new AxiosError('Bad request')
-    error.response = {
-      status: 422,
-      data: { title: 'Validation failed' },
-    } as AxiosError['response']
+  it('prefers a validated API error message', () => {
+    const error = new ApiClientError(422, {
+      code: 'validation_failed',
+      message: 'Validation failed',
+      requestId: 'request-1',
+    })
 
     handleServerError(error)
 
     expect(toastError).toHaveBeenCalledWith('Validation failed')
-  })
-
-  it('falls back to the generic message when Axios response has no data.title', () => {
-    const error = new AxiosError('Request failed')
-    error.response = {
-      status: 500,
-      data: {},
-    } as AxiosError['response']
-
-    handleServerError(error)
-
-    expect(toastError).toHaveBeenCalledWith('Something went wrong!')
-  })
-
-  it('falls back to the generic message when Axios data.title is an empty string', () => {
-    const error = new AxiosError('Bad request')
-    error.response = {
-      status: 400,
-      data: { title: '' },
-    } as AxiosError['response']
-
-    handleServerError(error)
-
-    expect(toastError).toHaveBeenCalledWith('Something went wrong!')
   })
 
   it('logs the error to the console in development', () => {

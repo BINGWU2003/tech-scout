@@ -1,6 +1,6 @@
 # Tech Scout
 
-Tech Scout 是一个本地优先、证据可追溯的技术侦察项目。仓库包含 React 管理端、NestJS 产品 API、规划中的 Python Agent 服务，以及独立的离线数据管道。
+Tech Scout 是一个本地优先、证据可追溯的技术侦察项目。仓库包含 React 管理端、NestJS 产品 API、已初始化的 Python Agent 项目，以及独立的离线数据管道。
 
 ## 项目结构
 
@@ -10,9 +10,11 @@ tech-scout/
 │  ├─ web/    # React 19 + Vite 8
 │  └─ api/    # NestJS 12
 ├─ services/
-│  └─ intelligence/         # 未来 Python Agent 服务，当前仅定义边界
+│  └─ intelligence/         # Python Agent 项目，运行时尚未实现
 ├─ pipelines/
 │  └─ data-foundation/      # Raw/Bronze/Silver/Catalog/固定报告
+├─ packages/
+│  └─ contracts/            # React/NestJS 共享 Zod 契约
 ├─ config/                  # 来源、领域和报告规则
 ├─ docs/                    # 产品、架构、数据和运维文档
 ├─ .oxfmtrc.json
@@ -71,6 +73,7 @@ uv run --project pipelines/data-foundation pytest pipelines/data-foundation/test
 
 - [产品需求](./docs/product-requirements.md)
 - [产品与系统架构](./docs/architecture.md)
+- [技术选型](./docs/technology-stack.md)
 - [数据底座参考](./docs/database-and-data-status.md)
 - [数据获取与发布指南](./docs/data-acquisition-guide.md)
 

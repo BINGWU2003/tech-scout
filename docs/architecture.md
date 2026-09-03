@@ -3,6 +3,7 @@
 > 文档职责：描述当前实现、目标架构、组件边界和演进顺序
 > 更新日期：2026-09-03
 > 产品范围见[产品需求](./product-requirements.md)
+> 具体技术选型见[技术选型](./technology-stack.md)
 > 数据现状见[数据底座参考](./database-and-data-status.md)
 > 离线发布流程见[数据获取与发布指南](./data-acquisition-guide.md)
 
@@ -41,7 +42,7 @@ TechScout 是本地优先、证据可追溯的技术侦察工具。架构需要�
 | NestJS API          | `Implemented` | NestJS 12 工程骨架和根 GET；尚无 Catalog、鉴权、业务模块、OpenAPI 或 SSE          |
 | Data Foundation     | `Implemented` | Raw、Manifest、Bronze、Silver、公司审核、Catalog 发布和固定报告                   |
 | PostgreSQL Catalog  | `Implemented` | Catalog `2026-09-v6` 已发布；2,863 件专利，公司候选活动队列为 0                   |
-| Python Intelligence | `Planned`     | 仅有职责说明，尚无 FastAPI、Agent、工作流或模型调用代码                           |
+| Python Intelligence | `Implemented` | 项目、依赖和锁文件已初始化；FastAPI、Agent、工作流和模型调用仍为 `Planned`        |
 | App schema          | `Planned`     | PostgreSQL 中只有空 schema，当前 0 张表                                           |
 
 Redis、Celery、MinIO、pgvector、Docker Compose 和在线外部检索当前都不存在。
@@ -100,8 +101,14 @@ tech-scout/
     api/                         NestJS 产品 API
 
   services/
-    intelligence/                未来 Python Agent 服务
-      README.md                  当前只有职责和禁止边界
+    intelligence/                Python Agent 服务
+      src/                       当前只有包边界，运行时尚未实现
+      tests/
+      pyproject.toml
+      uv.lock
+
+  packages/
+    contracts/                   React/NestJS 共享 Zod 契约
 
   pipelines/
     data-foundation/             离线数据工程
@@ -217,11 +224,12 @@ Browser → PostgreSQL
 
 ## 8. PostgreSQL 所有权
 
-| Schema    | 当前状态    | 写入所有者                     | 运行时访问                       |
-| --------- | ----------- | ------------------------------ | -------------------------------- |
-| `staging` | 16 张临时表 | Data Foundation                | 产品禁止访问                     |
-| `catalog` | 21 张正式表 | Data Foundation 发布器         | NestJS、Python Intelligence 只读 |
-| `app`     | 0 张表      | 未来 NestJS migration 和业务层 | NestJS 读写；Python 不直写       |
+| Schema          | 当前状态    | 写入所有者               | 运行时访问                       |
+| --------------- | ----------- | ------------------------ | -------------------------------- |
+| `staging`       | 16 张临时表 | Data Foundation          | 产品禁止访问                     |
+| `catalog`       | 21 张正式表 | Data Foundation 发布器   | NestJS、Python Intelligence 只读 |
+| `app`           | 0 张表      | 未来 NestJS/Prisma       | NestJS 读写；Python 不直写       |
+| `agent_runtime` | 尚未创建    | 未来 Python Intelligence | Python checkpoint 读写           |
 
 现有 migration 已经发布，不修改历史 SQL。未来 Catalog 变化由 Data Foundation 新增 migration；未来 App 表由 NestJS 侧新增 migration。数据库账号权限应最终落实同样的边界。
 
@@ -331,5 +339,8 @@ NestJS 是对外状态真相。Python 可以拥有内部 checkpoint，但不能�
 | ADR-004 | Catalog 是离线与运行时交接边界                       | 禁止跨项目 import，保证可复现和低耦合 |
 | ADR-005 | MVP 默认本地 Catalog，Live 延后                      | 保证稳定、可审计并控制外部依赖        |
 | ADR-006 | Redis/Celery/MinIO/pgvector 按需引入                 | 避免没有真实需求的基础设施复杂度      |
+| ADR-007 | Catalog 使用 Kysely，App 使用 Prisma                 | 分离分析查询与标准业务 CRUD           |
+| ADR-008 | React/NestJS 共享 Zod，Python 通过 OpenAPI 对接      | 保留运行时校验并明确跨语言边界        |
+| ADR-009 | Python 独占 `agent_runtime` schema                   | 保存 checkpoint 且不产生 App 双写     |
 
 新决策若改变组件所有权、请求入口、数据库边界或运行模式，应先更新本文档，再实施代码。

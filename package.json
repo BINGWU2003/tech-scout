@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "turbo run dev",
     "build": "turbo run build",
-    "lint": "oxlint apps",
+    "lint": "oxlint apps packages",
     "format": "oxfmt --ignore-path .gitignore --ignore-path .oxfmtignore .",
     "format:check": "oxfmt --check --ignore-path .gitignore --ignore-path .oxfmtignore .",
     "test": "turbo run test",

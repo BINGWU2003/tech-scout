@@ -1,8 +1,16 @@
 # TechScout Intelligence Service
 
-> 状态：`Planned`，当前尚未实现运行时服务。
+> 状态：项目和依赖已初始化，运行时服务仍为 `Planned`。
 
-该目录保留给未来的 Python Intelligence Service，负责 Agent、研究工作流、模型调用和专业分析工具。
+该目录是独立的 Python Intelligence Service 项目，负责 Agent、研究工作流、模型调用和专业分析工具。当前已有 `pyproject.toml`、`uv.lock`、包边界和基础测试，尚无 FastAPI 应用或 Agent 工作流。
+
+## 环境和测试
+
+```powershell
+uv sync --project services/intelligence
+uv run --project services/intelligence pytest services/intelligence/tests
+uv run --project services/intelligence ruff check services/intelligence
+```
 
 ## 职责
 
@@ -19,6 +27,6 @@
 - 本服务不能 import `pipelines/data-foundation` 的内部 Python 模块。
 - Raw、Bronze、Silver、实体审核和 Catalog 导入不属于本服务。
 
-离线数据工程位于 [`pipelines/data-foundation`](../../pipelines/data-foundation/)。开始 Agent 开发时，再在此目录创建独立的 `pyproject.toml`、运行时代码和测试。
+离线数据工程位于 [`pipelines/data-foundation`](../../pipelines/data-foundation/)，不能与本项目共享虚拟环境或内部源码。
 
-完整边界和演进计划见 [`docs/architecture.md`](../../docs/architecture.md)。
+完整边界和演进计划见 [`docs/architecture.md`](../../docs/architecture.md)，具体依赖选择见 [`docs/technology-stack.md`](../../docs/technology-stack.md)。
