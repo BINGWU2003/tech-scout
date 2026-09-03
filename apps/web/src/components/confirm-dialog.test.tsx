@@ -23,7 +23,7 @@ describe('ConfirmDialog', () => {
       .element(getByText('This action cannot be undone.'))
       .toBeInTheDocument()
     await expect
-      .element(getByRole('button', { name: 'Cancel' }))
+      .element(getByRole('button', { name: '取消' }))
       .toBeInTheDocument()
     await expect
       .element(getByRole('button', { name: 'Continue' }))
@@ -78,7 +78,7 @@ describe('ConfirmDialog', () => {
       />
     )
 
-    await expect.element(getByRole('button', { name: 'Cancel' })).toBeDisabled()
+    await expect.element(getByRole('button', { name: '取消' })).toBeDisabled()
     await expect
       .element(getByRole('button', { name: 'Continue' }))
       .toBeDisabled()

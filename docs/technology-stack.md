@@ -19,14 +19,14 @@
 
 ## 2. 总体选型
 
-| 层           | 主要技术                                                                  | 状态                     |
-| ------------ | ------------------------------------------------------------------------- | ------------------------ |
-| React Web    | React 19、Vite 8、TypeScript 6、TanStack、Zod、ky、Tailwind CSS、Radix UI | 账户界面已接真实 API     |
-| NestJS API   | NestJS 12、Express、Zod、Kysely、Prisma、PostgreSQL、Pino                 | 账户 API 已实现          |
-| Python Agent | Python 3.13、FastAPI、Pydantic、LangGraph、OpenAI SDK、HTTPX、structlog   | 项目已初始化，服务待实现 |
-| 共享契约     | 独立 `@tech-scout/contracts`、Zod 4、OpenAPI                              | 基础包已实现             |
-| 数据底座     | Python、DuckDB、Parquet、psycopg、PostgreSQL                              | 已实现并通过 Data Gate   |
-| 数据库       | 本地 PostgreSQL `tech-scout`                                              | Catalog 已发布           |
+| 层           | 主要技术                                                                  | 状态                            |
+| ------------ | ------------------------------------------------------------------------- | ------------------------------- |
+| React Web    | React 19、Vite 8、TypeScript 6、TanStack、Zod、ky、Tailwind CSS、Radix UI | 账户与 Catalog 界面已接真实 API |
+| NestJS API   | NestJS 12、Express、Zod、Kysely、Prisma、PostgreSQL、Pino                 | 账户与只读 Catalog API 已实现   |
+| Python Agent | Python 3.13、FastAPI、Pydantic、LangGraph、OpenAI SDK、HTTPX、structlog   | 项目已初始化，服务待实现        |
+| 共享契约     | 独立 `@tech-scout/contracts`、Zod 4、OpenAPI                              | 基础包已实现                    |
+| 数据底座     | Python、DuckDB、Parquet、psycopg、PostgreSQL                              | 已实现并通过 Data Gate          |
+| 数据库       | 本地 PostgreSQL `tech-scout`                                              | Catalog 已发布                  |
 
 浏览器只调用 NestJS。NestJS 和 Python Intelligence 都不能修改 Catalog；Data Foundation 是 Catalog 的唯一发布者。
 
@@ -45,7 +45,7 @@
 | Tailwind CSS + Radix UI     | 4.x/1.x  | 样式和无障碍基础组件              | `Implemented` |
 | React Hook Form + Zod       | 7.x/4.x  | 表单状态和运行时校验              | `Implemented` |
 | Zustand                     | 5.x      | 少量跨页面客户端状态              | `Implemented` |
-| ky                          | 2.1      | 基于标准 Fetch 的统一 HTTP 客户端 | `Installed`   |
+| ky                          | 2.1      | 基于标准 Fetch 的统一 HTTP 客户端 | `Implemented` |
 | MSW                         | 2.15     | Fetch 接口 Mock 和前端集成测试    | `Installed`   |
 | Vitest Browser + Playwright | 4.x/1.x  | 真实 Chromium 中的组件和交互测试  | `Implemented` |
 
@@ -73,15 +73,15 @@ React feature
 
 ### 4.1 服务框架
 
-| 技术               | 当前版本 | 用途                    | 状态                   |
-| ------------------ | -------- | ----------------------- | ---------------------- |
-| NestJS             | 12.0     | 唯一对外产品 API        | `Implemented` 工程骨架 |
-| Express Adapter    | 5.x      | NestJS HTTP 运行时      | `Implemented`          |
-| Zod                | 4.3      | 请求、响应和配置校验    | `Installed`            |
-| Pino/nestjs-pino   | 10.x/5.x | 结构化 JSON 日志        | `Installed`            |
-| cookie-parser      | 1.4      | HttpOnly Session Cookie | `Installed`            |
-| Argon2             | 0.45     | Argon2id 密码哈希       | `Installed`            |
-| Vitest + Supertest | 4.x/7.x  | 单元和 HTTP 集成测试    | `Implemented`          |
+| 技术               | 当前版本 | 用途                    | 状态          |
+| ------------------ | -------- | ----------------------- | ------------- |
+| NestJS             | 12.0     | 唯一对外产品 API        | `Implemented` |
+| Express Adapter    | 5.x      | NestJS HTTP 运行时      | `Implemented` |
+| Zod                | 4.3      | 请求、响应和配置校验    | `Installed`   |
+| Pino/nestjs-pino   | 10.x/5.x | 结构化 JSON 日志        | `Installed`   |
+| cookie-parser      | 1.4      | HttpOnly Session Cookie | `Installed`   |
+| Argon2             | 0.45     | Argon2id 密码哈希       | `Installed`   |
+| Vitest + Supertest | 4.x/7.x  | 单元和 HTTP 集成测试    | `Implemented` |
 
 保留当前 Express Adapter。没有证据表明 Fastify 能为 MVP 带来足以抵消迁移成本的收益。
 
@@ -211,10 +211,11 @@ Python Pydantic models
 | `app`           | NestJS/Prisma       | 完整 CRUD         | 禁止                |
 | `agent_runtime` | Python Intelligence | 通过内部 API 查询 | checkpoint 读写     |
 
-最终应使用独立 PostgreSQL 登录角色落实权限：
+部署时使用独立 PostgreSQL 登录角色落实权限：
 
 - `tech_scout_foundation`：管理 `staging/catalog`。
-- `tech_scout_api`：读取 `catalog`，读写 `app`。
+- `tech_scout_api`：读写 `app`。
+- `tech_scout_catalog_reader`：仅连接并读取 `catalog`，供 NestJS 的独立 Catalog 连接使用。
 - `tech_scout_agent`：读取 `catalog`，读写 `agent_runtime`。
 
 ## 8. 测试策略
@@ -263,9 +264,9 @@ OpenTelemetry、Prometheus、集中日志和 Sentry 均为 `Deferred`。出现�
 
 1. ~~初始化 Prisma `app` schema，实现公开注册、Session 和账号管理。~~ 已完成。
 2. ~~用数据库 Session Cookie 替换前端 Mock Token 模板。~~ 已完成。
-3. 建立 NestJS Catalog Kysely 只读连接、类型和 repository。
-4. 用共享 Zod 定义第一批领域、公司、专利和来源响应。
-5. 实现 React → NestJS → Catalog 的分页查询闭环。
+3. ~~建立 NestJS Catalog Kysely 只读连接、类型和 repository。~~ 已完成。
+4. ~~用共享 Zod 定义第一批领域、公司、专利和来源响应。~~ 已完成。
+5. ~~实现 React → NestJS → Catalog 的分页查询闭环。~~ 已完成。
 6. 实现 Python FastAPI 健康检查和 NestJS 内部客户端。
 7. 增加 LangGraph 最小研究工作流、`agent_runtime` checkpoint 和 SSE。
 8. 在出现真实瓶颈后再评估队列、向量检索、对象存储和容器化。

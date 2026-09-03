@@ -1,1 +1,2 @@
 apps/web/src/routeTree.gen.ts
+apps/api/src/generated/catalog.database.ts

@@ -16,6 +16,8 @@
     "prisma:generate": "prisma generate",
     "prisma:validate": "prisma validate",
     "prisma:migrate": "prisma migrate deploy",
+    "catalog:types": "kysely-codegen --dialect postgres --url \"env(CATALOG_DATABASE_URL)\" --default-schema catalog --include-pattern \"catalog.*\" --date-parser string --camel-case --out-file src/generated/catalog.database.ts",
+    "catalog:types:check": "pnpm catalog:types --verify",
     "admin:create": "prisma generate && nest build && node dist/cli/create-admin.js",
     "test": "prisma generate && vitest run",
     "test:watch": "vitest",

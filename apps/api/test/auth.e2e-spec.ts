@@ -15,6 +15,8 @@ describeWithDatabase('authentication and user administration (e2e)', () => {
 
   beforeAll(async () => {
     process.env.DATABASE_URL = process.env.TEST_DATABASE_URL
+    process.env.CATALOG_DATABASE_URL =
+      process.env.TEST_CATALOG_DATABASE_URL ?? process.env.TEST_DATABASE_URL
     process.env.WEB_ORIGIN = 'http://localhost:5173'
     process.env.SESSION_COOKIE_SECURE = 'false'
     const module = await Test.createTestingModule({

@@ -43,7 +43,7 @@ pnpm dev
 - Web：<http://localhost:5173>
 - API：<http://localhost:3000>
 
-Web 已通过同源 `/api` 开发代理接入 NestJS 的登录、注册和用户管理 API。公司、专利和研究接口尚未实现。
+Web 已通过同源 `/api` 开发代理接入 NestJS 的账户 API 和只读 Catalog API。登录后可从“技术目录”浏览当前已发布 release 的领域、公司、专利、实体匹配证据和安全来源信息；研究任务接口尚未实现。
 
 ## 常用命令
 
@@ -81,7 +81,7 @@ uv run --project pipelines/data-foundation pytest pipelines/data-foundation/test
 
 Web 本地开发不需要环境文件。API 复制 `apps/api/.env.example` 为 `apps/api/.env`，并把示例密码替换为本地数据库密码。
 
-API 至少需要 `DATABASE_URL`。首次运行先应用 Prisma migration：
+API 需要两个独立连接：`DATABASE_URL` 读写 `app` schema，`CATALOG_DATABASE_URL` 只读 `catalog` schema。首次运行先应用 Prisma migration：
 
 ```bash
 pnpm --filter @tech-scout/api prisma:migrate
@@ -95,7 +95,27 @@ pnpm --filter @tech-scout/api admin:create
 
 创建成功后清除这三个一次性环境变量。公开注册只会创建普通用户，不会自动产生管理员。
 
-API 数据库集成测试必须使用独立数据库，并通过 `TEST_DATABASE_URL` 指定；测试会清空其中的 `app.user_account` 和 `app.user_session`，不得指向日常数据库或 Catalog 数据库。
+Catalog 连接会额外设置 `search_path=catalog`、只读事务和 5 秒 statement timeout。生产或演示环境应使用最小权限角色，例如由数据库管理员执行（密码请通过安全渠道设置）：
+
+```sql
+CREATE ROLE tech_scout_catalog_reader LOGIN PASSWORD 'replace-me';
+GRANT CONNECT ON DATABASE "tech-scout" TO tech_scout_catalog_reader;
+GRANT USAGE ON SCHEMA catalog TO tech_scout_catalog_reader;
+GRANT SELECT ON ALL TABLES IN SCHEMA catalog TO tech_scout_catalog_reader;
+ALTER ROLE tech_scout_catalog_reader SET default_transaction_read_only = on;
+ALTER ROLE tech_scout_catalog_reader SET statement_timeout = '5s';
+```
+
+Catalog 发布账号创建新表时，还应由该表实际所有者配置 `ALTER DEFAULT PRIVILEGES ... GRANT SELECT ON TABLES TO tech_scout_catalog_reader`。该角色不得获得 `staging`、`app` 或 Catalog 写权限。
+
+Catalog schema 变化后重新生成并核对 Kysely 类型：
+
+```bash
+pnpm --filter @tech-scout/api catalog:types
+pnpm --filter @tech-scout/api catalog:types:check
+```
+
+API e2e 必须设置 `TEST_DATABASE_URL` 和 `TEST_CATALOG_DATABASE_URL`。两者可指向同一个专用、可丢弃的测试库（分别使用 `app` 与 `catalog` schema）；测试会清空账户表并重建 Catalog fixture，绝不能指向日常或生产数据库。
 
 ## 部署
 

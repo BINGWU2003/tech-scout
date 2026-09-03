@@ -30,7 +30,7 @@ describe('TasksMultiDeleteDialog', () => {
     const confirmDeleteInput = getByRole('textbox', {
       name: /Confirm by typing "DELETE"/i,
     })
-    const cancelButton = getByRole('button', { name: /Cancel/i })
+    const cancelButton = getByRole('button', { name: '取消' })
     const deleteButton = getByRole('button', { name: /Delete/i })
 
     await expect.element(title).toBeInTheDocument()
@@ -68,7 +68,7 @@ describe('TasksMultiDeleteDialog', () => {
       <TasksMultiDeleteDialog open onOpenChange={onOpenChange} table={table} />
     )
 
-    const cancelButton = getByRole('button', { name: /Cancel/i })
+    const cancelButton = getByRole('button', { name: '取消' })
     await userEvent.click(cancelButton)
 
     expect(onOpenChange).toHaveBeenCalledOnce()
@@ -104,7 +104,7 @@ describe('TasksMultiDeleteDialog', () => {
     await userEvent.fill(confirmDeleteInput, 'DELETE')
     await expect.element(confirmDeleteInput).toHaveValue('DELETE')
 
-    const cancelButton = getByRole('button', { name: /Cancel/i })
+    const cancelButton = getByRole('button', { name: '取消' })
     await userEvent.click(cancelButton)
 
     const reopenButton = getByRole('button', { name: /Reopen/i })

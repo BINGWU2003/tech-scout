@@ -11,6 +11,7 @@ import {
   AudioWaveform,
   Command,
   GalleryVerticalEnd,
+  LibraryBig,
 } from 'lucide-react'
 import { type SidebarData } from '../types'
 
@@ -45,6 +46,11 @@ export const sidebarData: SidebarData = {
           title: 'Dashboard',
           url: '/',
           icon: LayoutDashboard,
+        },
+        {
+          title: '技术目录',
+          url: '/catalog',
+          icon: LibraryBig,
         },
         {
           title: 'Tasks',

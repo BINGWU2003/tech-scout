@@ -691,7 +691,7 @@ draft
 - 两个目标领域均超过 200 件专利，公司候选活动队列为 0。
 - 重复导入、来源追溯、关系完整性和最小引用报告均已验证。
 
-### 阶段 1：产品查询层（下一步）
+### 阶段 1：产品查询层（已完成）
 
 - 为 NestJS 增加只读 Catalog repository 和连接配置。
 - 实现领域专利、技术公司、公司专利、匹配证据和来源追溯接口。
@@ -785,8 +785,8 @@ Data Spike 已完成。以下能力仍需在对应产品阶段验证：
 
 当前仓库事实：
 
-- `apps/web` 已接入真实登录、公开注册和管理员用户管理，研究业务页面尚未接 Catalog。
-- `apps/api` 已实现认证和用户管理，Catalog 只读业务接口尚未实现。
+- `apps/web` 已接入真实登录、公开注册、管理员用户管理和第一批 Catalog 浏览页面。
+- `apps/api` 已实现认证、用户管理和最新已发布 release 的 Catalog 只读业务接口。
 - `pipelines/data-foundation` 已实现离线数据构建、审核、Catalog 发布和固定报告。
 - 本地 PostgreSQL Catalog 已发布并通过 Data Gate。
 - `services/intelligence` 当前只有边界说明，真正的 Agent 服务尚未实现。
@@ -802,7 +802,7 @@ Data Spike 已完成。以下能力仍需在对应产品阶段验证：
 - NestJS 负责产品服务端；Python Intelligence 只负责 Agent 和研究工作流。
 - 离线 Data Foundation 负责采集、解析、数据集构建和 Catalog 发布，与在线 Python 服务物理分离。
 - 使用可控状态图和专业 Agent，不使用无限自主 Agent 群聊。
-- 最小垂直领域公司—专利数据库和 Data Gate 已完成；下一步是只读产品查询层。
+- 最小垂直领域公司—专利数据库、Data Gate 和只读产品查询层已完成；下一步是 Agent 主链。
 - 全量导入 GLEIF 和 SEC 等许可清晰的官方公司身份文件，建立公司身份参考库。
 - 垂直主库持续增量扩充，研究工作集和 Fixture/Replay 分层管理；不镜像全球专利全文和新闻正文。
 - 首批领域为 AI 芯片/边缘推理加速和工业视觉/AI 质检。

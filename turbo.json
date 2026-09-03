@@ -9,14 +9,16 @@
     "test": {
       "dependsOn": ["^build"],
       "outputs": [],
-      "env": ["CI", "VITEST_BROWSER_CHANNEL"]
+      "env": ["CI", "VITEST_BROWSER_CHANNEL", "CATALOG_DATABASE_URL"]
     },
     "test:e2e": {
       "dependsOn": ["^build"],
       "outputs": [],
       "env": [
         "DATABASE_URL",
+        "CATALOG_DATABASE_URL",
         "TEST_DATABASE_URL",
+        "TEST_CATALOG_DATABASE_URL",
         "WEB_ORIGIN",
         "SESSION_COOKIE_SECURE"
       ]

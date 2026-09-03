@@ -39,7 +39,7 @@ TechScout 是本地优先、证据可追溯的技术侦察工具。架构需要�
 | 组件                | 状态          | 当前能力                                                                        |
 | ------------------- | ------------- | ------------------------------------------------------------------------------- |
 | React Web           | `Implemented` | 真实登录、公开注册、Session 恢复、路由守卫、密码修改和管理员用户管理            |
-| NestJS API          | `Implemented` | 自建认证、数据库 Session、CSRF、账号管理和共享 Zod 契约；Catalog API 尚未实现   |
+| NestJS API          | `Implemented` | 自建认证、数据库 Session、CSRF、账号管理，以及鉴权后的只读 Catalog REST API     |
 | Data Foundation     | `Implemented` | Raw、Manifest、Bronze、Silver、公司审核、Catalog 发布和固定报告                 |
 | PostgreSQL Catalog  | `Implemented` | Catalog `2026-09-v6` 已发布；2,863 件专利，公司候选活动队列为 0                 |
 | Python Intelligence | `Implemented` | 项目、依赖和锁文件已初始化；FastAPI、Agent、工作流和模型调用仍为 `Planned`      |
@@ -56,12 +56,12 @@ flowchart LR
     RELEASE --> CATALOG[(PostgreSQL catalog)]
     CATALOG --> REPORT[固定最小报告]
 
-    WEB[React Web] -->|登录 / 注册 / 用户管理| API[NestJS API]
+    WEB[React Web] -->|账户 / Catalog 查询| API[NestJS API]
     API --> APP[(app 用户与 Session)]
-    API -. Catalog 查询尚未实现 .-> CATALOG
+    API -->|Kysely 只读| CATALOG
 ```
 
-账户请求链已经完成；产品研究请求链尚未完成。下一步是让 NestJS 以只读方式查询 Catalog。
+账户与同步 Catalog 查询链已经完成；Python Agent 和产品研究任务链尚未实现。
 
 ## 4. 目标架构
 
@@ -125,13 +125,13 @@ tech-scout/
   docs/                          产品、架构、数据和运维文档
 ```
 
-`packages/contracts` 已建立并承载 React/NestJS 共享的账户 Zod 契约；后续 Catalog 契约继续在同一边界中扩展。
+`packages/contracts` 已承载 React/NestJS 共享的账户与 Catalog Zod 契约。
 
 ## 6. 组件职责
 
 ### 6.1 React Web
 
-状态：账户与会话界面 `Implemented`，研究业务功能 `Next/Planned`。
+状态：账户、会话和 Catalog 浏览界面 `Implemented`，研究任务功能 `Planned`。
 
 负责：
 
@@ -147,7 +147,7 @@ tech-scout/
 
 ### 6.2 NestJS Product API
 
-状态：认证和用户管理 `Implemented`，Catalog 业务查询层 `Next`。
+状态：认证、用户管理和 Catalog 业务查询层 `Implemented`。
 
 负责：
 
@@ -231,17 +231,17 @@ Browser → PostgreSQL
 | `app`           | 2 张业务表  | NestJS/Prisma            | NestJS 读写；Python 不直写       |
 | `agent_runtime` | 尚未创建    | 未来 Python Intelligence | Python checkpoint 读写           |
 
-现有 migration 已经发布，不修改历史 SQL。未来 Catalog 变化由 Data Foundation 新增 migration；未来 App 表由 NestJS 侧新增 migration。数据库账号权限应最终落实同样的边界。
+现有 migration 已经发布，不修改历史 SQL。未来 Catalog 变化由 Data Foundation 新增 migration；未来 App 表由 NestJS 侧新增 migration。NestJS 使用独立 `CATALOG_DATABASE_URL`，连接强制只读事务、5 秒查询超时和 `catalog` search path；部署时还应使用仅具备 Catalog `SELECT` 权限的角色。
 
 ## 9. 请求、任务和事件
 
-### 9.1 同步查询（Next）
+### 9.1 同步查询（Implemented）
 
 ```text
 Browser → NestJS → catalog → NestJS → Browser
 ```
 
-优先实现领域专利、技术公司、公司专利、实体证据和来源追溯等只读查询。所有列表必须有分页、稳定排序和明确 release。
+已实现领域专利、技术公司、公司专利、实体证据和来源追溯等只读查询。所有列表使用页码分页、稳定排序并明确返回当前已发布 release；Catalog 连接惰性建立，即使其在启动时不可达也不阻断账户 API，具体查询统一返回 `503 CATALOG_UNAVAILABLE`。
 
 ### 9.2 Agent 任务（Planned）
 
@@ -258,12 +258,12 @@ NestJS 是对外状态真相。Python 可以拥有内部 checkpoint，但不能�
 
 ### 9.3 运行模式
 
-| 模式    | MVP 状态   | 说明                                                   |
-| ------- | ---------- | ------------------------------------------------------ |
-| Catalog | `Next`     | 默认模式，只查询本地已发布数据                         |
-| Fixture | `Planned`  | 小型固定输入，用于自动化测试                           |
-| Replay  | `Planned`  | 重放工具响应和事件，用于稳定演示和回归                 |
-| Live    | `Deferred` | 外部在线检索；需单独解决许可、限流、来源审计和失败策略 |
+| 模式    | MVP 状态      | 说明                                                   |
+| ------- | ------------- | ------------------------------------------------------ |
+| Catalog | `Implemented` | 默认模式，只查询本地最新已发布数据                     |
+| Fixture | `Planned`     | 小型固定输入，用于自动化测试                           |
+| Replay  | `Planned`     | 重放工具响应和事件，用于稳定演示和回归                 |
+| Live    | `Deferred`    | 外部在线检索；需单独解决许可、限流、来源审计和失败策略 |
 
 不同模式未来应暴露相同的任务状态和事件协议，但 MVP 不承诺 Live。
 

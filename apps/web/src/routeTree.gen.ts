@@ -24,11 +24,19 @@ import { Route as AuthenticatedTasksIndexRouteImport } from './routes/_authentic
 import { Route as AuthenticatedSettingsIndexRouteImport } from './routes/_authenticated/settings/index'
 import { Route as AuthenticatedHelpCenterIndexRouteImport } from './routes/_authenticated/help-center/index'
 import { Route as AuthenticatedChatsIndexRouteImport } from './routes/_authenticated/chats/index'
+import { Route as AuthenticatedCatalogIndexRouteImport } from './routes/_authenticated/catalog/index'
 import { Route as AuthenticatedAppsIndexRouteImport } from './routes/_authenticated/apps/index'
 import { Route as AuthenticatedSettingsDisplayRouteImport } from './routes/_authenticated/settings/display'
 import { Route as AuthenticatedSettingsAppearanceRouteImport } from './routes/_authenticated/settings/appearance'
 import { Route as AuthenticatedSettingsAccountRouteImport } from './routes/_authenticated/settings/account'
 import { Route as AuthenticatedErrorsErrorRouteImport } from './routes/_authenticated/errors/$error'
+import { Route as AuthenticatedCatalogCompaniesIndexRouteImport } from './routes/_authenticated/catalog/companies/index'
+import { Route as AuthenticatedCatalogPatentsPatentIdRouteImport } from './routes/_authenticated/catalog/patents/$patentId'
+import { Route as AuthenticatedCatalogCandidatesCandidateIdRouteImport } from './routes/_authenticated/catalog/candidates/$candidateId'
+import { Route as AuthenticatedCatalogCompaniesCompanyIdIndexRouteImport } from './routes/_authenticated/catalog/companies/$companyId/index'
+import { Route as AuthenticatedCatalogDomainsDomainIdPatentsRouteImport } from './routes/_authenticated/catalog/domains/$domainId/patents'
+import { Route as AuthenticatedCatalogDomainsDomainIdCompaniesRouteImport } from './routes/_authenticated/catalog/domains/$domainId/companies'
+import { Route as AuthenticatedCatalogCompaniesCompanyIdPatentsRouteImport } from './routes/_authenticated/catalog/companies/$companyId/patents'
 
 const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
   id: '/_authenticated',
@@ -107,6 +115,12 @@ const AuthenticatedChatsIndexRoute = AuthenticatedChatsIndexRouteImport.update({
   path: '/chats/',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedCatalogIndexRoute =
+  AuthenticatedCatalogIndexRouteImport.update({
+    id: '/catalog/',
+    path: '/catalog/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedAppsIndexRoute = AuthenticatedAppsIndexRouteImport.update({
   id: '/apps/',
   path: '/apps/',
@@ -136,6 +150,48 @@ const AuthenticatedErrorsErrorRoute =
     path: '/errors/$error',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedCatalogCompaniesIndexRoute =
+  AuthenticatedCatalogCompaniesIndexRouteImport.update({
+    id: '/catalog/companies/',
+    path: '/catalog/companies/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedCatalogPatentsPatentIdRoute =
+  AuthenticatedCatalogPatentsPatentIdRouteImport.update({
+    id: '/catalog/patents/$patentId',
+    path: '/catalog/patents/$patentId',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedCatalogCandidatesCandidateIdRoute =
+  AuthenticatedCatalogCandidatesCandidateIdRouteImport.update({
+    id: '/catalog/candidates/$candidateId',
+    path: '/catalog/candidates/$candidateId',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedCatalogCompaniesCompanyIdIndexRoute =
+  AuthenticatedCatalogCompaniesCompanyIdIndexRouteImport.update({
+    id: '/catalog/companies/$companyId/',
+    path: '/catalog/companies/$companyId/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedCatalogDomainsDomainIdPatentsRoute =
+  AuthenticatedCatalogDomainsDomainIdPatentsRouteImport.update({
+    id: '/catalog/domains/$domainId/patents',
+    path: '/catalog/domains/$domainId/patents',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedCatalogDomainsDomainIdCompaniesRoute =
+  AuthenticatedCatalogDomainsDomainIdCompaniesRouteImport.update({
+    id: '/catalog/domains/$domainId/companies',
+    path: '/catalog/domains/$domainId/companies',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedCatalogCompaniesCompanyIdPatentsRoute =
+  AuthenticatedCatalogCompaniesCompanyIdPatentsRouteImport.update({
+    id: '/catalog/companies/$companyId/patents',
+    path: '/catalog/companies/$companyId/patents',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AuthenticatedIndexRoute
@@ -152,11 +208,19 @@ export interface FileRoutesByFullPath {
   '/settings/appearance': typeof AuthenticatedSettingsAppearanceRoute
   '/settings/display': typeof AuthenticatedSettingsDisplayRoute
   '/apps/': typeof AuthenticatedAppsIndexRoute
+  '/catalog/': typeof AuthenticatedCatalogIndexRoute
   '/chats/': typeof AuthenticatedChatsIndexRoute
   '/help-center/': typeof AuthenticatedHelpCenterIndexRoute
   '/settings/': typeof AuthenticatedSettingsIndexRoute
   '/tasks/': typeof AuthenticatedTasksIndexRoute
   '/users/': typeof AuthenticatedUsersIndexRoute
+  '/catalog/candidates/$candidateId': typeof AuthenticatedCatalogCandidatesCandidateIdRoute
+  '/catalog/patents/$patentId': typeof AuthenticatedCatalogPatentsPatentIdRoute
+  '/catalog/companies/': typeof AuthenticatedCatalogCompaniesIndexRoute
+  '/catalog/companies/$companyId/patents': typeof AuthenticatedCatalogCompaniesCompanyIdPatentsRoute
+  '/catalog/domains/$domainId/companies': typeof AuthenticatedCatalogDomainsDomainIdCompaniesRoute
+  '/catalog/domains/$domainId/patents': typeof AuthenticatedCatalogDomainsDomainIdPatentsRoute
+  '/catalog/companies/$companyId/': typeof AuthenticatedCatalogCompaniesCompanyIdIndexRoute
 }
 export interface FileRoutesByTo {
   '/sign-in': typeof authSignInRoute
@@ -172,11 +236,19 @@ export interface FileRoutesByTo {
   '/settings/appearance': typeof AuthenticatedSettingsAppearanceRoute
   '/settings/display': typeof AuthenticatedSettingsDisplayRoute
   '/apps': typeof AuthenticatedAppsIndexRoute
+  '/catalog': typeof AuthenticatedCatalogIndexRoute
   '/chats': typeof AuthenticatedChatsIndexRoute
   '/help-center': typeof AuthenticatedHelpCenterIndexRoute
   '/settings': typeof AuthenticatedSettingsIndexRoute
   '/tasks': typeof AuthenticatedTasksIndexRoute
   '/users': typeof AuthenticatedUsersIndexRoute
+  '/catalog/candidates/$candidateId': typeof AuthenticatedCatalogCandidatesCandidateIdRoute
+  '/catalog/patents/$patentId': typeof AuthenticatedCatalogPatentsPatentIdRoute
+  '/catalog/companies': typeof AuthenticatedCatalogCompaniesIndexRoute
+  '/catalog/companies/$companyId/patents': typeof AuthenticatedCatalogCompaniesCompanyIdPatentsRoute
+  '/catalog/domains/$domainId/companies': typeof AuthenticatedCatalogDomainsDomainIdCompaniesRoute
+  '/catalog/domains/$domainId/patents': typeof AuthenticatedCatalogDomainsDomainIdPatentsRoute
+  '/catalog/companies/$companyId': typeof AuthenticatedCatalogCompaniesCompanyIdIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -195,11 +267,19 @@ export interface FileRoutesById {
   '/_authenticated/settings/appearance': typeof AuthenticatedSettingsAppearanceRoute
   '/_authenticated/settings/display': typeof AuthenticatedSettingsDisplayRoute
   '/_authenticated/apps/': typeof AuthenticatedAppsIndexRoute
+  '/_authenticated/catalog/': typeof AuthenticatedCatalogIndexRoute
   '/_authenticated/chats/': typeof AuthenticatedChatsIndexRoute
   '/_authenticated/help-center/': typeof AuthenticatedHelpCenterIndexRoute
   '/_authenticated/settings/': typeof AuthenticatedSettingsIndexRoute
   '/_authenticated/tasks/': typeof AuthenticatedTasksIndexRoute
   '/_authenticated/users/': typeof AuthenticatedUsersIndexRoute
+  '/_authenticated/catalog/candidates/$candidateId': typeof AuthenticatedCatalogCandidatesCandidateIdRoute
+  '/_authenticated/catalog/patents/$patentId': typeof AuthenticatedCatalogPatentsPatentIdRoute
+  '/_authenticated/catalog/companies/': typeof AuthenticatedCatalogCompaniesIndexRoute
+  '/_authenticated/catalog/companies/$companyId/patents': typeof AuthenticatedCatalogCompaniesCompanyIdPatentsRoute
+  '/_authenticated/catalog/domains/$domainId/companies': typeof AuthenticatedCatalogDomainsDomainIdCompaniesRoute
+  '/_authenticated/catalog/domains/$domainId/patents': typeof AuthenticatedCatalogDomainsDomainIdPatentsRoute
+  '/_authenticated/catalog/companies/$companyId/': typeof AuthenticatedCatalogCompaniesCompanyIdIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -218,11 +298,19 @@ export interface FileRouteTypes {
     | '/settings/appearance'
     | '/settings/display'
     | '/apps/'
+    | '/catalog/'
     | '/chats/'
     | '/help-center/'
     | '/settings/'
     | '/tasks/'
     | '/users/'
+    | '/catalog/candidates/$candidateId'
+    | '/catalog/patents/$patentId'
+    | '/catalog/companies/'
+    | '/catalog/companies/$companyId/patents'
+    | '/catalog/domains/$domainId/companies'
+    | '/catalog/domains/$domainId/patents'
+    | '/catalog/companies/$companyId/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/sign-in'
@@ -238,11 +326,19 @@ export interface FileRouteTypes {
     | '/settings/appearance'
     | '/settings/display'
     | '/apps'
+    | '/catalog'
     | '/chats'
     | '/help-center'
     | '/settings'
     | '/tasks'
     | '/users'
+    | '/catalog/candidates/$candidateId'
+    | '/catalog/patents/$patentId'
+    | '/catalog/companies'
+    | '/catalog/companies/$companyId/patents'
+    | '/catalog/domains/$domainId/companies'
+    | '/catalog/domains/$domainId/patents'
+    | '/catalog/companies/$companyId'
   id:
     | '__root__'
     | '/_authenticated'
@@ -260,11 +356,19 @@ export interface FileRouteTypes {
     | '/_authenticated/settings/appearance'
     | '/_authenticated/settings/display'
     | '/_authenticated/apps/'
+    | '/_authenticated/catalog/'
     | '/_authenticated/chats/'
     | '/_authenticated/help-center/'
     | '/_authenticated/settings/'
     | '/_authenticated/tasks/'
     | '/_authenticated/users/'
+    | '/_authenticated/catalog/candidates/$candidateId'
+    | '/_authenticated/catalog/patents/$patentId'
+    | '/_authenticated/catalog/companies/'
+    | '/_authenticated/catalog/companies/$companyId/patents'
+    | '/_authenticated/catalog/domains/$domainId/companies'
+    | '/_authenticated/catalog/domains/$domainId/patents'
+    | '/_authenticated/catalog/companies/$companyId/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -385,6 +489,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedChatsIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/catalog/': {
+      id: '/_authenticated/catalog/'
+      path: '/catalog'
+      fullPath: '/catalog/'
+      preLoaderRoute: typeof AuthenticatedCatalogIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/apps/': {
       id: '/_authenticated/apps/'
       path: '/apps'
@@ -420,6 +531,55 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedErrorsErrorRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/catalog/companies/': {
+      id: '/_authenticated/catalog/companies/'
+      path: '/catalog/companies'
+      fullPath: '/catalog/companies/'
+      preLoaderRoute: typeof AuthenticatedCatalogCompaniesIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/catalog/patents/$patentId': {
+      id: '/_authenticated/catalog/patents/$patentId'
+      path: '/catalog/patents/$patentId'
+      fullPath: '/catalog/patents/$patentId'
+      preLoaderRoute: typeof AuthenticatedCatalogPatentsPatentIdRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/catalog/candidates/$candidateId': {
+      id: '/_authenticated/catalog/candidates/$candidateId'
+      path: '/catalog/candidates/$candidateId'
+      fullPath: '/catalog/candidates/$candidateId'
+      preLoaderRoute: typeof AuthenticatedCatalogCandidatesCandidateIdRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/catalog/companies/$companyId/': {
+      id: '/_authenticated/catalog/companies/$companyId/'
+      path: '/catalog/companies/$companyId'
+      fullPath: '/catalog/companies/$companyId/'
+      preLoaderRoute: typeof AuthenticatedCatalogCompaniesCompanyIdIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/catalog/domains/$domainId/patents': {
+      id: '/_authenticated/catalog/domains/$domainId/patents'
+      path: '/catalog/domains/$domainId/patents'
+      fullPath: '/catalog/domains/$domainId/patents'
+      preLoaderRoute: typeof AuthenticatedCatalogDomainsDomainIdPatentsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/catalog/domains/$domainId/companies': {
+      id: '/_authenticated/catalog/domains/$domainId/companies'
+      path: '/catalog/domains/$domainId/companies'
+      fullPath: '/catalog/domains/$domainId/companies'
+      preLoaderRoute: typeof AuthenticatedCatalogDomainsDomainIdCompaniesRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/catalog/companies/$companyId/patents': {
+      id: '/_authenticated/catalog/companies/$companyId/patents'
+      path: '/catalog/companies/$companyId/patents'
+      fullPath: '/catalog/companies/$companyId/patents'
+      preLoaderRoute: typeof AuthenticatedCatalogCompaniesCompanyIdPatentsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
   }
 }
 
@@ -448,10 +608,18 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
   AuthenticatedErrorsErrorRoute: typeof AuthenticatedErrorsErrorRoute
   AuthenticatedAppsIndexRoute: typeof AuthenticatedAppsIndexRoute
+  AuthenticatedCatalogIndexRoute: typeof AuthenticatedCatalogIndexRoute
   AuthenticatedChatsIndexRoute: typeof AuthenticatedChatsIndexRoute
   AuthenticatedHelpCenterIndexRoute: typeof AuthenticatedHelpCenterIndexRoute
   AuthenticatedTasksIndexRoute: typeof AuthenticatedTasksIndexRoute
   AuthenticatedUsersIndexRoute: typeof AuthenticatedUsersIndexRoute
+  AuthenticatedCatalogCandidatesCandidateIdRoute: typeof AuthenticatedCatalogCandidatesCandidateIdRoute
+  AuthenticatedCatalogPatentsPatentIdRoute: typeof AuthenticatedCatalogPatentsPatentIdRoute
+  AuthenticatedCatalogCompaniesIndexRoute: typeof AuthenticatedCatalogCompaniesIndexRoute
+  AuthenticatedCatalogCompaniesCompanyIdPatentsRoute: typeof AuthenticatedCatalogCompaniesCompanyIdPatentsRoute
+  AuthenticatedCatalogDomainsDomainIdCompaniesRoute: typeof AuthenticatedCatalogDomainsDomainIdCompaniesRoute
+  AuthenticatedCatalogDomainsDomainIdPatentsRoute: typeof AuthenticatedCatalogDomainsDomainIdPatentsRoute
+  AuthenticatedCatalogCompaniesCompanyIdIndexRoute: typeof AuthenticatedCatalogCompaniesCompanyIdIndexRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
@@ -459,10 +627,25 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
   AuthenticatedErrorsErrorRoute: AuthenticatedErrorsErrorRoute,
   AuthenticatedAppsIndexRoute: AuthenticatedAppsIndexRoute,
+  AuthenticatedCatalogIndexRoute: AuthenticatedCatalogIndexRoute,
   AuthenticatedChatsIndexRoute: AuthenticatedChatsIndexRoute,
   AuthenticatedHelpCenterIndexRoute: AuthenticatedHelpCenterIndexRoute,
   AuthenticatedTasksIndexRoute: AuthenticatedTasksIndexRoute,
   AuthenticatedUsersIndexRoute: AuthenticatedUsersIndexRoute,
+  AuthenticatedCatalogCandidatesCandidateIdRoute:
+    AuthenticatedCatalogCandidatesCandidateIdRoute,
+  AuthenticatedCatalogPatentsPatentIdRoute:
+    AuthenticatedCatalogPatentsPatentIdRoute,
+  AuthenticatedCatalogCompaniesIndexRoute:
+    AuthenticatedCatalogCompaniesIndexRoute,
+  AuthenticatedCatalogCompaniesCompanyIdPatentsRoute:
+    AuthenticatedCatalogCompaniesCompanyIdPatentsRoute,
+  AuthenticatedCatalogDomainsDomainIdCompaniesRoute:
+    AuthenticatedCatalogDomainsDomainIdCompaniesRoute,
+  AuthenticatedCatalogDomainsDomainIdPatentsRoute:
+    AuthenticatedCatalogDomainsDomainIdPatentsRoute,
+  AuthenticatedCatalogCompaniesCompanyIdIndexRoute:
+    AuthenticatedCatalogCompaniesCompanyIdIndexRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =
