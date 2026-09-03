@@ -8,7 +8,7 @@ from pathlib import Path
 import duckdb
 import pytest
 
-from intelligence.datasets.entity_review import (
+from data_foundation.datasets.entity_review import (
     EntityReviewError,
     prepare_entity_review,
     verify_entity_review,

@@ -15,6 +15,8 @@ from typing import Any
 
 import duckdb
 
+from data_foundation.shared.paths import repository_root
+
 LINEAGE_COLUMNS = (
     "_source_release",
     "_source_path",
@@ -691,7 +693,7 @@ def verify_bronze(
 
 
 def _default_configuration_path() -> Path:
-    return Path(__file__).resolve().parents[5] / "config" / "bronze-sources.json"
+    return repository_root() / "config" / "bronze-sources.json"
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -707,8 +709,8 @@ def _parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main() -> None:
-    args = _parser().parse_args()
+def main(argv: list[str] | None = None) -> None:
+    args = _parser().parse_args(argv)
     if args.command == "build":
         manifest = build_bronze(
             data_root=args.data_root,

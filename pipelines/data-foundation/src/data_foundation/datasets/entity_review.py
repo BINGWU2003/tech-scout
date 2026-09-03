@@ -219,11 +219,13 @@ def _file_entry(path: Path, row_count: int, file_format: str) -> dict[str, Any]:
 
 def _artifact_inputs(
     evidence: list[dict[str, Any]], artifacts_dir: Path | None
-) -> tuple[list[dict[str, Any]], list[tuple[Path, PurePosixPath]]]:
+) -> tuple[list[dict[str, Any]], list[tuple[PurePosixPath, Path]]]:
     referenced = [row for row in evidence if row.get("artifactPath")]
     if not referenced:
         if artifacts_dir is not None:
-            raise EntityReviewError("Evidence artifacts were supplied but not referenced")
+            raise EntityReviewError(
+                "Evidence artifacts were supplied but not referenced"
+            )
         return evidence, []
     if artifacts_dir is None:
         raise EntityReviewError("Evidence artifactPath requires --evidence-artifacts")
@@ -709,8 +711,8 @@ def _parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main() -> None:
-    args = _parser().parse_args()
+def main(argv: list[str] | None = None) -> None:
+    args = _parser().parse_args(argv)
     if args.command == "prepare":
         manifest = prepare_entity_review(
             silver_manifest_path=args.silver_manifest,

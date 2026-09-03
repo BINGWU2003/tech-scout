@@ -9,7 +9,7 @@ import duckdb
 import pytest
 import yaml
 
-from intelligence.datasets.silver import SilverError, build_silver, verify_silver
+from data_foundation.datasets.silver import SilverError, build_silver, verify_silver
 
 
 def _sha256(path: Path) -> str:

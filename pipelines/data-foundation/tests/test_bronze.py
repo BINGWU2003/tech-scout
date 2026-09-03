@@ -7,7 +7,7 @@ from pathlib import Path
 import duckdb
 import pytest
 
-from intelligence.datasets.bronze import BronzeError, build_bronze, verify_bronze
+from data_foundation.datasets.bronze import BronzeError, build_bronze, verify_bronze
 
 
 def _sha256(path: Path) -> str:

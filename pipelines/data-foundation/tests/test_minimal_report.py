@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from intelligence.reports.minimal import (
+from data_foundation.reports.minimal import (
     ReportError,
     render_markdown,
     resolve_source_record,
@@ -19,7 +19,7 @@ from intelligence.reports.minimal import (
 
 def test_report_cli_exposes_build_and_verify_commands() -> None:
     result = subprocess.run(
-        [sys.executable, "-m", "intelligence.reports.minimal", "--help"],
+        [sys.executable, "-m", "data_foundation.reports.minimal", "--help"],
         check=False,
         capture_output=True,
         text=True,

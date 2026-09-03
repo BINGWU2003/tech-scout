@@ -15,9 +15,14 @@ from typing import Any
 import duckdb
 import psycopg
 from psycopg import sql
-from psycopg.rows import dict_row
 
-from intelligence.datasets.silver import SilverError, verify_silver
+from data_foundation.datasets.silver import SilverError, verify_silver
+from data_foundation.shared.database import (
+    DatabaseConfigError,
+    connect_database,
+    read_database_config,
+)
+from data_foundation.shared.paths import data_foundation_root
 
 
 class CatalogError(RuntimeError):
@@ -367,75 +372,26 @@ def _sha256_file(path: Path) -> str:
 
 
 def read_db_config(path: Path) -> dict[str, str | int]:
-    """Read Chinese label, .env-style, JSON, or PostgreSQL URL config."""
-    if not path.is_file():
-        raise CatalogError(f"Database config does not exist: {path}")
-    text = path.read_text(encoding="utf-8-sig").strip()
-    if not text:
-        raise CatalogError("Database config is empty")
-    if text.startswith("postgres://") or text.startswith("postgresql://"):
-        return {"conninfo": text}
-    if text.startswith("{"):
-        raw = json.loads(text)
-        values = {str(key).lower(): value for key, value in raw.items()}
-    else:
-        values: dict[str, str] = {}
-        labels = {
-            "主机": "host",
-            "端口": "port",
-            "数据库": "dbname",
-            "用户名": "user",
-            "用户": "user",
-            "密码": "password",
-            "host": "host",
-            "port": "port",
-            "database": "dbname",
-            "dbname": "dbname",
-            "username": "user",
-            "user": "user",
-            "password": "password",
-        }
-        for line in text.splitlines():
-            line = line.strip()
-            if not line or line.startswith("#"):
-                continue
-            separator = "：" if "：" in line else "=" if "=" in line else ":"
-            if separator not in line:
-                raise CatalogError("Database config contains an unsupported line")
-            label, value = line.split(separator, 1)
-            key = labels.get(label.strip().lower())
-            if key:
-                values[key] = value.strip().strip('"').strip("'")
-    aliases = {
-        "hostname": "host",
-        "database": "dbname",
-        "username": "user",
-    }
-    normalized = {aliases.get(key, key): value for key, value in values.items()}
-    required = {"host", "port", "dbname", "user", "password"}
-    missing = sorted(required - normalized.keys())
-    if missing:
-        raise CatalogError(f"Database config is missing: {', '.join(missing)}")
     try:
-        normalized["port"] = int(normalized["port"])
-    except (TypeError, ValueError) as error:
-        raise CatalogError("Database port must be an integer") from error
-    return normalized
+        return read_database_config(path)
+    except DatabaseConfigError as error:
+        raise CatalogError(str(error)) from error
 
 
-def _connect(config_path: Path) -> psycopg.Connection[Any]:
-    config = read_db_config(config_path)
-    if "conninfo" in config:
-        return psycopg.connect(str(config["conninfo"]), row_factory=dict_row)
-    return psycopg.connect(**config, row_factory=dict_row)
+def connect_catalog(config_path: Path) -> psycopg.Connection[Any]:
+    """Connect to Catalog while preserving the public Catalog error contract."""
+    try:
+        return connect_database(config_path)
+    except DatabaseConfigError as error:
+        raise CatalogError(str(error)) from error
 
 
 def migration_path() -> Path:
-    return Path(__file__).resolve().parents[3] / "migrations" / "001_catalog.sql"
+    return data_foundation_root() / "migrations" / "001_catalog.sql"
 
 
 def migration_paths() -> list[Path]:
-    root = Path(__file__).resolve().parents[3] / "migrations"
+    root = data_foundation_root() / "migrations"
     return sorted(root.glob("[0-9][0-9][0-9]_*.sql"))
 
 
@@ -443,7 +399,7 @@ def migrate_database(config_path: Path) -> None:
     migrations = migration_paths()
     if not migrations:
         raise CatalogError("No PostgreSQL migrations were found")
-    with _connect(config_path) as connection:
+    with connect_catalog(config_path) as connection:
         for migration in migrations:
             connection.execute(migration.read_text(encoding="utf-8"))
             print(f"Applied PostgreSQL migration: {migration.stem}")
@@ -807,6 +763,16 @@ def _clear_staging(connection: psycopg.Connection[Any], job_id: uuid.UUID) -> No
         )
 
 
+def _include_expected_zero_counts(
+    counts: dict[str, int], expected: dict[str, int]
+) -> dict[str, int]:
+    """Represent expected zero-row datasets omitted by SQL GROUP BY."""
+    unexpected = set(counts) - set(expected)
+    return {dataset: counts.get(dataset, 0) for dataset in expected} | {
+        dataset: counts[dataset] for dataset in unexpected
+    }
+
+
 def verify_catalog_release(
     config_path: Path, release: str, manifest_path: Path | None = None
 ) -> dict[str, int]:
@@ -818,7 +784,7 @@ def verify_catalog_release(
         expected = {
             entry["dataset"]: entry["rowCount"] for entry in manifest["files"]
         }
-    with _connect(config_path) as connection:
+    with connect_catalog(config_path) as connection:
         release_row = connection.execute(
             """
             SELECT release_status, manifest_sha256
@@ -843,11 +809,13 @@ def verify_catalog_release(
             (release,),
         ).fetchall()
         counts = {row["entity_type"]: row["count"] for row in rows}
-        if expected and counts != expected:
-            raise CatalogError(
-                "Catalog release row counts differ: "
-                f"expected={expected}, actual={counts}"
-            )
+        if expected is not None:
+            counts = _include_expected_zero_counts(counts, expected)
+            if counts != expected:
+                raise CatalogError(
+                    "Catalog release row counts differ: "
+                    f"expected={expected}, actual={counts}"
+                )
         orphan_checks = (
             """SELECT count(*) FROM catalog.patent_classification c
                 LEFT JOIN catalog.patent p USING (patent_id)
@@ -886,7 +854,7 @@ def import_release(config_path: Path, manifest_path: Path) -> dict[str, int]:
     manifest_sha256 = _sha256_file(manifest_path)
     release = manifest["release"]
     migrate_database(config_path)
-    with _connect(config_path) as connection:
+    with connect_catalog(config_path) as connection:
         existing = connection.execute(
             """
             SELECT release_status, manifest_sha256
@@ -903,7 +871,7 @@ def import_release(config_path: Path, manifest_path: Path) -> dict[str, int]:
         return verify_catalog_release(config_path, release, manifest_path)
 
     job_id = uuid.uuid4()
-    with _connect(config_path) as connection:
+    with connect_catalog(config_path) as connection:
         _register_release(connection, manifest_path, manifest, manifest_sha256)
         connection.execute(
             """
@@ -914,7 +882,7 @@ def import_release(config_path: Path, manifest_path: Path) -> dict[str, int]:
         )
     counts: dict[str, int] = {}
     try:
-        with _connect(config_path) as connection:
+        with connect_catalog(config_path) as connection:
             for index, entry in enumerate(manifest["files"], start=1):
                 spec = SPEC_BY_DATASET[entry["dataset"]]
                 path = manifest_path.parent / entry["path"]
@@ -957,7 +925,7 @@ def import_release(config_path: Path, manifest_path: Path) -> dict[str, int]:
                 (sum(counts.values()), json.dumps(counts), job_id),
             )
     except Exception as error:
-        with _connect(config_path) as connection:
+        with connect_catalog(config_path) as connection:
             connection.execute(
                 """
                 UPDATE catalog.import_job
@@ -987,8 +955,8 @@ def _parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main() -> None:
-    args = _parser().parse_args()
+def main(argv: list[str] | None = None) -> None:
+    args = _parser().parse_args(argv)
     try:
         if args.command == "migrate":
             migrate_database(args.db_config)

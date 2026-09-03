@@ -1,10 +1,13 @@
 # TechScout（技术侦察台）产品需求文档
 
-> 文档状态：离线数据方案基线 v2.0  
+> 文档状态：MVP 产品范围基线 v2.1
 > 项目性质：个人独立学习项目 / 作品演示  
 > 目标周期：8–10 周 MVP  
 > 默认语言：简体中文  
-> 更新日期：2026-09-01
+> 更新日期：2026-09-03
+>
+> 系统组件、目录、依赖和演进状态以[产品与系统架构](./architecture.md)为准。
+> 当前数据和数据库表以[数据底座参考](./database-and-data-status.md)为准。
 
 ## 1. 文档目的
 
@@ -354,9 +357,9 @@ MVP 不生成伪精确的综合投资分。排序指标至少包括：
 
 ### 8.9 Live、Fixture 与 Replay
 
-#### FR-080 Live 模式
+#### FR-080 Live 模式（MVP 后）
 
-访问真实外部数据源，将选中记录增量写入研究工作集，并按来源 TTL 判断是否刷新。
+Live 外部检索不属于当前 MVP。后续引入时，访问真实外部数据源，将选中记录增量写入研究工作集，并按来源 TTL 判断是否刷新；必须同时实现许可、限流、来源审计和失败策略。
 
 #### FR-081 Fixture 模式
 
@@ -366,7 +369,7 @@ MVP 不生成伪精确的综合投资分。排序指标至少包括：
 
 重放历史工具响应和 Agent 事件，保证 UI 演示稳定，并支持定位工作流回归。
 
-三个模式对前端暴露相同的任务状态和事件协议。
+MVP 默认使用本地 Catalog；Fixture 和 Replay 用于自动化测试及稳定演示。未来引入 Live 后，三个执行模式对前端暴露相同的任务状态和事件协议。
 
 ## 9. Agent 设计
 
@@ -510,210 +513,55 @@ Data Spike 对两个领域使用同等规模样本，比较：
 
 ### 11.4 建设规模
 
-Data Spike 最小数据底座：
+Data Spike 和 Data Gate 已完成。当前可验证基线为：
 
-- 全量导入当前 GLEIF Level 1 实体文件和 SEC 公司名单。
-- 可用时导入 GLEIF Level 2 关系数据；Companies House 全量数据作为英国扩展选项。
-- 每个领域检索 200–500 件专利。
-- 每个领域提取 20–50 个受让人候选。
-- 至少一个领域核验 10–15 家公司。
-- 跑通公司—专利关系、来源追溯和重复导入。
+- AI 芯片与边缘推理专利 1,882 件。
+- 工业视觉与 AI 质检专利 981 件。
+- 共 2,863 件去重美国授权专利。
+- 731 个公司候选全部完成自动匹配或终态审核，活动队列为 0。
+- Catalog `2026-09-v6` 已发布，最小研究报告关键事实引用覆盖率为 100%。
 
-Data Gate 通过后，在 MVP 开发期间逐步扩充主库：
-
-- 两个领域合计形成 200–500 个候选公司主体。
-- 目标积累 5000–20000 个去重后的相关专利族。
-- 记录公司别名、母子关系、IP 控股主体和权利转移关系。
-- 为重点公司补充论文、官网、新闻和公开活动证据。
-
-该规模是目标区间，不是必须一次性抓满的启动条件。实际规模受来源许可、API 配额、检索准确率和实体审核成本约束；优先保证关系正确和来源可追溯。
+这些数量描述当前数据范围，不是市场份额或最终产品容量目标。详细行数、来源和限制见[数据底座参考](./database-and-data-status.md)。后续只在明确产品功能需要时增加摘要、权利要求、专利族、新闻、论文或财务数据。
 
 ### 11.5 构建流程
 
-```text
-下载 GLEIF / SEC 官方批量公司文件
-  ↓
-导入 staging 并构建公司身份参考库
-  ↓
-领域查询配置 + 专利 API / 批量文件 / 人工种子 CSV
-  ↓
-保存原始响应和来源元数据
-  ↓
-标准化、去重、专利族归并
-  ↓
-公司实体匹配与人工审核
-  ↓
-生成 JSONL / Parquet + manifest
-  ↓
-Loader 幂等写入 PostgreSQL 和 MinIO
-  ↓
-裁剪小型 Fixture 并生成评测集
-```
-
-建议命令边界：
-
-```text
-python -m intelligence.datasets build <domain> --version <version>
-python -m intelligence.datasets review <dataset-version>
-python -m intelligence.datasets load <dataset-version>
-python -m intelligence.datasets verify <dataset-version>
-```
+离线数据工程独立位于 `pipelines/data-foundation`，负责 Raw → Bronze → Silver → Catalog 和固定报告，不进入在线请求链。完整目录、命令和发布步骤见[数据获取与发布指南](./data-acquisition-guide.md)，组件边界见[产品与系统架构](./architecture.md)。
 
 ### 11.6 数据集权威形式
 
-- JSONL/Parquet：可移植的规范化数据。
-- `manifest.json`：来源、查询、时间、许可、数量、schema 版本和 hash。
-- 审核映射：人工确认的公司别名、母子关系和外部 ID。
-- 构建日志：连接器版本、错误、过滤统计和字段覆盖。
-- 导入程序：根据业务唯一键执行幂等 upsert。
+- JSON、CSV 和 Parquet：可移植的版本化数据。
+- `manifest.json`：来源、规则、时间、许可、数量、schema 和 hash。
+- Review release：审核决定、官方证据和附件 hash。
+- PostgreSQL Catalog：产品查询层，由已验证 Silver 幂等发布。
 
 数据库 dump 仅可作为本地快速恢复缓存，不作为数据集的权威来源。
 
 ### 11.7 Git 与本地数据分工
 
-Git 仓库保存：
-
-- 数据构建代码和查询配置。
-- 数据 schema 和 manifest。
-- 许可明确的人工审核映射。
-- 数十条小型 Fixture 和评测期望。
-
-Git 仓库不保存：
-
-- 大型原始 API 响应、PDF 和网页快照。
-- PostgreSQL、Redis 或 MinIO 数据卷。
-- API key、模型密钥或访问令牌。
-- 许可不明确或禁止再分发的内容。
-
-垂直领域主库运行在本地 PostgreSQL 和 MinIO 中，其可重建输入保存在版本化数据目录。以后公开数据包时，只发布许可明确且允许再分发的字段。
+Git 保存代码、migration、版本化规则、测试和文档；大型 Raw、Bronze、Silver、审核附件、报告 release 和数据库备份保存在 `D:\files\project-data`。密钥、数据库密码和许可不允许再分发的内容不得进入 Git。
 
 ## 12. 数据存储设计
 
-### 12.1 存储分工
+产品必须区分两类数据：
 
-| 存储          | 内容                                                       |
-| ------------- | ---------------------------------------------------------- |
-| PostgreSQL    | 业务实体、规范化事实、来源索引、任务、状态、报告和审核记录 |
-| pgvector      | 报告实际使用的证据片段、专利摘要/权利要求和上传文档分块    |
-| MinIO         | HTML、PDF、XML、图片和较大的原始响应                       |
-| Redis         | Celery 队列、短期缓存、限流状态和事件中转                  |
-| JSONL/Parquet | 垂直领域主库的版本化种子和增量数据包                       |
+- `catalog`：已发布的公司、专利、领域、审核和来源事实；由离线 Data Foundation 发布，运行时只读。
+- `app`：未来的用户、项目、任务、Agent 运行和保存报告；由 NestJS 拥有写入权。
 
-### 12.2 核心数据实体
+当前 `catalog` 已实现，`app` schema 尚无表。Redis、MinIO、pgvector 不是 MVP 的默认依赖，只在队列、对象存储或语义检索出现真实需求后引入。完整表结构和当前行数见[数据底座参考](./database-and-data-status.md)，所有权和演进原则见[产品与系统架构](./architecture.md)。
 
-- `staging_gleif_entity`、`staging_gleif_relationship`：GLEIF 批量文件暂存层。
-- `staging_sec_company`、`staging_companies_house`：SEC 和可选英国公司文件暂存层。
-- `staging_patent_assignee`：专利受让人候选暂存层。
-- `research_project`：研究项目。
-- `research_run`：一次具体执行及版本信息。
-- `research_direction`：技术方向和检索策略。
-- `agent_checkpoint`：LangGraph 检查点。
-- `agent_event`：用户可见事件和工程 trace 索引。
-- `company_entity`：规范公司主体。
-- `company_alias`：公司别名和历史名称。
-- `external_identifier`：LEI、CIK、注册号、ROR 等。
-- `entity_match`：实体匹配候选、特征、置信度和审核结果。
-- `patent`：专利规范记录。
-- `patent_family`：专利族。
-- `patent_party`：申请人、受让人和发明人关系。
-- `company_patent_relation`：规范公司与专利之间的角色、映射依据、置信度和审核状态。
-- `publication`：论文和研究成果。
-- `news_event`：新闻及公开事件。
-- `source_record`：来源 URL、更新时间、hash、许可和原文对象 URI。
-- `fact_claim`：结构化事实、有效时间、证据和推断标记。
-- `evidence_chunk`：可引用与可检索的证据片段。
-- `candidate_company`：某次研究中的候选企业、来源和排序特征。
-- `report`、`report_section`、`citation`：报告、章节与引用。
-- `dataset_version`：主库种子、增量包或 Fixture 版本。
-- `user_feedback`：排除误报、确认实体和修订结论等反馈。
-
-### 12.3 数据新鲜度与更新
-
-- 每个连接器独立配置 TTL，不使用统一过期时间。
-- 活跃研究项目按需增量更新。
-- 垂直领域主库通过版本化种子包和增量包构建，固定评测绑定特定版本。
-- 新数据先进入暂存区，通过去重和实体确认后进入规范表。
-- 报告展示数据截止时间。
-- 对来源更正、删除或法律状态变化保留版本历史。
+所有报告必须展示数据 release 和截止时间；来源更正或规则变化通过新 release 处理，不原地覆盖历史数据包。
 
 ## 13. 技术架构
 
-### 13.1 总体架构
+详细架构已经独立到[产品与系统架构](./architecture.md)。本 PRD 只保留以下产品级约束：
 
-```text
-React Web
-  │ REST + SSE
-  ▼
-NestJS API
-  ├─ 项目、报告、文件、运行状态
-  ├─ 鉴权扩展边界
-  ├─ SSE 事件转发
-  └─ Python 服务网关
-        │ HTTP + Redis/Celery
-        ▼
-Python Intelligence Service
-  ├─ FastAPI
-  ├─ LangGraph Agent 工作流
-  ├─ 数据源 Connectors
-  ├─ Crawlers / Parsers
-  ├─ Entity / Evidence Extraction
-  ├─ Dataset Builder
-  ├─ Celery Workers
-  └─ Evals
-
-PostgreSQL + pgvector   Redis   MinIO
-```
-
-### 13.2 Monorepo 建议
-
-```text
-apps/
-  web/                     React
-  api/                     NestJS
-services/
-  intelligence/
-    api/                   FastAPI
-    agents/                LangGraph 工作流
-    tools/                 Agent 工具
-    connectors/            外部数据源适配器
-    crawlers/              网页与文档采集
-    extraction/            清洗、实体和事实抽取
-    workers/               Celery 任务
-    datasets/              主库种子与增量数据构建
-    evals/                 Agent 评测
-packages/
-  contracts/               TypeScript API 与事件协议
-  ui/                      React 通用组件
-infra/                     Docker Compose 与部署配置
-docs/                      PRD、架构和学习记录
-```
-
-MVP 保持一个 Python 服务并按模块隔离。只有接口稳定或扩展规模明显增加后，再将 crawler 拆成独立服务。
-
-### 13.3 技术选型
-
-| 层级         | 推荐技术                                              |
-| ------------ | ----------------------------------------------------- |
-| Web          | React、TypeScript、Vite、React Router、TanStack Query |
-| 产品 API     | NestJS、TypeScript、OpenAPI                           |
-| Agent API    | FastAPI、Pydantic                                     |
-| Agent 编排   | LangGraph                                             |
-| 异步任务     | Celery + Redis                                        |
-| 数据库       | PostgreSQL + pgvector                                 |
-| 对象存储     | MinIO，兼容 S3 API                                    |
-| 本地运行     | Docker Compose                                        |
-| 接口流式事件 | NestJS 向 React 提供 SSE                              |
-| 模型接入     | OpenAI-compatible 适配层                              |
-
-### 13.4 模型策略
-
-- 配置默认推理模型、低成本模型和嵌入模型。
-- 通过统一适配层隔离供应商 SDK。
-- MVP 不实现自动模型路由。
-- 模型配置不能包含在源码中。
-- 每次运行记录模型、提示词版本、token、费用和耗时。
-- 对结构化输出执行 schema 校验和有限重试。
-- 支持用 Fixture 模型响应执行离线测试。
+- 浏览器只调用 NestJS。
+- NestJS 负责产品 API、鉴权、业务状态和 `app` schema。
+- Python Intelligence 负责 Agent、研究工作流、模型和工具，只读 Catalog。
+- 离线 Data Foundation 独立位于 `pipelines/data-foundation`，不进入在线请求链。
+- MVP 默认查询本地 Catalog；Live 外部检索延后。
+- Redis、Celery、MinIO 和 pgvector 按真实需求引入，不作为启动条件。
+- 模型配置和凭据不能进入源码；结构化输出必须校验并记录版本、成本和耗时。
 
 ## 14. 非功能需求
 
@@ -822,8 +670,8 @@ draft
 
 1. 用户创建“工业视觉边缘推理”研究项目。
 2. Planner 生成可编辑的方向、CPC 和关键词策略。
-3. 用户确认后启动 Live 或 Fixture 采集。
-4. 系统展示专利、论文和新闻工具调用进度。
+3. 用户确认后启动 Catalog 或 Fixture 研究。
+4. 系统展示专利、公司和证据工具调用进度。
 5. 系统发现候选企业并完成至少一批实体匹配。
 6. 用户查看并处理一个待确认实体。
 7. 系统生成最多 10 家候选企业长名单和排序理由。
@@ -835,60 +683,42 @@ draft
 
 ## 17. 实施计划
 
-### 阶段 0：最小数据底座与 Data Gate（第 1–2 周）
+阶段状态和依赖以[产品与系统架构](./architecture.md)为准。
 
-目标：先建立最小可查询的公司—专利数据库并证明数据链路可行。完整 React 工作台和 Agent 主链不得早于 Data Gate 启动；用于验证数据的最小脚本、Loader、数据库 migration 和最小报告生成不受此限制。
+### 阶段 0：数据底座与 Data Gate（已完成）
 
-- 申请并验证 EPO、USPTO 等必要凭证。
-- 下载并保存 GLEIF Golden Copy 和 SEC 公司名单。
-- 通过 staging + COPY + UPSERT 全量导入公司身份参考库。
-- 实现 EPO、GLEIF 查询、OpenAlex、GDELT 的最小连接器。
-- 为两个候选领域抽取同等规模专利样本。
-- 比较受让人数量、实体映射率、证据覆盖和误报率。
-- 跑通原始快照、规范化、实体审核和入库。
-- 固化第一版垂直领域主库、Fixture 和 Replay。
-- 生成一份最小带引用报告。
+- Source、Bronze、Silver、公司审核和 Catalog 已完成。
+- 两个目标领域均超过 200 件专利，公司候选活动队列为 0。
+- 重复导入、来源追溯、关系完整性和最小引用报告均已验证。
 
-Data Gate 退出条件：
+### 阶段 1：产品查询层（下一步）
 
-- 至少一个领域获得 200 件以上有效专利。
-- 至少发现并核验 10 家以上候选企业。
-- GLEIF 和 SEC 官方批量文件可重复导入，且不会产生重复公司和外部 ID。
-- 可以按技术查询公司、按公司查询关联专利。
-- 公司—专利关系能够追溯到原始来源和匹配依据。
-- 同一数据集可重复导入且不产生重复记录。
-- 能生成一份关键事实带引用的最小报告。
+- 为 NestJS 增加只读 Catalog repository 和连接配置。
+- 实现领域专利、技术公司、公司专利、匹配证据和来源追溯接口。
+- 提供分页、稳定排序、输入校验、release 边界和集成测试。
+- 将 React 模板接入第一批真实查询；本阶段不要求 Python Agent。
 
-Data Gate 通过后进入阶段 1；垂直领域主库扩充与产品开发并行进行。
+### 阶段 2：Agent 主链（规划）
 
-### 阶段 1：工程骨架（第 3–4 周）
-
-- 建立 monorepo 和 Docker Compose。
-- 初始化 React、NestJS、FastAPI、PostgreSQL、Redis、MinIO。
-- 定义共享 DTO、任务状态和 SSE 事件协议。
-- 实现研究项目、运行状态和数据集版本模型。
-- 接入模型适配层和基础 trace。
-
-### 阶段 2：Agent 主链（第 5–6 周）
-
+- 初始化独立 Python Intelligence 项目和内部 API。
 - 实现 Planner、Patent、Company、Entity 和 Evidence 节点。
-- 接入 LangGraph 检查点、暂停、恢复和人工确认。
+- 接入检查点、暂停、恢复和人工确认。
 - 实现任务预算、超时、软降级和幂等。
 - 形成候选企业长名单与可解释排序。
 
-### 阶段 3：产品闭环（第 7–8 周）
+### 阶段 3：产品闭环（规划）
 
 - 完成研究工作台、任务时间线和企业探索页面。
 - 实现企业详情、证据抽屉和报告生成。
 - 支持文件上传、追问、人工修订和 Markdown 导出。
-- 完成 Live、Fixture 和 Replay 模式切换。
+- 完成 Catalog、Fixture 和 Replay 模式；Live 保持延后。
 
-### 阶段 4：评测与作品化（第 9–10 周）
+### 阶段 4：评测与作品化（规划）
 
 - 建立 10–20 个固定评测案例。
 - 完成引用一致性、实体匹配和回归评测。
 - 优化成本、时延、错误提示和可观察性。
-- 补充架构说明、演示脚本和学习复盘。
+- 维护架构说明、演示脚本和学习复盘。
 - 打包本地一键启动流程和私有演示环境。
 
 ## 18. Agent 学习路线
@@ -938,31 +768,30 @@ MVP 之后按价值评估：
 - MCP 工具暴露与第三方 Agent 接入。
 - 本地模型和自动模型路由。
 
-## 21. 待 Data Spike 验证事项
+## 21. 后续验证事项
 
-以下内容不在需求阶段假定为已解决：
+Data Spike 已完成。以下能力仍需在对应产品阶段验证：
 
-- EPO OPS 和 USPTO ODP 的当前账户配额、字段及响应稳定性。
-- 两个 AI 领域的实际唯一受让人产出率和实体映射率。
+- NestJS Catalog 查询在真实分页和筛选下的响应时间。
+- NestJS 与 Python Intelligence 之间的任务和事件协议。
 - EPO 对不同国家专利全文、图像和法律状态的字段覆盖。
 - 新闻正文可保存范围和各 RSS 来源的具体条款。
 - 默认模型组合在人民币 200–500 元月预算下的真实吞吐量。
-- Entity Resolution 自动合并阈值。
 - 引用与事实一致率评测的人工标注成本。
 
-验证结果需要回写本文档，形成 v1.1 数据基线。
+验证结果需要回写本文档和架构决策记录。
 
 ## 22. 当前仓库观察与新项目关系
 
-从当前仓库可以观察到的通用产品事实包括：
+当前仓库事实：
 
-- 当前代码是 React/TypeScript/Vite 前端，不包含可复用的后端、数据库或 Agent 实现。
-- 现有交互包含研究目标拆解、专利和活动线索扫描、企业长名单、企业库和报告库。
-- 现有前端通过 SSE 展示联网检索、推理摘要和结构化结果。
-- 专利权人与企业候选高度相关，公司和新闻数据的真实供应商无法从仓库确认。
-- 跟踪预警页面是静态原型，不能视为已验证需求。
+- `apps/web` 是 React/Vite 管理端模板，尚未接入 TechScout 业务数据。
+- `apps/api` 是 NestJS 工程骨架，尚未实现 Catalog 或业务接口。
+- `pipelines/data-foundation` 已实现离线数据构建、审核、Catalog 发布和固定报告。
+- 本地 PostgreSQL Catalog 已发布并通过 Data Gate。
+- `services/intelligence` 当前只有边界说明，真正的 Agent 服务尚未实现。
 
-TechScout 只借鉴这些通用问题和工作流经验。其数据模型、接口、Agent、提示词、评分、品牌和实现均应重新设计。
+详细实现状态和目标拓扑见[产品与系统架构](./architecture.md)。
 
 ## 23. 最终范围基线
 
@@ -970,9 +799,10 @@ TechScout 只借鉴这些通用问题和工作流经验。其数据模型、接�
 
 - 个人独立学习与作品演示优先。
 - 使用 React + NestJS + Python 完成重写。
-- Python 负责 Agent、采集、解析与数据集构建；NestJS 负责产品后端。
+- NestJS 负责产品服务端；Python Intelligence 只负责 Agent 和研究工作流。
+- 离线 Data Foundation 负责采集、解析、数据集构建和 Catalog 发布，与在线 Python 服务物理分离。
 - 使用可控状态图和专业 Agent，不使用无限自主 Agent 群聊。
-- 先建设最小垂直领域公司—专利数据库，通过 Data Gate 后再开发完整产品。
+- 最小垂直领域公司—专利数据库和 Data Gate 已完成；下一步是只读产品查询层。
 - 全量导入 GLEIF 和 SEC 等许可清晰的官方公司身份文件，建立公司身份参考库。
 - 垂直主库持续增量扩充，研究工作集和 Fixture/Replay 分层管理；不镜像全球专利全文和新闻正文。
 - 首批领域为 AI 芯片/边缘推理加速和工业视觉/AI 质检。

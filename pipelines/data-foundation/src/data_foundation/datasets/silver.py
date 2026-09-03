@@ -16,11 +16,12 @@ from typing import Any
 import duckdb
 import yaml
 
-from intelligence.datasets.bronze import BronzeError, verify_bronze
-from intelligence.datasets.entity_review import (
+from data_foundation.datasets.bronze import BronzeError, verify_bronze
+from data_foundation.datasets.entity_review import (
     EntityReviewError,
     verify_entity_review,
 )
+from data_foundation.shared.paths import repository_root
 
 SHA256_PATTERN = re.compile(r"^[a-f0-9]{64}$")
 VERSION_PATTERN = re.compile(r"^[a-z0-9][a-z0-9.-]*$")
@@ -1782,11 +1783,15 @@ def verify_silver(
     _verify_recorded_input("rules file", manifest.get("rules"), required=True)
     review_entry = manifest.get("reviewFile")
     _verify_recorded_input("review file", review_entry, required=False)
-    evidence_entry = manifest.get("reviewEvidenceManifest")
-    _verify_recorded_input(
-        "review evidence manifest", evidence_entry, required=False
+    evidence_entries = manifest.get("reviewEvidenceManifests") or (
+        [manifest["reviewEvidenceManifest"]]
+        if manifest.get("reviewEvidenceManifest")
+        else []
     )
-    if evidence_entry is not None:
+    for index, evidence_entry in enumerate(evidence_entries, start=1):
+        _verify_recorded_input(
+            f"review evidence manifest {index}", evidence_entry, required=True
+        )
         try:
             verify_entity_review(Path(evidence_entry["path"]))
         except EntityReviewError as error:
@@ -1904,6 +1909,7 @@ def build_silver(
     version: str,
     review_file_path: Path | None = None,
     review_evidence_manifest_path: Path | None = None,
+    review_evidence_manifest_paths: list[Path] | None = None,
     on_progress: ProgressCallback = lambda _message: None,
 ) -> dict[str, Any]:
     """Build a versioned Silver release, or verify the immutable existing version."""
@@ -1914,24 +1920,56 @@ def build_silver(
     bronze_manifest_path = bronze_manifest_path.resolve()
     rules_path = rules_path.resolve()
     review_file_path = review_file_path.resolve() if review_file_path else None
-    review_evidence_manifest_path = (
-        review_evidence_manifest_path.resolve()
-        if review_evidence_manifest_path
-        else None
-    )
+    if review_evidence_manifest_path and review_evidence_manifest_paths:
+        raise SilverError(
+            "Use either review_evidence_manifest_path or "
+            "review_evidence_manifest_paths, not both"
+        )
+    evidence_manifest_paths = [
+        path.resolve()
+        for path in (
+            review_evidence_manifest_paths
+            or (
+                [review_evidence_manifest_path]
+                if review_evidence_manifest_path
+                else []
+            )
+        )
+    ]
     rules = _read_rules(rules_path)
     reviews = _read_reviews(review_file_path)
-    review_evidence, review_evidence_manifest = _read_review_evidence(
-        review_evidence_manifest_path
+    review_evidence: list[dict[str, Any]] = []
+    review_evidence_manifests: list[dict[str, Any]] = []
+    for evidence_manifest_path in evidence_manifest_paths:
+        batch_evidence, batch_manifest = _read_review_evidence(
+            evidence_manifest_path
+        )
+        review_evidence.extend(batch_evidence)
+        if batch_manifest is not None:
+            review_evidence_manifests.append(batch_manifest)
+    evidence_ids = [str(row["evidenceId"]) for row in review_evidence]
+    if len(evidence_ids) != len(set(evidence_ids)):
+        raise SilverError("Review evidence manifests contain duplicate evidence IDs")
+    available_evidence_ids = set(evidence_ids)
+    missing_evidence_ids = sorted(
+        {
+            str(evidence_id)
+            for review in reviews
+            for evidence_id in review["evidence_ids"]
+            if str(evidence_id) not in available_evidence_ids
+        }
     )
+    if missing_evidence_ids:
+        raise SilverError(
+            "Review decisions reference missing evidence IDs: "
+            + ", ".join(missing_evidence_ids[:10])
+        )
     bronze_hash = _sha256_file(bronze_manifest_path)
     rules_hash = _sha256_file(rules_path)
     review_hash = _sha256_file(review_file_path) if review_file_path else None
-    review_evidence_hash = (
-        _sha256_file(review_evidence_manifest_path)
-        if review_evidence_manifest_path
-        else None
-    )
+    review_evidence_hashes = [
+        _sha256_file(path) for path in evidence_manifest_paths
+    ]
     bronze_manifest = _read_json(bronze_manifest_path)
     if bronze_manifest.get("layer") != "bronze":
         raise SilverError("Input manifest is not a Bronze release")
@@ -1956,9 +1994,17 @@ def build_silver(
                 (existing.get("reviewFile") or {}).get("sha256"),
                 review_hash,
             ),
-            "review evidence manifest": (
-                (existing.get("reviewEvidenceManifest") or {}).get("sha256"),
-                review_evidence_hash,
+            "review evidence manifests": (
+                [
+                    entry.get("sha256")
+                    for entry in existing.get("reviewEvidenceManifests", [])
+                ]
+                or (
+                    [existing["reviewEvidenceManifest"].get("sha256")]
+                    if existing.get("reviewEvidenceManifest")
+                    else []
+                ),
+                review_evidence_hashes,
             ),
         }
         changed = [
@@ -2052,13 +2098,26 @@ def build_silver(
             ),
             "reviewEvidenceManifest": (
                 {
-                    "path": str(review_evidence_manifest_path),
-                    "sha256": review_evidence_hash,
-                    "release": review_evidence_manifest.get("release"),
+                    "path": str(evidence_manifest_paths[0]),
+                    "sha256": review_evidence_hashes[0],
+                    "release": review_evidence_manifests[0].get("release"),
                 }
-                if review_evidence_manifest_path and review_evidence_manifest
+                if len(evidence_manifest_paths) == 1
                 else None
             ),
+            "reviewEvidenceManifests": [
+                {
+                    "path": str(path),
+                    "sha256": evidence_hash,
+                    "release": evidence_manifest.get("release"),
+                }
+                for path, evidence_hash, evidence_manifest in zip(
+                    evidence_manifest_paths,
+                    review_evidence_hashes,
+                    review_evidence_manifests,
+                    strict=True,
+                )
+            ],
             "period": rules["period"],
             "normalizationVersion": rules["normalization"]["version"],
             "unavailableSourceFields": [
@@ -2089,7 +2148,7 @@ def build_silver(
 
 def _default_rules_path() -> Path:
     return (
-        Path(__file__).resolve().parents[5]
+        repository_root()
         / "config"
         / "domains"
         / "ai-domains-v1.yaml"
@@ -2104,21 +2163,21 @@ def _parser() -> argparse.ArgumentParser:
     build.add_argument("--rules", type=Path, default=_default_rules_path())
     build.add_argument("--version", required=True)
     build.add_argument("--review-file", type=Path)
-    build.add_argument("--review-evidence-manifest", type=Path)
+    build.add_argument("--review-evidence-manifest", type=Path, action="append")
     verify = subparsers.add_parser("verify", help="Verify a Silver release")
     verify.add_argument("--manifest", type=Path, required=True)
     return parser
 
 
-def main() -> None:
-    args = _parser().parse_args()
+def main(argv: list[str] | None = None) -> None:
+    args = _parser().parse_args(argv)
     if args.command == "build":
         manifest = build_silver(
             bronze_manifest_path=args.bronze_manifest,
             rules_path=args.rules,
             version=args.version,
             review_file_path=args.review_file,
-            review_evidence_manifest_path=args.review_evidence_manifest,
+            review_evidence_manifest_paths=args.review_evidence_manifest,
             on_progress=print,
         )
     else:

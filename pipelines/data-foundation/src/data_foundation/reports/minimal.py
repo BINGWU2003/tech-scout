@@ -16,7 +16,9 @@ from typing import Any
 
 import psycopg
 
-from intelligence.datasets.catalog import _connect, verify_catalog_release
+from data_foundation.datasets.catalog import verify_catalog_release
+from data_foundation.shared.database import connect_database
+from data_foundation.shared.paths import repository_root
 
 VERSION_PATTERN = re.compile(r"^[A-Za-z0-9._-]+$")
 DOMAIN_PATTERN = re.compile(r"^[a-z0-9_]+$")
@@ -492,7 +494,7 @@ def render_markdown(report_data: dict[str, Any]) -> str:
 
 
 def _repo_root() -> Path:
-    return Path(__file__).resolve().parents[5]
+    return repository_root()
 
 
 def _default_spec_path() -> Path:
@@ -569,7 +571,7 @@ def _load_inputs(
         raise ReportError(f"Report specification is missing: {spec_path}")
     spec_hash = _sha256_file(spec_path)
     spec = _read_json(spec_path)
-    with _connect(db_config.resolve()) as connection:
+    with connect_database(db_config.resolve()) as connection:
         release_row = connection.execute(
             """
             SELECT release_id, release_status, manifest_path,
@@ -771,7 +773,7 @@ def _collect_report_data(
     citations: dict[str, dict[str, Any]] = {}
     facts: list[dict[str, Any]] = []
 
-    with _connect(db_config.resolve()) as connection:
+    with connect_database(db_config.resolve()) as connection:
         connection.execute("SET TRANSACTION READ ONLY")
         domain_rows, domain_evidence = _query(
             connection,
@@ -1492,8 +1494,8 @@ def _parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main() -> None:
-    args = _parser().parse_args()
+def main(argv: list[str] | None = None) -> None:
+    args = _parser().parse_args(argv)
     try:
         if args.command == "build":
             build_minimal_report(

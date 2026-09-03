@@ -3,13 +3,28 @@ from pathlib import Path
 
 import pytest
 
-from intelligence.datasets.catalog import (
+from data_foundation.datasets.catalog import (
     SPEC_BY_DATASET,
     CatalogError,
     _domain_rows,
+    _include_expected_zero_counts,
     migration_paths,
     read_db_config,
 )
+
+
+def test_catalog_counts_include_expected_empty_datasets() -> None:
+    expected = {"patents": 2, "entity-review": 0}
+
+    assert _include_expected_zero_counts({"patents": 2}, expected) == expected
+
+
+def test_catalog_counts_preserve_unexpected_datasets() -> None:
+    expected = {"patents": 2, "entity-review": 0}
+
+    assert _include_expected_zero_counts(
+        {"patents": 2, "unexpected": 1}, expected
+    ) == {"patents": 2, "entity-review": 0, "unexpected": 1}
 
 
 def test_read_chinese_database_config(tmp_path: Path) -> None:

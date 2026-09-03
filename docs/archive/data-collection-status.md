@@ -1,12 +1,15 @@
-# TechScout 数据收集状态
+# TechScout 数据收集状态（历史归档）
 
-> 文档状态：第一轮数据收集的历史阶段记录
-> 检查日期：2026-09-02  
-> 数据目录：`D:\files\project-data`  
-> 当前统一入口：[数据库与数据资产状态](./database-and-data-status.md)
-> 关联文档：[产品需求](./product-requirements.md) · [数据获取指南](./data-acquisition-guide.md)
+> ⚠️ 本文档是 2026-09-02 第一轮数据收集的历史快照，包含已经过时的 release、表数和候选数量，不能用于判断当前系统状态。
+> 当前数据和数据库结构：[数据底座参考](../database-and-data-status.md)
+> 当前获取与发布流程：[数据获取与发布指南](../data-acquisition-guide.md)
+>
+> 文档状态：只读历史归档
+> 检查日期：2026-09-02
+> 数据目录：`D:\files\project-data`
+> 关联文档：[产品需求](../product-requirements.md)
 
-本文档保留第一轮下载、核验和构建过程，不再作为“当前状态”的唯一入口。最新数据库表结构、已导入数据和后续路线以[数据库与数据资产状态](./database-and-data-status.md)为准。
+本文档仅保留第一轮下载、核验和构建过程。最新数据库表结构、已导入数据和后续路线以[数据底座参考](../database-and-data-status.md)为准。
 
 > 后续状态：带引用的最小报告已经生成并通过独立验证，Data Gate 已通过；接口、Agent 和前端开发尚未开始，当前暂缓。
 

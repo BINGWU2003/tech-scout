@@ -166,7 +166,7 @@ wheels = [
 ]
 
 [[package]]
-name = "tech-scout-intelligence"
+name = "tech-scout-data-foundation"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [

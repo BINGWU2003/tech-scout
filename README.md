@@ -1,6 +1,6 @@
 # Tech Scout
 
-Tech Scout 是一个基于 pnpm workspace 和 Turborepo 的全栈 monorepo，包含 React 管理端和 NestJS API。
+Tech Scout 是一个本地优先、证据可追溯的技术侦察项目。仓库包含 React 管理端、NestJS 产品 API、规划中的 Python Agent 服务，以及独立的离线数据管道。
 
 ## 项目结构
 
@@ -9,6 +9,12 @@ tech-scout/
 ├─ apps/
 │  ├─ web/    # React 19 + Vite 8
 │  └─ api/    # NestJS 12
+├─ services/
+│  └─ intelligence/         # 未来 Python Agent 服务，当前仅定义边界
+├─ pipelines/
+│  └─ data-foundation/      # Raw/Bronze/Silver/Catalog/固定报告
+├─ config/                  # 来源、领域和报告规则
+├─ docs/                    # 产品、架构、数据和运维文档
 ├─ .oxfmtrc.json
 ├─ .oxlintrc.json
 ├─ package.json
@@ -20,6 +26,8 @@ tech-scout/
 
 - Node.js 24
 - pnpm 10.34.4
+- Python 3.13
+- uv
 
 ## 开始开发
 
@@ -48,6 +56,24 @@ pnpm dev
 | `pnpm test:e2e`             | 通过 Turborepo 运行并缓存 API e2e    |
 | `pnpm test:browser:install` | 安装 Web 测试所需的 Chromium         |
 | `pnpm validate`             | 执行完整的格式、lint、测试和构建验证 |
+
+离线 Data Foundation 使用独立的 Python CLI，不经过根 `package.json`：
+
+```bash
+uv sync --project pipelines/data-foundation
+uv run --project pipelines/data-foundation data-foundation --help
+uv run --project pipelines/data-foundation pytest pipelines/data-foundation/tests
+```
+
+完整命令见 [Data Foundation README](./pipelines/data-foundation/README.md)。
+Source Manifest 目前仍是独立的 Node 工具，继续使用 `pnpm data:manifest --help`。
+
+## 文档
+
+- [产品需求](./docs/product-requirements.md)
+- [产品与系统架构](./docs/architecture.md)
+- [数据底座参考](./docs/database-and-data-status.md)
+- [数据获取与发布指南](./docs/data-acquisition-guide.md)
 
 ## 环境变量
 
