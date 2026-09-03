@@ -140,6 +140,7 @@ function createUsersColumns(
     },
     {
       accessorKey: 'email',
+      meta: { label: '邮箱' },
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title='邮箱' />
       ),
@@ -147,6 +148,7 @@ function createUsersColumns(
     },
     {
       accessorKey: 'role',
+      meta: { label: '角色' },
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title='角色' />
       ),
@@ -159,6 +161,7 @@ function createUsersColumns(
     },
     {
       accessorKey: 'status',
+      meta: { label: '状态' },
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title='状态' />
       ),
@@ -173,6 +176,7 @@ function createUsersColumns(
     },
     {
       accessorKey: 'createdAt',
+      meta: { label: '创建时间' },
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title='创建时间' />
       ),
@@ -181,6 +185,7 @@ function createUsersColumns(
     },
     {
       accessorKey: 'lastLoginAt',
+      meta: { label: '最后登录' },
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title='最后登录' />
       ),
