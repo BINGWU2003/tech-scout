@@ -1,8 +1,8 @@
 import type { KnipConfig } from 'knip'
 
 const config: KnipConfig = {
-  // Installed for the first real API slice; remove these exceptions when wired.
-  ignoreDependencies: ['ky', 'msw'],
+  // MSW is reserved for the next cross-browser API integration test slice.
+  ignoreDependencies: ['msw'],
   ignore: [
     'src/components/ui/**',
     'src/components/layout/app-title.tsx',

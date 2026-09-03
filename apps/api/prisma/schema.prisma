@@ -1,0 +1,58 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  schemas  = ["app"]
+}
+
+enum UserRole {
+  user
+  admin
+
+  @@schema("app")
+}
+
+enum UserStatus {
+  active
+  disabled
+
+  @@schema("app")
+}
+
+model UserAccount {
+  id              String        @id @default(uuid()) @db.Uuid
+  username        String        @unique(map: "user_account_username_key") @db.VarChar(32)
+  email           String        @db.VarChar(254)
+  normalizedEmail String        @unique(map: "user_account_normalized_email_key") @map("normalized_email") @db.VarChar(254)
+  passwordHash    String        @map("password_hash") @db.VarChar(255)
+  role            UserRole      @default(user)
+  status          UserStatus    @default(active)
+  createdAt       DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
+  lastLoginAt     DateTime?     @map("last_login_at") @db.Timestamptz(3)
+  sessions        UserSession[]
+
+  @@map("user_account")
+  @@schema("app")
+}
+
+model UserSession {
+  id                String      @id @default(uuid()) @db.Uuid
+  tokenHash         String      @unique(map: "user_session_token_hash_key") @map("token_hash") @db.Char(64)
+  csrfTokenHash     String      @map("csrf_token_hash") @db.Char(64)
+  userId            String      @map("user_id") @db.Uuid
+  createdAt         DateTime    @default(now()) @map("created_at") @db.Timestamptz(3)
+  lastSeenAt        DateTime    @default(now()) @map("last_seen_at") @db.Timestamptz(3)
+  idleExpiresAt     DateTime    @map("idle_expires_at") @db.Timestamptz(3)
+  absoluteExpiresAt DateTime    @map("absolute_expires_at") @db.Timestamptz(3)
+  user              UserAccount @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, lastSeenAt], map: "user_session_user_last_seen_idx")
+  @@index([idleExpiresAt], map: "user_session_idle_expiry_idx")
+  @@index([absoluteExpiresAt], map: "user_session_absolute_expiry_idx")
+  @@map("user_session")
+  @@schema("app")
+}

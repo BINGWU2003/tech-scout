@@ -4,8 +4,8 @@ import { ProfileForm } from './profile-form'
 export function SettingsProfile() {
   return (
     <ContentSection
-      title='Profile'
-      desc='This is how others will see you on the site.'
+      title='账号信息'
+      desc='查看当前账号的用户名、邮箱、角色和状态。'
     >
       <ProfileForm />
     </ContentSection>

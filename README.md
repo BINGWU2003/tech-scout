@@ -43,7 +43,7 @@ pnpm dev
 - Web：<http://localhost:5173>
 - API：<http://localhost:3000>
 
-两个应用当前保持独立运行，尚未配置开发代理、CORS 或业务 API 联调。
+Web 已通过同源 `/api` 开发代理接入 NestJS 的登录、注册和用户管理 API。公司、专利和研究接口尚未实现。
 
 ## 常用命令
 
@@ -79,8 +79,23 @@ uv run --project pipelines/data-foundation pytest pipelines/data-foundation/test
 
 ## 环境变量
 
-- Web：复制 `apps/web/.env.example` 为 `apps/web/.env`
-- API：复制 `apps/api/.env.example` 为 `apps/api/.env`
+Web 本地开发不需要环境文件。API 复制 `apps/api/.env.example` 为 `apps/api/.env`，并把示例密码替换为本地数据库密码。
+
+API 至少需要 `DATABASE_URL`。首次运行先应用 Prisma migration：
+
+```bash
+pnpm --filter @tech-scout/api prisma:migrate
+```
+
+首个管理员通过一次性 CLI 创建。密码通过当前进程的 `ADMIN_BOOTSTRAP_PASSWORD` 环境变量提供，不要写入命令参数：
+
+```bash
+pnpm --filter @tech-scout/api admin:create -- --username owner --email owner@example.com
+```
+
+创建成功后清除该环境变量。公开注册只会创建普通用户，不会自动产生管理员。
+
+API 数据库集成测试必须使用独立数据库，并通过 `TEST_DATABASE_URL` 指定；测试会清空其中的 `app.user_account` 和 `app.user_session`，不得指向日常数据库或 Catalog 数据库。
 
 ## 部署
 

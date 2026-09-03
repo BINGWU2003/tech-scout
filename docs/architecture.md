@@ -36,14 +36,14 @@ TechScout 是本地优先、证据可追溯的技术侦察工具。架构需要�
 
 ### 3.1 已实现组件
 
-| 组件                | 状态          | 当前能力                                                                          |
-| ------------------- | ------------- | --------------------------------------------------------------------------------- |
-| React Web           | `Implemented` | React 19、Vite 8、TanStack Router/Query 的管理端模板；尚未接入 TechScout 业务 API |
-| NestJS API          | `Implemented` | NestJS 12 工程骨架和根 GET；尚无 Catalog、鉴权、业务模块、OpenAPI 或 SSE          |
-| Data Foundation     | `Implemented` | Raw、Manifest、Bronze、Silver、公司审核、Catalog 发布和固定报告                   |
-| PostgreSQL Catalog  | `Implemented` | Catalog `2026-09-v6` 已发布；2,863 件专利，公司候选活动队列为 0                   |
-| Python Intelligence | `Implemented` | 项目、依赖和锁文件已初始化；FastAPI、Agent、工作流和模型调用仍为 `Planned`        |
-| App schema          | `Planned`     | PostgreSQL 中只有空 schema，当前 0 张表                                           |
+| 组件                | 状态          | 当前能力                                                                        |
+| ------------------- | ------------- | ------------------------------------------------------------------------------- |
+| React Web           | `Implemented` | 真实登录、公开注册、Session 恢复、路由守卫、密码修改和管理员用户管理            |
+| NestJS API          | `Implemented` | 自建认证、数据库 Session、CSRF、账号管理和共享 Zod 契约；Catalog API 尚未实现   |
+| Data Foundation     | `Implemented` | Raw、Manifest、Bronze、Silver、公司审核、Catalog 发布和固定报告                 |
+| PostgreSQL Catalog  | `Implemented` | Catalog `2026-09-v6` 已发布；2,863 件专利，公司候选活动队列为 0                 |
+| Python Intelligence | `Implemented` | 项目、依赖和锁文件已初始化；FastAPI、Agent、工作流和模型调用仍为 `Planned`      |
+| App schema          | `Implemented` | Prisma 管理 `user_account`、`user_session`，migration 已应用到本地 `tech-scout` |
 
 Redis、Celery、MinIO、pgvector、Docker Compose 和在线外部检索当前都不存在。
 
@@ -56,12 +56,12 @@ flowchart LR
     RELEASE --> CATALOG[(PostgreSQL catalog)]
     CATALOG --> REPORT[固定最小报告]
 
-    WEB[React 模板]
-    API[NestJS 骨架]
-    WEB -. 尚未联调 .-> API
+    WEB[React Web] -->|登录 / 注册 / 用户管理| API[NestJS API]
+    API --> APP[(app 用户与 Session)]
+    API -. Catalog 查询尚未实现 .-> CATALOG
 ```
 
-目前产品请求链尚未完成。已经可用的是离线数据构建、Catalog 查询和可复现报告链路。
+账户请求链已经完成；产品研究请求链尚未完成。下一步是让 NestJS 以只读方式查询 Catalog。
 
 ## 4. 目标架构
 
@@ -125,13 +125,13 @@ tech-scout/
   docs/                          产品、架构、数据和运维文档
 ```
 
-未来只有在接口稳定且确实需要复用时才创建 `packages/contracts`。未实现前不创建空壳目录。
+`packages/contracts` 已建立并承载 React/NestJS 共享的账户 Zod 契约；后续 Catalog 契约继续在同一边界中扩展。
 
 ## 6. 组件职责
 
 ### 6.1 React Web
 
-状态：`Implemented` 工程骨架，业务功能 `Next/Planned`。
+状态：账户与会话界面 `Implemented`，研究业务功能 `Next/Planned`。
 
 负责：
 
@@ -147,7 +147,7 @@ tech-scout/
 
 ### 6.2 NestJS Product API
 
-状态：工程骨架 `Implemented`，业务查询层 `Next`。
+状态：认证和用户管理 `Implemented`，Catalog 业务查询层 `Next`。
 
 负责：
 
@@ -228,7 +228,7 @@ Browser → PostgreSQL
 | --------------- | ----------- | ------------------------ | -------------------------------- |
 | `staging`       | 16 张临时表 | Data Foundation          | 产品禁止访问                     |
 | `catalog`       | 21 张正式表 | Data Foundation 发布器   | NestJS、Python Intelligence 只读 |
-| `app`           | 0 张表      | 未来 NestJS/Prisma       | NestJS 读写；Python 不直写       |
+| `app`           | 2 张业务表  | NestJS/Prisma            | NestJS 读写；Python 不直写       |
 | `agent_runtime` | 尚未创建    | 未来 Python Intelligence | Python checkpoint 读写           |
 
 现有 migration 已经发布，不修改历史 SQL。未来 Catalog 变化由 Data Foundation 新增 migration；未来 App 表由 NestJS 侧新增 migration。数据库账号权限应最终落实同样的边界。
@@ -322,6 +322,7 @@ NestJS 是对外状态真相。Python 可以拥有内部 checkpoint，但不能�
 | 阶段                 | 状态          | 交付物                                                |
 | -------------------- | ------------- | ----------------------------------------------------- |
 | 数据底座与 Data Gate | `Implemented` | Source/Bronze/Silver/Catalog、公司审核、引用报告      |
+| 账户与用户管理       | `Implemented` | 注册、登录、Session、改密、禁用、角色和管理员重置     |
 | 产品查询层           | `Next`        | NestJS Catalog repository、REST、分页、校验和集成测试 |
 | Web 业务页面         | `Planned`     | 领域、公司、专利、证据和报告界面                      |
 | Python Intelligence  | `Planned`     | 单服务 Agent 工作流、工具、checkpoint 和内部 API      |

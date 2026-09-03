@@ -21,8 +21,8 @@
 
 | 层           | 主要技术                                                                  | 状态                     |
 | ------------ | ------------------------------------------------------------------------- | ------------------------ |
-| React Web    | React 19、Vite 8、TypeScript 6、TanStack、Zod、ky、Tailwind CSS、Radix UI | 基础模板已实现，业务待接 |
-| NestJS API   | NestJS 12、Express、Zod、Kysely、Prisma、PostgreSQL、Pino                 | 依赖已安装，业务待接     |
+| React Web    | React 19、Vite 8、TypeScript 6、TanStack、Zod、ky、Tailwind CSS、Radix UI | 账户界面已接真实 API     |
+| NestJS API   | NestJS 12、Express、Zod、Kysely、Prisma、PostgreSQL、Pino                 | 账户 API 已实现          |
 | Python Agent | Python 3.13、FastAPI、Pydantic、LangGraph、OpenAI SDK、HTTPX、structlog   | 项目已初始化，服务待实现 |
 | 共享契约     | 独立 `@tech-scout/contracts`、Zod 4、OpenAPI                              | 基础包已实现             |
 | 数据底座     | Python、DuckDB、Parquet、psycopg、PostgreSQL                              | 已实现并通过 Data Gate   |
@@ -118,20 +118,23 @@ Catalog 使用 `pg 8.23 + Kysely 0.29`，仅执行只读、显式、类型安全
 
 ### 4.4 自建鉴权
 
-第一版采用简化的自建账户系统：
+第一版采用已经落地的简化自建账户系统：
 
-- 允许使用邮箱和密码公开注册，邮箱不验证。
+- 使用必填用户名、邮箱和密码公开注册，注册后自动登录。
+- 用户名统一为小写，可使用用户名或邮箱登录；邮箱保留原始值并以规范化值保证唯一。
+- 用户名注册后不可修改，不设置独立展示名。
+- 邮箱不验证，数据模型中不存在邮箱验证状态。
 - 不接入邮件服务、验证码或邮件找回密码。
 - 邮箱只是未经验证的登录标识，不能视为可信身份。
 - 忘记密码由管理员重置。
 - 所有普通用户拥有相同产品功能，但只能访问自己的项目、任务和报告。
-- 管理员只增加创建管理员、查看账号、禁用、恢复和重置密码能力，不建设通用 RBAC。
+- 管理员只增加查看账号、调整 `user/admin` 角色、禁用、恢复、重置密码和撤销 Session 的能力，不建设通用 RBAC。
 - 禁用账号必须撤销全部 Session，不能物理删除其数据。
 - 管理员通过一次性 CLI 创建，不把第一个公开注册用户自动提升为管理员。
 
-最低安全集：Argon2id、HttpOnly/SameSite Cookie、生产环境 Secure Cookie、固定 CORS Origin、写请求 Origin 检查和认证接口的简单内存限流。不引入 CAPTCHA、独立 CSRF Token、短信、邮件验证或 Redis 限流。
+最低安全集：Argon2id、数据库 Session、HttpOnly/SameSite Cookie、生产环境 Secure Cookie、同源 `/api`、写请求 Origin 检查和 CSRF Token。不引入 CAPTCHA、账号锁定、短信、邮件验证、复杂审计或 Redis 限流。
 
-Session 闲置 7 天失效，最长 30 天强制重新登录；密码变更、账号禁用和“退出全部设备”撤销所有 Session。
+Session 闲置 7 天失效，最长 30 天强制重新登录；密码变更保留当前 Session 并撤销其他 Session，账号禁用和管理员撤销会话会删除目标用户的全部 Session。
 
 这是一套本地和作品演示优先的鉴权方案，不应被描述为面向公网的大规模生产身份平台。
 
@@ -258,11 +261,11 @@ OpenTelemetry、Prometheus、集中日志和 Sentry 均为 `Deferred`。出现�
 
 ## 11. 实施顺序
 
-1. 建立 NestJS Catalog Kysely 只读连接、类型和 repository。
-2. 用共享 Zod 定义第一批领域、公司、专利和来源响应。
-3. 实现 React → NestJS → Catalog 的分页查询闭环。
-4. 初始化 Prisma `app` schema，再实现公开注册、Session 和账号禁用。
-5. 用 Session Cookie 替换前端现有 token localStorage 模板逻辑。
+1. ~~初始化 Prisma `app` schema，实现公开注册、Session 和账号管理。~~ 已完成。
+2. ~~用数据库 Session Cookie 替换前端 Mock Token 模板。~~ 已完成。
+3. 建立 NestJS Catalog Kysely 只读连接、类型和 repository。
+4. 用共享 Zod 定义第一批领域、公司、专利和来源响应。
+5. 实现 React → NestJS → Catalog 的分页查询闭环。
 6. 实现 Python FastAPI 健康检查和 NestJS 内部客户端。
 7. 增加 LangGraph 最小研究工作流、`agent_runtime` checkpoint 和 SSE。
 8. 在出现真实瓶颈后再评估队列、向量检索、对象存储和容器化。
