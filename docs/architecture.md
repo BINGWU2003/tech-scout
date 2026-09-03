@@ -107,7 +107,7 @@ tech-scout/
     data-foundation/             离线数据工程
       migrations/                catalog/staging migration
       src/data_foundation/
-        datasets/                Bronze、Silver、审核、Catalog 发布
+        datasets/                Source、Bronze、Silver、审核、Catalog 发布
         reports/                 固定模板、可复现报告
         shared/                  路径与数据库等内部基础设施
       tests/
@@ -116,7 +116,6 @@ tech-scout/
 
   config/                        来源、领域和报告规则
   docs/                          产品、架构、数据和运维文档
-  scripts/                       Node 数据 manifest 工具
 ```
 
 未来只有在接口稳定且确实需要复用时才创建 `packages/contracts`。未实现前不创建空壳目录。

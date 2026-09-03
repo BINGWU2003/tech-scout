@@ -66,7 +66,6 @@ uv run --project pipelines/data-foundation pytest pipelines/data-foundation/test
 ```
 
 完整命令见 [Data Foundation README](./pipelines/data-foundation/README.md)。
-Source Manifest 目前仍是独立的 Node 工具，继续使用 `pnpm data:manifest --help`。
 
 ## 文档
 

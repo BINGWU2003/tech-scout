@@ -4,7 +4,7 @@
 
 ## 包含内容
 
-- `src/data_foundation/datasets`：Bronze、Silver、实体审核和 Catalog 发布。
+- `src/data_foundation/datasets`：Source Manifest、Bronze、Silver、实体审核和 Catalog 发布。
 - `src/data_foundation/reports`：固定模板、可复现的 Data Gate 报告。
 - `src/data_foundation/shared`：仓库路径和数据库连接等内部基础设施。
 - `migrations`：`staging` 与 `catalog` schema 的已发布 migration。
@@ -22,6 +22,7 @@ uv run --project pipelines/data-foundation ruff check pipelines/data-foundation
 
 ```powershell
 uv run --project pipelines/data-foundation data-foundation --help
+uv run --project pipelines/data-foundation data-foundation source --help
 uv run --project pipelines/data-foundation data-foundation bronze --help
 uv run --project pipelines/data-foundation data-foundation silver --help
 uv run --project pipelines/data-foundation data-foundation review --help
@@ -29,8 +30,7 @@ uv run --project pipelines/data-foundation data-foundation catalog --help
 uv run --project pipelines/data-foundation data-foundation report minimal --help
 ```
 
-根 `package.json` 只管理 Node/Turborepo 应用；Data Foundation 的依赖、命令和测试均由本目录的 `pyproject.toml` 与 `uv.lock` 管理。
-Source Manifest 仍由现有 Node 流式哈希工具生成，因此暂时保留 `pnpm data:manifest` 和 `pnpm test:data-manifest`。
+根 `package.json` 只管理 Node/Turborepo 应用；Data Foundation 的 Source Manifest、构建、审核、发布、报告和测试均由本目录的 `pyproject.toml` 与 `uv.lock` 管理。
 
 ## 边界
 

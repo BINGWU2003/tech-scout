@@ -8,7 +8,8 @@ from data_foundation import cli
 @pytest.mark.parametrize(
     ("arguments", "expected"),
     [
-        (["--help"], "{bronze,silver,review,catalog,report}"),
+        (["--help"], "{source,bronze,silver,review,catalog,report}"),
+        (["source", "--help"], "{generate,verify}"),
         (["bronze", "--help"], "{build,verify}"),
         (["silver", "--help"], "{build,verify}"),
         (["review", "--help"], "{prepare,verify}"),

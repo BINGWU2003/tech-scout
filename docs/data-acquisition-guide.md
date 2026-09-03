@@ -104,11 +104,11 @@ D:\files\tech-scout\db.txt
 来源登记配置位于 Git，生成产物位于数据目录。当前快照命令：
 
 ```powershell
-pnpm data:manifest generate `
+uv run --project pipelines/data-foundation data-foundation source generate `
   --data-root "D:\files\project-data" `
   --snapshot 2026-09-02
 
-pnpm data:manifest verify `
+uv run --project pipelines/data-foundation data-foundation source verify `
   --manifest "D:\files\project-data\releases\source-2026-09-02\manifest.json"
 ```
 
@@ -304,7 +304,6 @@ Catalog 可以从 Silver 重建，但完成新 release、migration 或人工审�
 
 ```powershell
 uv run --project pipelines/data-foundation pytest pipelines/data-foundation/tests
-pnpm test:data-manifest
 uv run --project pipelines/data-foundation ruff check pipelines/data-foundation
 pnpm test
 pnpm format:check
