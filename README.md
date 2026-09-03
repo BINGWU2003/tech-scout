@@ -87,13 +87,13 @@ API 至少需要 `DATABASE_URL`。首次运行先应用 Prisma migration：
 pnpm --filter @tech-scout/api prisma:migrate
 ```
 
-首个管理员通过一次性 CLI 创建。密码通过当前进程的 `ADMIN_BOOTSTRAP_PASSWORD` 环境变量提供，不要写入命令参数：
+首个管理员通过一次性 CLI 创建。先在 `apps/api/.env` 中填写 `ADMIN_BOOTSTRAP_USERNAME`、`ADMIN_BOOTSTRAP_EMAIL` 和 `ADMIN_BOOTSTRAP_PASSWORD`，其中密码至少需要 10 个字符：
 
 ```bash
-pnpm --filter @tech-scout/api admin:create -- --username owner --email owner@example.com
+pnpm --filter @tech-scout/api admin:create
 ```
 
-创建成功后清除该环境变量。公开注册只会创建普通用户，不会自动产生管理员。
+创建成功后清除这三个一次性环境变量。公开注册只会创建普通用户，不会自动产生管理员。
 
 API 数据库集成测试必须使用独立数据库，并通过 `TEST_DATABASE_URL` 指定；测试会清空其中的 `app.user_account` 和 `app.user_session`，不得指向日常数据库或 Catalog 数据库。
 

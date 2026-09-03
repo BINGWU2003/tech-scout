@@ -9,19 +9,14 @@ if (existsSync(new URL('../../.env', import.meta.url))) {
   loadEnvFile(new URL('../../.env', import.meta.url))
 }
 
-function argument(name: string): string | undefined {
-  const index = process.argv.indexOf(`--${name}`)
-  return index === -1 ? undefined : process.argv[index + 1]
-}
-
 const parsed = registerSchema.safeParse({
-  username: argument('username'),
-  email: argument('email'),
+  username: process.env.ADMIN_BOOTSTRAP_USERNAME,
+  email: process.env.ADMIN_BOOTSTRAP_EMAIL,
   password: process.env.ADMIN_BOOTSTRAP_PASSWORD,
 })
 if (!parsed.success) {
   process.stderr.write(
-    '用法：设置 ADMIN_BOOTSTRAP_PASSWORD 后传入 --username 和 --email。\n'
+    '用法：设置 ADMIN_BOOTSTRAP_USERNAME、ADMIN_BOOTSTRAP_EMAIL 和 ADMIN_BOOTSTRAP_PASSWORD 环境变量后运行此命令。\n'
   )
   process.exitCode = 1
 } else {

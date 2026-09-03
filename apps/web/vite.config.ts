@@ -4,8 +4,8 @@ import tailwindcss from '@tailwindcss/vite'
 import { tanstackRouter } from '@tanstack/router-plugin/vite'
 import react from '@vitejs/plugin-react'
 import { playwright } from '@vitest/browser-playwright'
+import { codeInspectorPlugin } from 'code-inspector-plugin'
 import { defineConfig } from 'vite'
-
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [
@@ -15,6 +15,9 @@ export default defineConfig({
     }),
     react(),
     tailwindcss(),
+    codeInspectorPlugin({
+      bundler: 'vite',
+    }),
   ],
   resolve: {
     alias: {

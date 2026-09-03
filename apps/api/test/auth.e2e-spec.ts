@@ -2,7 +2,6 @@ import { type INestApplication } from '@nestjs/common'
 import { Test } from '@nestjs/testing'
 import { argon2id, hash } from 'argon2'
 import request from 'supertest'
-import { type App } from 'supertest/types'
 import { AppModule } from '../src/app.module.js'
 import { configureApp } from '../src/app.setup.js'
 import { PrismaService } from '../src/database/prisma.service.js'
@@ -11,7 +10,7 @@ const runDatabaseTests = Boolean(process.env.TEST_DATABASE_URL)
 const describeWithDatabase = runDatabaseTests ? describe : describe.skip
 
 describeWithDatabase('authentication and user administration (e2e)', () => {
-  let app: INestApplication<App>
+  let app: INestApplication
   let prisma: PrismaService
 
   beforeAll(async () => {
