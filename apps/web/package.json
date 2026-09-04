@@ -40,6 +40,7 @@
     "@tanstack/react-router": "catalog:",
     "@tanstack/react-table": "catalog:",
     "@tech-scout/contracts": "workspace:*",
+    "@tech-scout/shared": "workspace:*",
     "class-variance-authority": "catalog:",
     "clsx": "catalog:",
     "cmdk": "catalog:",

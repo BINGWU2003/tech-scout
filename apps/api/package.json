@@ -33,6 +33,7 @@
     "@prisma/adapter-pg": "catalog:",
     "@prisma/client": "catalog:",
     "@tech-scout/contracts": "workspace:*",
+    "@tech-scout/shared": "workspace:*",
     "argon2": "catalog:",
     "cookie-parser": "catalog:",
     "kysely": "catalog:",

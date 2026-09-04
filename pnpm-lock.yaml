@@ -317,6 +317,9 @@ importers:
       '@tech-scout/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@tech-scout/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
       argon2:
         specifier: 'catalog:'
         version: 0.45.1
@@ -474,6 +477,9 @@ importers:
       '@tech-scout/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@tech-scout/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
       class-variance-authority:
         specifier: 'catalog:'
         version: 0.7.1
@@ -592,6 +598,15 @@ importers:
       zod:
         specifier: 'catalog:'
         version: 4.3.6
+    devDependencies:
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.4(@types/node@24.13.3)(@vitest/browser-playwright@4.1.4)(@vitest/coverage-v8@4.1.4)(@vitest/ui@4.1.4)(msw@2.15.0(@types/node@24.13.3)(typescript@6.0.3))(vite@8.0.8(@types/node@24.13.3)(esbuild@0.27.1)(jiti@2.6.1)(tsx@4.20.3)(yaml@2.9.0))
+
+  packages/shared:
     devDependencies:
       typescript:
         specifier: 'catalog:'

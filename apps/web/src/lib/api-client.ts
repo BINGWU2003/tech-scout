@@ -1,4 +1,5 @@
 import { apiErrorSchema, type ApiError } from '@tech-scout/contracts'
+import { createRequestId } from '@tech-scout/shared'
 import ky, { HTTPError, type Options } from 'ky'
 import { z, type ZodType } from 'zod'
 import { useAuthStore } from '@/stores/auth-store'
@@ -23,7 +24,7 @@ function fallbackError(response: Response): ApiError {
   return {
     code: `HTTP_${response.status}`,
     message: '请求失败',
-    requestId: response.headers.get('x-request-id') ?? crypto.randomUUID(),
+    requestId: response.headers.get('x-request-id') ?? createRequestId(),
   }
 }
 

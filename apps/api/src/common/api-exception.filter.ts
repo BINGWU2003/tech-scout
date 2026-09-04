@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto'
 import {
   ArgumentsHost,
   Catch,
@@ -6,6 +5,7 @@ import {
   HttpException,
   HttpStatus,
 } from '@nestjs/common'
+import { createRequestId } from '@tech-scout/shared'
 import { type Request, type Response } from 'express'
 
 type ExceptionBody = {
@@ -21,7 +21,7 @@ export class ApiExceptionFilter implements ExceptionFilter {
     const request = context.getRequest<Request>()
     const response = context.getResponse<Response>()
     const requestId =
-      request.header('x-request-id')?.slice(0, 100) || randomUUID()
+      request.header('x-request-id')?.slice(0, 100) || createRequestId()
     const status =
       exception instanceof HttpException
         ? exception.getStatus()
