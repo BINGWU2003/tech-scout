@@ -82,8 +82,8 @@ const company = {
   },
 }
 
-describe('CatalogCompanyDetail', () => {
-  it('connects company identity to patents, relationships and match evidence', async () => {
+describe('CatalogCompanyDetail 公司详情', () => {
+  it('将公司身份与专利、关联关系和匹配证据联系起来', async () => {
     const screen = await render(<CatalogCompanyDetail company={company} />)
 
     await expect.element(screen.getByText('Acme AI, Inc.')).toBeInTheDocument()

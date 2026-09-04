@@ -34,8 +34,8 @@ const result = {
   totalPages: 3,
 }
 
-describe('CatalogPatentTable', () => {
-  it('renders patent links and requests an explicit page', async () => {
+describe('CatalogPatentTable 专利表格', () => {
+  it('渲染专利链接并请求指定页码', async () => {
     const onQueryChange = vi.fn()
     const screen = await render(
       <CatalogPatentTable
@@ -52,7 +52,7 @@ describe('CatalogPatentTable', () => {
     expect(onQueryChange).toHaveBeenCalledWith({ page: 2 })
   })
 
-  it('submits the complete patent filter set', async () => {
+  it('提交完整的专利筛选条件', async () => {
     const onQueryChange = vi.fn()
     const screen = await render(
       <CatalogPatentTable

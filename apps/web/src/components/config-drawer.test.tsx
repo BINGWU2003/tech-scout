@@ -36,7 +36,7 @@ async function openDrawer(screen: RenderResult) {
     .toBeInTheDocument()
 }
 
-describe('ConfigDrawer (integration)', () => {
+describe('ConfigDrawer 配置抽屉（集成）', () => {
   beforeEach(() => {
     vi.clearAllMocks()
 
@@ -46,7 +46,7 @@ describe('ConfigDrawer (integration)', () => {
     document.documentElement.removeAttribute('dir')
   })
 
-  it('opens the drawer and renders the sections', async () => {
+  it('打开抽屉并渲染各个区域', async () => {
     const screen = await renderConfigDrawer()
 
     await openDrawer(screen)
@@ -70,8 +70,8 @@ describe('ConfigDrawer (integration)', () => {
       .toBeInTheDocument()
   })
 
-  describe('theme preference', () => {
-    it('applies light theme to <html> and cookie', async () => {
+  describe('主题偏好', () => {
+    it('将浅色主题应用到 <html> 和 Cookie', async () => {
       const screen = await renderConfigDrawer()
       await openDrawer(screen)
       await userEvent.click(
@@ -83,7 +83,7 @@ describe('ConfigDrawer (integration)', () => {
       expect(getCookie('vite-ui-theme')).toBe('light')
     })
 
-    it('applies dark theme to <html> and cookie', async () => {
+    it('将深色主题应用到 <html> 和 Cookie', async () => {
       const screen = await renderConfigDrawer()
       await openDrawer(screen)
       await userEvent.click(screen.getByRole('radio', { name: /select dark/i }))
@@ -93,7 +93,7 @@ describe('ConfigDrawer (integration)', () => {
       expect(getCookie('vite-ui-theme')).toBe('dark')
     })
 
-    it('applies system theme: stores cookie and applies a resolved light or dark class', async () => {
+    it('应用系统主题：存储 Cookie 并应用解析后的浅色或深色类名', async () => {
       // Pre-seed light so mounted theme is not system; re-selecting System alone would not fire setTheme.
       setCookie('vite-ui-theme', 'light')
 
@@ -113,8 +113,8 @@ describe('ConfigDrawer (integration)', () => {
     })
   })
 
-  describe('sidebar variant', () => {
-    it('selecting floating updates layout_variant cookie', async () => {
+  describe('侧边栏样式', () => {
+    it('在选择 floating 时更新 layout_variant Cookie', async () => {
       const screen = await renderConfigDrawer()
       await openDrawer(screen)
 
@@ -126,7 +126,7 @@ describe('ConfigDrawer (integration)', () => {
       )
     })
 
-    it('selecting sidebar updates layout_variant cookie', async () => {
+    it('在选择 sidebar 时更新 layout_variant Cookie', async () => {
       const screen = await renderConfigDrawer()
       await openDrawer(screen)
 
@@ -138,7 +138,7 @@ describe('ConfigDrawer (integration)', () => {
       )
     })
 
-    it('selecting inset updates layout_variant cookie after another variant', async () => {
+    it('在选择其他样式后再选择 inset 时更新 layout_variant Cookie', async () => {
       const screen = await renderConfigDrawer()
       await openDrawer(screen)
 
@@ -156,7 +156,7 @@ describe('ConfigDrawer (integration)', () => {
     })
   })
 
-  it('selecting full layout sets collapsible to offcanvas and closes sidebar', async () => {
+  it('在选择 full 布局时将 collapsible 设为 offcanvas 并关闭侧边栏', async () => {
     const screen = await renderConfigDrawer({ sidebarDefaultOpen: true })
     await openDrawer(screen)
 
@@ -169,8 +169,8 @@ describe('ConfigDrawer (integration)', () => {
     await vi.waitFor(() => expect(getCookie('sidebar_state')).toBe('false'))
   })
 
-  describe('section reset buttons', () => {
-    it('resets theme via section control after choosing dark', async () => {
+  describe('区域重置按钮', () => {
+    it('在选择深色主题后通过区域控件重置主题', async () => {
       const screen = await renderConfigDrawer()
       await openDrawer(screen)
 
@@ -185,7 +185,7 @@ describe('ConfigDrawer (integration)', () => {
       await vi.waitFor(() => expect(getCookie('vite-ui-theme')).toBe('system'))
     })
 
-    it('resets direction via section control after choosing RTL', async () => {
+    it('在选择 RTL 后通过区域控件重置方向', async () => {
       const screen = await renderConfigDrawer()
       await openDrawer(screen)
 
@@ -207,7 +207,7 @@ describe('ConfigDrawer (integration)', () => {
       expect(getCookie('dir')).toBe('ltr')
     })
 
-    it('resets sidebar style via section control after choosing floating', async () => {
+    it('在选择 floating 后通过区域控件重置侧边栏样式', async () => {
       const screen = await renderConfigDrawer()
       await openDrawer(screen)
 
@@ -226,7 +226,7 @@ describe('ConfigDrawer (integration)', () => {
       await vi.waitFor(() => expect(getCookie('layout_variant')).toBe('inset'))
     })
 
-    it('resets layout via section control after choosing compact', async () => {
+    it('在选择 compact 后通过区域控件重置布局', async () => {
       const screen = await renderConfigDrawer({ sidebarDefaultOpen: true })
       await openDrawer(screen)
 
@@ -247,7 +247,7 @@ describe('ConfigDrawer (integration)', () => {
     })
   })
 
-  it('changes direction and applies it to <html dir>', async () => {
+  it('更改方向并将其应用到 <html dir>', async () => {
     const screen = await renderConfigDrawer()
 
     await openDrawer(screen)
@@ -261,7 +261,7 @@ describe('ConfigDrawer (integration)', () => {
     expect(getCookie('dir')).toBe('rtl')
   })
 
-  it('updates layout: selecting non-default closes sidebar and changes layout cookie', async () => {
+  it('更新布局：选择非默认布局时关闭侧边栏并更改布局 Cookie', async () => {
     const screen = await renderConfigDrawer({ sidebarDefaultOpen: true })
 
     await openDrawer(screen)
@@ -278,7 +278,7 @@ describe('ConfigDrawer (integration)', () => {
     await vi.waitFor(() => expect(getCookie('layout_collapsible')).toBe('icon'))
   })
 
-  it('reset restores defaults across sidebar/theme/layout/direction', async () => {
+  it('通过重置恢复侧边栏、主题、布局和方向的默认值', async () => {
     const screen = await renderConfigDrawer({ sidebarDefaultOpen: true })
 
     await openDrawer(screen)

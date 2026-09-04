@@ -11,8 +11,8 @@ import {
 } from '@/components/ui/form'
 import { PasswordInput } from './password-input'
 
-describe('PasswordInput', () => {
-  it('renders the password input correctly', async () => {
+describe('PasswordInput 密码输入框', () => {
+  it('正确渲染密码输入框', async () => {
     const { getByPlaceholder, getByRole } = await render(
       <PasswordInput placeholder='password' />
     )
@@ -25,7 +25,7 @@ describe('PasswordInput', () => {
     await expect.element(showPasswordButton).toBeVisible()
   })
 
-  it('toggles the password visibility when the show password button is clicked', async () => {
+  it('在点击显示密码按钮时切换密码可见性', async () => {
     const { getByPlaceholder, getByRole } = await render(
       <PasswordInput placeholder='password' />
     )
@@ -50,7 +50,7 @@ describe('PasswordInput', () => {
       .toBeInTheDocument()
   })
 
-  it('disables the show password button when the password input is disabled', async () => {
+  it('在密码输入框禁用时禁用显示密码按钮', async () => {
     const { getByPlaceholder, getByRole } = await render(
       <PasswordInput placeholder='password' disabled />
     )
@@ -61,7 +61,7 @@ describe('PasswordInput', () => {
     await expect.element(passwordInput).toBeDisabled()
   })
 
-  it('works with FormLabel and react-hook-form field spread', async () => {
+  it('与 FormLabel 和 react-hook-form 字段展开属性协同工作', async () => {
     function PasswordInLabeledForm() {
       const form = useForm<{ password: string }>({
         defaultValues: { password: '' },

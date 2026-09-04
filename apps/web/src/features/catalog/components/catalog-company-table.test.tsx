@@ -31,8 +31,8 @@ const result = {
   totalPages: 2,
 }
 
-describe('CatalogCompanyTable', () => {
-  it('renders company links and preserves page navigation', async () => {
+describe('CatalogCompanyTable 公司表格', () => {
+  it('渲染公司链接并保留分页导航', async () => {
     const onQueryChange = vi.fn()
     const screen = await render(
       <CatalogCompanyTable

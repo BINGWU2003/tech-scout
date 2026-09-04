@@ -53,8 +53,8 @@ const patent = {
   },
 }
 
-describe('CatalogPatentDetail', () => {
-  it('shows classifications, parties, matching reasons and traceable source', async () => {
+describe('CatalogPatentDetail 专利详情', () => {
+  it('显示分类、相关方、匹配原因和可追溯来源', async () => {
     const screen = await render(<CatalogPatentDetail patent={patent} />)
 
     await expect

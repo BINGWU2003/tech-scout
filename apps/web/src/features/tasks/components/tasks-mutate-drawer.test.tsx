@@ -16,10 +16,10 @@ const MOCK_TASK = {
   priority: 'medium',
 } as const satisfies Task
 
-describe('TasksMutateDrawer', () => {
+describe('TasksMutateDrawer 任务编辑抽屉', () => {
   beforeEach(() => vi.clearAllMocks())
 
-  it('renders create title and description', async () => {
+  it('渲染创建状态的标题和描述', async () => {
     const { getByRole, getByText } = await render(
       <TasksMutateDrawer open onOpenChange={vi.fn()} />
     )
@@ -34,7 +34,7 @@ describe('TasksMutateDrawer', () => {
     await expect.element(desc).toBeInTheDocument()
   })
 
-  it('renders edit title, description, and prefilled title', async () => {
+  it('渲染编辑状态的标题、描述和预填标题', async () => {
     const { getByRole, getByText } = await render(
       <TasksMutateDrawer open onOpenChange={vi.fn()} currentRow={MOCK_TASK} />
     )
@@ -60,7 +60,7 @@ describe('TasksMutateDrawer', () => {
     await expect.element(priorityRadio).toBeChecked()
   })
 
-  it('shows validation messages when submitting an empty form', async () => {
+  it('在提交空表单时显示校验消息', async () => {
     const { getByRole, getByText } = await render(
       <TasksMutateDrawer open onOpenChange={vi.fn()} />
     )
@@ -80,7 +80,7 @@ describe('TasksMutateDrawer', () => {
       .toBeInTheDocument()
   })
 
-  it('submits create form and shows submitted data', async () => {
+  it('提交创建表单并显示已提交的数据', async () => {
     const onOpenChange = vi.fn()
     const { getByRole } = await render(
       <TasksMutateDrawer open onOpenChange={onOpenChange} />
@@ -111,7 +111,7 @@ describe('TasksMutateDrawer', () => {
     })
   })
 
-  it('closes when Close is clicked', async () => {
+  it('在点击关闭按钮时关闭', async () => {
     const onOpenChange = vi.fn()
     const { getByRole } = await render(
       <TasksMutateDrawer open onOpenChange={onOpenChange} />
@@ -129,7 +129,7 @@ describe('TasksMutateDrawer', () => {
     expect(onOpenChange).toHaveBeenCalledWith(false)
   })
 
-  it('resets entered values when the sheet is closed and reopened', async () => {
+  it('在关闭并重新打开抽屉时重置已输入的值', async () => {
     function Harness() {
       const [open, setOpen] = useState(true)
       return (

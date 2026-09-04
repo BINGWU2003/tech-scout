@@ -55,12 +55,12 @@ async function openCommandPalette(
   )
 }
 
-describe('SearchProvider and CommandMenu', () => {
+describe('SearchProvider 和 CommandMenu', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
 
-  it('renders the command palette when the palette is open', async () => {
+  it('在命令面板打开时渲染命令面板', async () => {
     const screen = await renderWithSearchProvider()
     const { getByPlaceholder, getByText } = screen
 
@@ -76,7 +76,7 @@ describe('SearchProvider and CommandMenu', () => {
     await expect.element(getByText('Dashboard')).toBeInTheDocument()
   })
 
-  it('does not show the dialog content when search is closed', async () => {
+  it('在搜索关闭时不显示对话框内容', async () => {
     const { getByPlaceholder } = await renderWithSearchProvider()
 
     await expect
@@ -87,24 +87,21 @@ describe('SearchProvider and CommandMenu', () => {
   it.each([
     ['Ctrl', 'Control'],
     ['Cmd', 'Meta'],
-  ] as const)(
-    'opens the command menu when %s + K is pressed',
-    async (_label, modifier) => {
-      const screen = await renderWithSearchProvider()
+  ] as const)('按下 %s + K 时打开命令菜单', async (_label, modifier) => {
+    const screen = await renderWithSearchProvider()
 
-      await expect
-        .element(screen.getByPlaceholder(COMMAND_MENU_PLACEHOLDER))
-        .not.toBeInTheDocument()
+    await expect
+      .element(screen.getByPlaceholder(COMMAND_MENU_PLACEHOLDER))
+      .not.toBeInTheDocument()
 
-      await openCommandPalette(screen, modifier)
+    await openCommandPalette(screen, modifier)
 
-      await expect
-        .element(screen.getByPlaceholder(COMMAND_MENU_PLACEHOLDER))
-        .toBeInTheDocument()
-    }
-  )
+    await expect
+      .element(screen.getByPlaceholder(COMMAND_MENU_PLACEHOLDER))
+      .toBeInTheDocument()
+  })
 
-  it('navigates to a top-level route and closes the palette when a nav item is selected', async () => {
+  it('在选择导航项时跳转到顶级路由并关闭命令面板', async () => {
     const screen = await renderWithSearchProvider()
 
     await openCommandPalette(screen)
@@ -117,7 +114,7 @@ describe('SearchProvider and CommandMenu', () => {
       .not.toBeInTheDocument()
   })
 
-  it('navigates for nested sidebar items (group with sub-items)', async () => {
+  it('跳转到嵌套侧边栏条目（包含子条目的分组）', async () => {
     const screen = await renderWithSearchProvider()
     const { getByPlaceholder, getByRole } = screen
 
@@ -131,7 +128,7 @@ describe('SearchProvider and CommandMenu', () => {
       .not.toBeInTheDocument()
   })
 
-  it('applies theme and closes the palette when a theme command is chosen', async () => {
+  it('在选择主题命令时应用主题并关闭命令面板', async () => {
     const screen = await renderWithSearchProvider()
 
     await openCommandPalette(screen)
@@ -144,7 +141,7 @@ describe('SearchProvider and CommandMenu', () => {
       .not.toBeInTheDocument()
   })
 
-  it('shows empty state when the filter matches nothing', async () => {
+  it('在筛选无匹配结果时显示空状态', async () => {
     const screen = await renderWithSearchProvider()
 
     await openCommandPalette(screen)

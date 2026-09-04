@@ -9,7 +9,7 @@ import { PrismaService } from '../src/database/prisma.service.js'
 const runDatabaseTests = Boolean(process.env.TEST_DATABASE_URL)
 const describeWithDatabase = runDatabaseTests ? describe : describe.skip
 
-describeWithDatabase('authentication and user administration (e2e)', () => {
+describeWithDatabase('认证与用户管理（端到端）', () => {
   let app: INestApplication
   let prisma: PrismaService
 
@@ -37,7 +37,7 @@ describeWithDatabase('authentication and user administration (e2e)', () => {
     if (app) await app.close()
   })
 
-  it('registers, normalizes and restores a session', async () => {
+  it('注册、规范化并恢复会话', async () => {
     const agent = request.agent(app.getHttpServer())
     const registered = await agent
       .post('/api/v1/auth/register')
@@ -63,7 +63,7 @@ describeWithDatabase('authentication and user administration (e2e)', () => {
     expect(me.body.csrfToken).toHaveLength(43)
   })
 
-  it('logs in with either username or email and protects csrf writes', async () => {
+  it('使用用户名或邮箱登录并通过 CSRF 保护写操作', async () => {
     const first = request.agent(app.getHttpServer())
     const registration = await first
       .post('/api/v1/auth/register')
@@ -103,7 +103,7 @@ describeWithDatabase('authentication and user administration (e2e)', () => {
     }
   })
 
-  it('rejects reserved or duplicate identities and denies admin APIs to users', async () => {
+  it('拒绝保留或重复身份，并禁止普通用户访问管理员 API', async () => {
     await request(app.getHttpServer())
       .post('/api/v1/auth/register')
       .set('Origin', 'http://localhost:5173')
@@ -137,7 +137,7 @@ describeWithDatabase('authentication and user administration (e2e)', () => {
     await user.get('/api/v1/admin/users').expect(403)
   })
 
-  it('allows admins to disable, restore and reset a user', async () => {
+  it('允许管理员禁用、恢复和重置用户', async () => {
     await prisma.userAccount.create({
       data: {
         username: 'owner_admin',

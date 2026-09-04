@@ -4,7 +4,7 @@ import { CatalogRepository } from './catalog.repository.js'
 const runCatalogTests = Boolean(process.env.CATALOG_DATABASE_URL)
 const describeWithCatalog = runCatalogTests ? describe : describe.skip
 
-describeWithCatalog('CatalogRepository', () => {
+describeWithCatalog('CatalogRepository 目录仓储', () => {
   let database: CatalogDatabase
 
   beforeAll(async () => {
@@ -15,7 +15,7 @@ describeWithCatalog('CatalogRepository', () => {
     await database.onModuleDestroy()
   })
 
-  it('returns the latest published release without internal paths', async () => {
+  it('返回不含内部路径的最新已发布版本', async () => {
     const repository = new CatalogRepository(database)
 
     const release = await repository.currentRelease()
@@ -30,7 +30,7 @@ describeWithCatalog('CatalogRepository', () => {
     expect(release).not.toHaveProperty('manifest')
   })
 
-  it('lists current domains with deterministic patent counts', async () => {
+  it('列出当前领域及确定性的专利数量', async () => {
     const repository = new CatalogRepository(database)
 
     const result = await repository.listDomains()

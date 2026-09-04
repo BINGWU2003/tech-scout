@@ -14,20 +14,20 @@ beforeEach(() => {
   vi.mocked(toastError).mockClear()
 })
 
-describe('handleServerError', () => {
-  it('shows a generic message when the error is not recognised', () => {
+describe('handleServerError 服务器错误处理', () => {
+  it('在无法识别错误时显示通用消息', () => {
     handleServerError(new Error('network'))
 
     expect(toastError).toHaveBeenCalledWith('Something went wrong!')
   })
 
-  it('maps a plain object with status 204 to the no-content message', () => {
+  it('将状态码为 204 的普通对象映射为无内容消息', () => {
     handleServerError({ status: 204 })
 
     expect(toastError).toHaveBeenCalledWith('No content.')
   })
 
-  it('prefers a validated API error message', () => {
+  it('优先使用通过校验的 API 错误消息', () => {
     const error = new ApiClientError(422, {
       code: 'validation_failed',
       message: 'Validation failed',
@@ -39,7 +39,7 @@ describe('handleServerError', () => {
     expect(toastError).toHaveBeenCalledWith('Validation failed')
   })
 
-  it('logs the error to the console in development', () => {
+  it('在开发环境中将错误记录到控制台', () => {
     const log = vi.spyOn(console, 'log').mockImplementation(() => {})
     const err = new Error('logged')
 
@@ -51,7 +51,7 @@ describe('handleServerError', () => {
     log.mockRestore()
   })
 
-  it('does not log the error to the console in production', () => {
+  it('在生产环境中不将错误记录到控制台', () => {
     vi.stubEnv('DEV', false)
 
     const log = vi.spyOn(console, 'log').mockImplementation(() => {})

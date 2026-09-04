@@ -31,13 +31,13 @@ const session = {
   csrfToken: 'csrf-token',
 }
 
-describe('UserAuthForm', () => {
+describe('UserAuthForm 用户认证表单', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     login.mockResolvedValue(session)
   })
 
-  it('requires an identifier and password', async () => {
+  it('要求填写身份标识和密码', async () => {
     const screen = await render(<UserAuthForm />)
     await userEvent.click(screen.getByRole('button', { name: '登录' }))
     await expect
@@ -46,7 +46,7 @@ describe('UserAuthForm', () => {
     await expect.element(screen.getByText('请输入密码')).toBeInTheDocument()
   })
 
-  it('stores the server session and follows a local redirect', async () => {
+  it('存储服务器会话并跳转到本地重定向地址', async () => {
     const screen = await render(<UserAuthForm redirectTo='/settings' />)
     await userEvent.fill(screen.getByLabelText('用户名或邮箱'), 'Alice')
     await userEvent.fill(screen.getByLabelText('密码'), 'a secure password')

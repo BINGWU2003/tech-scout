@@ -20,8 +20,8 @@ function applyLastSearchFn(
   return s as Record<string, unknown>
 }
 
-describe('useTableUrlState', () => {
-  it('derives pagination from search with defaults', async () => {
+describe('useTableUrlState 表格 URL 状态', () => {
+  it('使用默认值从搜索参数推导分页状态', async () => {
     const navigate = vi.fn() as Mock<NavigateFn>
     const { result } = await renderHook(() =>
       useTableUrlState({
@@ -37,7 +37,7 @@ describe('useTableUrlState', () => {
     })
   })
 
-  it('uses default page and pageSize when search omits them', async () => {
+  it('在搜索参数缺少 page 和 pageSize 时使用默认值', async () => {
     const navigate = vi.fn() as Mock<NavigateFn>
     const { result } = await renderHook(() =>
       useTableUrlState({
@@ -53,7 +53,7 @@ describe('useTableUrlState', () => {
     })
   })
 
-  it('clamps negative effective page via pageIndex', async () => {
+  it('通过 pageIndex 限制负数的有效页码', async () => {
     const navigate = vi.fn() as Mock<NavigateFn>
     const { result } = await renderHook(() =>
       useTableUrlState({
@@ -66,7 +66,7 @@ describe('useTableUrlState', () => {
     expect(result.current.pagination.pageIndex).toBe(0)
   })
 
-  it('onPaginationChange omits page and pageSize from search when they match defaults', async () => {
+  it('在分页值匹配默认值时通过 onPaginationChange 从搜索参数中省略 page 和 pageSize', async () => {
     const navigate = vi.fn() as Mock<NavigateFn>
     const prev = { page: 2, pageSize: 20, filter: 'q' }
     const { result, act } = await renderHook(() =>
@@ -91,7 +91,7 @@ describe('useTableUrlState', () => {
     })
   })
 
-  it('onPaginationChange writes non-default page and pageSize', async () => {
+  it('通过 onPaginationChange 写入非默认的 page 和 pageSize', async () => {
     const navigate = vi.fn() as Mock<NavigateFn>
     const prev = { filter: 'x' }
     const { result, act } = await renderHook(() =>
@@ -116,7 +116,7 @@ describe('useTableUrlState', () => {
     })
   })
 
-  it('supports custom pagination search keys', async () => {
+  it('支持自定义分页搜索参数键', async () => {
     const navigate = vi.fn() as Mock<NavigateFn>
     const { result } = await renderHook(() =>
       useTableUrlState({
@@ -137,7 +137,7 @@ describe('useTableUrlState', () => {
     })
   })
 
-  it('reads globalFilter from search and onGlobalFilterChange updates URL and clears page', async () => {
+  it('从搜索参数读取 globalFilter，并通过 onGlobalFilterChange 更新 URL 和清除 page', async () => {
     const navigate = vi.fn() as Mock<NavigateFn>
     const { result, act } = await renderHook(() =>
       useTableUrlState({
@@ -160,7 +160,7 @@ describe('useTableUrlState', () => {
     })
   })
 
-  it('clears filter key in URL when global filter becomes empty after trim', async () => {
+  it('在全局筛选值去除空白后为空时清除 URL 中的筛选键', async () => {
     const navigate = vi.fn() as Mock<NavigateFn>
     const { result, act } = await renderHook(() =>
       useTableUrlState({
@@ -180,7 +180,7 @@ describe('useTableUrlState', () => {
     })
   })
 
-  it('does not trim global filter when trim is false', async () => {
+  it('在 trim 为 false 时保留全局筛选值的空白', async () => {
     const navigate = vi.fn() as Mock<NavigateFn>
     const { result, act } = await renderHook(() =>
       useTableUrlState({
@@ -200,7 +200,7 @@ describe('useTableUrlState', () => {
     })
   })
 
-  it('omits globalFilter and onGlobalFilterChange when global filter is disabled', async () => {
+  it('在禁用全局筛选时省略 globalFilter 和 onGlobalFilterChange', async () => {
     const navigate = vi.fn() as Mock<NavigateFn>
     const { result } = await renderHook(() =>
       useTableUrlState({
@@ -215,7 +215,7 @@ describe('useTableUrlState', () => {
     expect(result.current.onGlobalFilterChange).toBeUndefined()
   })
 
-  it('builds array column filters from search', async () => {
+  it('从搜索参数构建数组类型的列筛选条件', async () => {
     const navigate = vi.fn() as Mock<NavigateFn>
     const { result } = await renderHook(() =>
       useTableUrlState({
@@ -235,7 +235,7 @@ describe('useTableUrlState', () => {
     ])
   })
 
-  it('builds string column filters from search', async () => {
+  it('从搜索参数构建字符串类型的列筛选条件', async () => {
     const navigate = vi.fn() as Mock<NavigateFn>
     const { result } = await renderHook(() =>
       useTableUrlState({
@@ -251,7 +251,7 @@ describe('useTableUrlState', () => {
     ])
   })
 
-  it('onColumnFiltersChange merges serialized filters into search and clears page', async () => {
+  it('通过 onColumnFiltersChange 将序列化筛选条件合并到搜索参数并清除 page', async () => {
     const navigate = vi.fn() as Mock<NavigateFn>
     const prev = { page: 3, status: ['old'], other: 1 }
     const { result, act } = await renderHook(() =>
@@ -281,7 +281,7 @@ describe('useTableUrlState', () => {
     })
   })
 
-  it('ensurePageInRange navigates with replace when current page exceeds pageCount', async () => {
+  it('在当前页超过 pageCount 时通过 ensurePageInRange 使用 replace 导航', async () => {
     const navigate = vi.fn() as Mock<NavigateFn>
     const { result, act } = await renderHook(() =>
       useTableUrlState({
@@ -305,7 +305,7 @@ describe('useTableUrlState', () => {
     )
   })
 
-  it('ensurePageInRange resets to last page when resetTo is last', async () => {
+  it('在 resetTo 为 last 时通过 ensurePageInRange 重置到最后一页', async () => {
     const navigate = vi.fn() as Mock<NavigateFn>
     const { result, act } = await renderHook(() =>
       useTableUrlState({
@@ -325,7 +325,7 @@ describe('useTableUrlState', () => {
     })
   })
 
-  it('ensurePageInRange does not navigate when page is in range', async () => {
+  it('在页码有效时不通过 ensurePageInRange 导航', async () => {
     const navigate = vi.fn() as Mock<NavigateFn>
     const { result, act } = await renderHook(() =>
       useTableUrlState({
@@ -342,7 +342,7 @@ describe('useTableUrlState', () => {
     expect(navigate).not.toHaveBeenCalled()
   })
 
-  it('uses custom serialize and deserialize for column filters', async () => {
+  it('为列筛选条件使用自定义 serialize 和 deserialize', async () => {
     const navigate = vi.fn() as Mock<NavigateFn>
     const { result, act } = await renderHook(() =>
       useTableUrlState({

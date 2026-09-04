@@ -18,13 +18,13 @@ vi.mock('@tanstack/react-router', async (importOriginal) => ({
   useLocation: () => ({ href: '/dashboard?tab=1' }),
 }))
 
-describe('SignOutDialog', () => {
+describe('SignOutDialog 退出登录对话框', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     logout.mockResolvedValue(undefined)
   })
 
-  it('revokes the server session before clearing local state', async () => {
+  it('在清除本地状态前撤销服务器会话', async () => {
     const screen = await render(<SignOutDialog open onOpenChange={vi.fn()} />)
     await userEvent.click(screen.getByRole('button', { name: '退出' }))
     await vi.waitFor(() => expect(logout).toHaveBeenCalledOnce())

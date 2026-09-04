@@ -4,8 +4,8 @@ import { render } from 'vitest-browser-react'
 import { userEvent } from 'vitest/browser'
 import { ConfirmDialog } from './confirm-dialog'
 
-describe('ConfirmDialog', () => {
-  it('renders title, description, and default buttons', async () => {
+describe('ConfirmDialog 确认对话框', () => {
+  it('渲染标题、描述和默认按钮', async () => {
     const { getByRole, getByText } = await render(
       <ConfirmDialog
         open
@@ -30,7 +30,7 @@ describe('ConfirmDialog', () => {
       .toBeInTheDocument()
   })
 
-  it('calls handleConfirm when the confirm button is clicked', async () => {
+  it('在点击确认按钮时调用 handleConfirm', async () => {
     const handleConfirm = vi.fn()
     const { getByRole } = await render(
       <ConfirmDialog
@@ -47,7 +47,7 @@ describe('ConfirmDialog', () => {
     expect(handleConfirm).toHaveBeenCalledOnce()
   })
 
-  it('disables confirm when disabled is true', async () => {
+  it('在 disabled 为 true 时禁用确认按钮', async () => {
     const handleConfirm = vi.fn()
     const { getByRole } = await render(
       <ConfirmDialog
@@ -65,7 +65,7 @@ describe('ConfirmDialog', () => {
     expect(handleConfirm).not.toHaveBeenCalled()
   })
 
-  it('when isLoading is true, disables cancel and confirm', async () => {
+  it('在 isLoading 为 true 时禁用取消和确认按钮', async () => {
     const handleConfirm = vi.fn()
     const { getByRole } = await render(
       <ConfirmDialog
@@ -84,7 +84,7 @@ describe('ConfirmDialog', () => {
       .toBeDisabled()
   })
 
-  it('supports custom button texts', async () => {
+  it('支持自定义按钮文本', async () => {
     const { getByRole } = await render(
       <ConfirmDialog
         open
@@ -105,7 +105,7 @@ describe('ConfirmDialog', () => {
       .toBeInTheDocument()
   })
 
-  it('renders confirm as submit button linked to desc form when `form` is set', async () => {
+  it('在设置 `form` 时将确认按钮渲染为关联 desc 表单的提交按钮', async () => {
     const { getByRole } = await render(
       <ConfirmDialog
         open
@@ -129,7 +129,7 @@ describe('ConfirmDialog', () => {
       .toHaveAttribute('form', 'tasks-multi-delete-form')
   })
 
-  it('submits the desc form when confirm is clicked (form prop, no handleConfirm)', async () => {
+  it('在点击确认按钮时提交 desc 表单（提供 form 属性且无 handleConfirm）', async () => {
     const handleFormSubmit = vi.fn((e: SubmitEvent<HTMLFormElement>) => {
       e.preventDefault()
     })
@@ -159,7 +159,7 @@ describe('ConfirmDialog', () => {
     expect(handleFormSubmit).toHaveBeenCalledOnce()
   })
 
-  it('submits the form when Enter key is pressed', async () => {
+  it('在按下 Enter 键时提交表单', async () => {
     const handleFormSubmit = vi.fn((e: SubmitEvent<HTMLFormElement>) => {
       e.preventDefault()
     })
@@ -189,7 +189,7 @@ describe('ConfirmDialog', () => {
     expect(handleFormSubmit).toHaveBeenCalledOnce()
   })
 
-  it('does not submit the form when confirm is disabled (typed confirmation mismatch)', async () => {
+  it('在确认按钮禁用时不提交表单（输入的确认内容不匹配）', async () => {
     const handleFormSubmit = vi.fn((e: SubmitEvent<HTMLFormElement>) => {
       e.preventDefault()
     })

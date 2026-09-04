@@ -4,7 +4,7 @@ import { getCookie, removeCookie, setCookie } from './cookies'
 
 const COOKIE_PREFIX = 'test_cookie_'
 
-describe('cookies', () => {
+describe('Cookie 操作', () => {
   const uniqueName = () =>
     `${COOKIE_PREFIX}${Math.random().toString(36).slice(2)}`
 
@@ -12,7 +12,7 @@ describe('cookies', () => {
     clearCookies(COOKIE_PREFIX)
   })
 
-  it('stores a value that can be read back', () => {
+  it('存储一个可被读回的值', () => {
     const name = uniqueName()
     const value = 'hello-world'
 
@@ -21,7 +21,7 @@ describe('cookies', () => {
     expect(getCookie(name)).toBe(value)
   })
 
-  it('clears a value so it is no longer readable', () => {
+  it('清除值使其无法再被读取', () => {
     const name = uniqueName()
 
     setCookie(name, 'x')

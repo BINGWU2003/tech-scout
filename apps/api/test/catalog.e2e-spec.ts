@@ -12,7 +12,7 @@ const runDatabaseTests = Boolean(
 )
 const describeWithDatabase = runDatabaseTests ? describe : describe.skip
 
-describeWithDatabase('catalog queries (e2e)', () => {
+describeWithDatabase('Catalog 查询（端到端）', () => {
   let app: INestApplication
   let prisma: PrismaService
 
@@ -41,7 +41,7 @@ describeWithDatabase('catalog queries (e2e)', () => {
     if (app) await app.close()
   })
 
-  it('lets an authenticated user read the current published release', async () => {
+  it('允许已认证用户读取当前已发布版本', async () => {
     const agent = request.agent(app.getHttpServer())
     await agent
       .post('/api/v1/auth/register')
@@ -66,7 +66,7 @@ describeWithDatabase('catalog queries (e2e)', () => {
     expect(response.body).not.toHaveProperty('manifestPath')
   })
 
-  it('filters and paginates domain patents with stable ordering', async () => {
+  it('按稳定顺序筛选并分页展示领域专利', async () => {
     const agent = request.agent(app.getHttpServer())
     await agent
       .post('/api/v1/auth/register')
@@ -111,7 +111,7 @@ describeWithDatabase('catalog queries (e2e)', () => {
     expect(invalid.body.code).toBe('VALIDATION_ERROR')
   })
 
-  it('requires authentication and lists current domains', async () => {
+  it('要求认证并列出当前领域', async () => {
     await request(app.getHttpServer())
       .get('/api/v1/catalog/domains')
       .expect(401)
@@ -142,7 +142,7 @@ describeWithDatabase('catalog queries (e2e)', () => {
     ])
   })
 
-  it('returns patent classifications, assignees, matching reasons and safe provenance', async () => {
+  it('返回专利分类、受让人、匹配原因和安全的来源信息', async () => {
     const agent = request.agent(app.getHttpServer())
     await agent
       .post('/api/v1/auth/register')
@@ -182,7 +182,7 @@ describeWithDatabase('catalog queries (e2e)', () => {
     expect(missing.body.code).toBe('PATENT_NOT_FOUND')
   })
 
-  it('ranks domain companies and finds companies by aliases or external ids', async () => {
+  it('对领域公司排名，并通过别名或外部 ID 查找公司', async () => {
     const agent = request.agent(app.getHttpServer())
     await agent
       .post('/api/v1/auth/register')
@@ -217,7 +217,7 @@ describeWithDatabase('catalog queries (e2e)', () => {
     }
   })
 
-  it('returns company identity, domain statistics and accepted match chains', async () => {
+  it('返回公司身份、领域统计和已接受的匹配链', async () => {
     const agent = request.agent(app.getHttpServer())
     await agent
       .post('/api/v1/auth/register')
@@ -254,7 +254,7 @@ describeWithDatabase('catalog queries (e2e)', () => {
     expect(missing.body.code).toBe('COMPANY_NOT_FOUND')
   })
 
-  it('paginates a company patent portfolio and optionally filters by domain', async () => {
+  it('分页展示公司专利组合，并可按领域筛选', async () => {
     const agent = request.agent(app.getHttpServer())
     await agent
       .post('/api/v1/auth/register')
@@ -278,7 +278,7 @@ describeWithDatabase('catalog queries (e2e)', () => {
     })
   })
 
-  it('exposes terminal candidate decisions and sanitized supporting evidence', async () => {
+  it('展示候选项最终决策和脱敏后的支持证据', async () => {
     const agent = request.agent(app.getHttpServer())
     await agent
       .post('/api/v1/auth/register')
@@ -316,7 +316,7 @@ describeWithDatabase('catalog queries (e2e)', () => {
     expect(JSON.stringify(evidence.body)).not.toContain('D:/private')
   })
 
-  it('returns domain year trends and CPC distribution', async () => {
+  it('返回领域年度趋势和 CPC 分布', async () => {
     const agent = request.agent(app.getHttpServer())
     await agent
       .post('/api/v1/auth/register')
@@ -342,7 +342,7 @@ describeWithDatabase('catalog queries (e2e)', () => {
     })
   })
 
-  it('resolves an opaque locator without exposing server paths', async () => {
+  it('解析不透明定位符且不暴露服务器路径', async () => {
     const agent = request.agent(app.getHttpServer())
     await agent
       .post('/api/v1/auth/register')
@@ -371,7 +371,7 @@ describeWithDatabase('catalog queries (e2e)', () => {
     expect(JSON.stringify(response.body)).not.toContain('D:/private')
   })
 
-  it('maps a runtime Catalog database failure to a stable 503 response', async () => {
+  it('将运行时 Catalog 数据库故障映射为稳定的 503 响应', async () => {
     const agent = request.agent(app.getHttpServer())
     await agent
       .post('/api/v1/auth/register')
@@ -395,8 +395,8 @@ describeWithDatabase('catalog queries (e2e)', () => {
   })
 })
 
-describeWithDatabase('catalog startup degradation (e2e)', () => {
-  it('keeps account APIs available when Catalog is unreachable at startup', async () => {
+describeWithDatabase('Catalog 启动降级（端到端）', () => {
+  it('在启动时无法连接 Catalog 的情况下保持账户 API 可用', async () => {
     process.env.DATABASE_URL = process.env.TEST_DATABASE_URL
     const unavailableUrl = new URL(process.env.TEST_CATALOG_DATABASE_URL!)
     unavailableUrl.hostname = '127.0.0.1'

@@ -76,8 +76,8 @@ const evidence = {
   totalPages: 2,
 }
 
-describe('CatalogCandidateDetail', () => {
-  it('shows the terminal decision, suggestions and paginated evidence', async () => {
+describe('CatalogCandidateDetail 候选项详情', () => {
+  it('显示最终决策、建议和分页证据', async () => {
     const onPageChange = vi.fn()
     const screen = await render(
       <CatalogCandidateDetail

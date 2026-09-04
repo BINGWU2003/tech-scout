@@ -16,8 +16,8 @@ const session = {
 
 beforeEach(() => vi.resetModules())
 
-describe('useAuthStore', () => {
-  it('keeps authentication state in memory', async () => {
+describe('useAuthStore 认证状态仓库', () => {
+  it('在内存中保存认证状态', async () => {
     const { useAuthStore } = await import('./auth-store')
     expect(useAuthStore.getState().auth.user).toBeNull()
     expect(useAuthStore.getState().auth.csrfToken).toBe('')
@@ -27,7 +27,7 @@ describe('useAuthStore', () => {
     expect(useAuthStore.getState().auth.csrfToken).toBe(session.csrfToken)
   })
 
-  it('clears user and csrf state together', async () => {
+  it('同时清除用户和 CSRF 状态', async () => {
     const { useAuthStore } = await import('./auth-store')
     useAuthStore.getState().auth.setSession(session)
     useAuthStore.getState().auth.reset()

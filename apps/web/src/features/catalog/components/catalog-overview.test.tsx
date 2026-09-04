@@ -36,13 +36,13 @@ const response = {
   ],
 }
 
-describe('CatalogOverview', () => {
+describe('CatalogOverview 目录概览', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     domains.mockResolvedValue(response)
   })
 
-  it('shows the current release and links every domain to its tables', async () => {
+  it('显示当前版本并将每个领域链接到对应表格', async () => {
     const client = new QueryClient({
       defaultOptions: { queries: { retry: false } },
     })

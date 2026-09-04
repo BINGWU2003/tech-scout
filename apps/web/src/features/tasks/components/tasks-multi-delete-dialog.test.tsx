@@ -10,10 +10,10 @@ vi.mock('@/lib/utils', async (orig) => ({
   sleep: vi.fn(() => Promise.resolve()),
 }))
 
-describe('TasksMultiDeleteDialog', () => {
+describe('TasksMultiDeleteDialog 任务批量删除对话框', () => {
   beforeEach(() => vi.clearAllMocks())
 
-  it('renders the dialog with the correct title, description, input and buttons', async () => {
+  it('渲染包含正确标题、描述、输入框和按钮的对话框', async () => {
     const { table } = createTableMock()
 
     const { getByRole, getByText } = await render(
@@ -41,7 +41,7 @@ describe('TasksMultiDeleteDialog', () => {
     await expect.element(deleteButton).toBeDisabled()
   })
 
-  it('keeps the delete button disabled until the confirm delete input is filled correctly', async () => {
+  it('在确认删除输入框填写正确前保持删除按钮禁用', async () => {
     const { table } = createTableMock()
     const { getByRole } = await render(
       <TasksMultiDeleteDialog open onOpenChange={vi.fn()} table={table} />
@@ -61,7 +61,7 @@ describe('TasksMultiDeleteDialog', () => {
     await expect.element(deleteButton).toBeEnabled()
   })
 
-  it('closes the dialog when the cancel button is clicked', async () => {
+  it('在点击取消按钮时关闭对话框', async () => {
     const onOpenChange = vi.fn()
     const { table } = createTableMock()
     const { getByRole } = await render(
@@ -75,7 +75,7 @@ describe('TasksMultiDeleteDialog', () => {
     expect(onOpenChange).toHaveBeenCalledWith(false)
   })
 
-  it('resets the confirm delete input when the dialog is closed and reopened', async () => {
+  it('在关闭并重新打开对话框时重置确认删除输入框', async () => {
     const { table } = createTableMock()
 
     function Harness() {
@@ -112,7 +112,7 @@ describe('TasksMultiDeleteDialog', () => {
     await expect.element(confirmDeleteInput).toHaveValue('')
   })
 
-  it('shows the submitted data when deleted successfully', async () => {
+  it('在删除成功时显示已提交的数据', async () => {
     const { table, resetRowSelection } = createTableMock()
     const onOpenChange = vi.fn()
     const { getByRole } = await render(
@@ -137,7 +137,7 @@ describe('TasksMultiDeleteDialog', () => {
     await vi.waitFor(() => expect(resetRowSelection).toHaveBeenCalledOnce())
   })
 
-  it('deletes successfully when press Enter key on the confirm delete input', async () => {
+  it('在确认删除输入框中按下 Enter 键时成功删除', async () => {
     const { table, resetRowSelection } = createTableMock()
     const onOpenChange = vi.fn()
     const { getByRole } = await render(

@@ -7,10 +7,10 @@ import { TasksImportDialog } from './tasks-import-dialog'
 
 vi.mock('@/lib/show-submitted-data', () => ({ showSubmittedData: vi.fn() }))
 
-describe('TasksImportDialog', () => {
+describe('TasksImportDialog 任务导入对话框', () => {
   beforeEach(() => vi.clearAllMocks())
 
-  it('renders the dialog with the correct title, description, file input and buttons', async () => {
+  it('渲染包含正确标题、描述、文件输入框和按钮的对话框', async () => {
     const onOpenChange = vi.fn()
     const { getByRole, getByText, getByLabelText } = await render(
       <TasksImportDialog open onOpenChange={onOpenChange} />
@@ -35,7 +35,7 @@ describe('TasksImportDialog', () => {
     await expect.element(importButton).toBeInTheDocument()
   })
 
-  it('shows validation when submitting without a file', async () => {
+  it('在未选择文件时提交并显示校验提示', async () => {
     const onOpenChange = vi.fn()
     const { getByRole, getByText } = await render(
       <TasksImportDialog open onOpenChange={onOpenChange} />
@@ -49,7 +49,7 @@ describe('TasksImportDialog', () => {
     expect(showSubmittedData).not.toHaveBeenCalled()
   })
 
-  it('calls showSubmittedData and closes when a CSV file is imported', async () => {
+  it('在导入 CSV 文件时调用 showSubmittedData 并关闭对话框', async () => {
     const onOpenChange = vi.fn()
     const { getByRole, getByLabelText } = await render(
       <TasksImportDialog open onOpenChange={onOpenChange} />
@@ -74,7 +74,7 @@ describe('TasksImportDialog', () => {
     expect(onOpenChange).toHaveBeenCalledWith(false)
   })
 
-  it('closes the dialog when Close is clicked', async () => {
+  it('在点击关闭按钮时关闭对话框', async () => {
     const onOpenChange = vi.fn()
 
     function Harness() {

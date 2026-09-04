@@ -6,8 +6,8 @@ import {
   CatalogUnavailableFields,
 } from './catalog-query-state'
 
-describe('Catalog query states', () => {
-  it('explains unavailable source fields without treating them as absent facts', async () => {
+describe('Catalog 查询状态', () => {
+  it('说明不可用的来源字段，而不将其视为事实缺失', async () => {
     const screen = await render(
       <CatalogUnavailableFields fields={['abstract', 'claims']} />
     )
@@ -20,7 +20,7 @@ describe('Catalog query states', () => {
       .toBeInTheDocument()
   })
 
-  it('identifies a Catalog connection outage', async () => {
+  it('识别 Catalog 连接中断', async () => {
     const screen = await render(
       <CatalogLoadError
         error={

@@ -31,13 +31,13 @@ const session = {
   csrfToken: 'csrf-token',
 }
 
-describe('SignUpForm', () => {
+describe('SignUpForm 注册表单', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     register.mockResolvedValue(session)
   })
 
-  it('requires username, email and matching passwords', async () => {
+  it('要求填写用户名、邮箱和一致的密码', async () => {
     const screen = await render(<SignUpForm />)
     await userEvent.click(screen.getByRole('button', { name: '注册并登录' }))
     await expect
@@ -51,7 +51,7 @@ describe('SignUpForm', () => {
       .toBeInTheDocument()
   })
 
-  it('registers and stores the returned session', async () => {
+  it('完成注册并存储返回的会话', async () => {
     const screen = await render(<SignUpForm />)
     await userEvent.fill(screen.getByLabelText('用户名'), 'Alice_01')
     await userEvent.fill(screen.getByLabelText('邮箱'), 'Alice@Example.com')

@@ -16,8 +16,8 @@ import {
   catalogPageQuerySchema,
 } from './catalog.js'
 
-describe('catalog contracts', () => {
-  it('describes the current published release without exposing server paths', () => {
+describe('Catalog 契约', () => {
+  it('描述当前已发布版本且不暴露服务器路径', () => {
     const release = catalogReleaseSchema.parse({
       releaseId: '2026-09-v6',
       dataset: 'ai-domains',
@@ -41,7 +41,7 @@ describe('catalog contracts', () => {
     expect(release).not.toHaveProperty('manifest')
   })
 
-  it('uses the agreed page defaults and limit', () => {
+  it('使用约定的分页默认值和上限', () => {
     expect(catalogPageQuerySchema.parse({})).toEqual({
       page: 1,
       pageSize: 20,
@@ -51,7 +51,7 @@ describe('catalog contracts', () => {
     )
   })
 
-  it('returns domain summaries with current release context', () => {
+  it('返回包含当前版本上下文的领域摘要', () => {
     const result = catalogDomainListSchema.parse({
       release: {
         releaseId: '2026-09-v6',
@@ -81,7 +81,7 @@ describe('catalog contracts', () => {
     })
   })
 
-  it('validates patent filters and a paged patent result', () => {
+  it('校验专利筛选条件和分页专利结果', () => {
     const query = catalogPatentListQuerySchema.parse({
       title: 'neural accelerator',
       cpcPrefix: 'g06n3',
@@ -130,7 +130,7 @@ describe('catalog contracts', () => {
     expect(result.items[0]?.patentId).toBe('patent-1')
   })
 
-  it('describes patent evidence without an internal filesystem path', () => {
+  it('描述专利证据且不包含内部文件系统路径', () => {
     const result = catalogPatentDetailResponseSchema.parse({
       release: {
         releaseId: '2026-09-v6',
@@ -188,7 +188,7 @@ describe('catalog contracts', () => {
     expect(result.patent.source).not.toHaveProperty('sourcePath')
   })
 
-  it('validates company search and deterministic ranking results', () => {
+  it('校验公司搜索和确定性的排名结果', () => {
     expect(
       catalogCompanyListQuerySchema.parse({
         query: 'Acme',
@@ -235,7 +235,7 @@ describe('catalog contracts', () => {
     expect(result.items[0]?.preferredName).toBe('Acme AI')
   })
 
-  it('describes company identity, relationships and accepted match chains', () => {
+  it('描述公司身份、关联关系和已接受的匹配链', () => {
     const result = catalogCompanyDetailResponseSchema.parse({
       release: {
         releaseId: 'test-v1',
@@ -306,7 +306,7 @@ describe('catalog contracts', () => {
     expect(result.company.acceptedMatches[0]?.candidateId).toBe('candidate-1')
   })
 
-  it('allows company patents to be narrowed to one domain', () => {
+  it('允许将公司专利限定到单个领域', () => {
     expect(
       catalogCompanyPatentListQuerySchema.parse({
         domainId: 'ai_chips_edge_inference',
@@ -319,7 +319,7 @@ describe('catalog contracts', () => {
     })
   })
 
-  it('keeps terminal candidate decisions and evidence auditable', () => {
+  it('保持候选项最终决策和证据可审计', () => {
     const release = {
       releaseId: 'test-v1',
       dataset: 'ai-domains',
@@ -400,7 +400,7 @@ describe('catalog contracts', () => {
     expect(evidence.items[0]?.source.relativePath).not.toContain('D:')
   })
 
-  it('describes domain trends and CPC distribution', () => {
+  it('描述领域趋势和 CPC 分布', () => {
     const result = catalogDomainDetailResponseSchema.parse({
       release: {
         releaseId: 'test-v1',
@@ -428,7 +428,7 @@ describe('catalog contracts', () => {
     expect(result.domain.cpcGroups[0]?.patentCount).toBe(2)
   })
 
-  it('resolves an opaque source locator to sanitized metadata', () => {
+  it('将不透明的来源定位符解析为脱敏元数据', () => {
     const result = catalogSourceResponseSchema.parse({
       release: {
         releaseId: 'test-v1',
