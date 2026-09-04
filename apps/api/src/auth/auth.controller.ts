@@ -9,6 +9,7 @@ import {
   UseGuards,
 } from '@nestjs/common'
 import {
+  authSessionSchema,
   changePasswordSchema,
   loginSchema,
   registerSchema,
@@ -18,6 +19,7 @@ import {
   type RegisterInput,
 } from '@tech-scout/contracts'
 import { type Response } from 'express'
+import { ZodResponse } from '../common/zod-response.decorator.js'
 import { ZodValidationPipe } from '../common/zod-validation.pipe.js'
 import { AuthGuard } from './auth.guard.js'
 import { AuthService, SESSION_COOKIE } from './auth.service.js'
@@ -38,6 +40,7 @@ export class AuthController {
   constructor(private readonly auth: AuthService) {}
 
   @Post('register')
+  @ZodResponse(authSessionSchema)
   async register(
     @Body(new ZodValidationPipe(registerSchema)) input: RegisterInput,
     @Res({ passthrough: true }) response: Response
@@ -49,6 +52,7 @@ export class AuthController {
 
   @Post('login')
   @HttpCode(200)
+  @ZodResponse(authSessionSchema)
   async login(
     @Body(new ZodValidationPipe(loginSchema)) input: LoginInput,
     @Res({ passthrough: true }) response: Response
@@ -60,6 +64,7 @@ export class AuthController {
 
   @Get('me')
   @UseGuards(AuthGuard)
+  @ZodResponse(authSessionSchema)
   me(
     @CurrentAuth() current: AuthenticatedRequest['auth']
   ): Promise<AuthSession> {
@@ -79,6 +84,7 @@ export class AuthController {
 
   @Patch('password')
   @UseGuards(AuthGuard, CsrfGuard)
+  @ZodResponse(authSessionSchema)
   changePassword(
     @CurrentAuth() current: AuthenticatedRequest['auth'],
     @Body(new ZodValidationPipe(changePasswordSchema))

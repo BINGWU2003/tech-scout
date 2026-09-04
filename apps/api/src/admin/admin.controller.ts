@@ -12,9 +12,12 @@ import {
   UseGuards,
 } from '@nestjs/common'
 import {
+  resetPasswordResponseSchema,
   updateUserRoleSchema,
   updateUserStatusSchema,
+  userListSchema,
   userListQuerySchema,
+  userSchema,
   type ResetPasswordResponse,
   type User,
   type UserList,
@@ -26,6 +29,7 @@ import { AuthGuard } from '../auth/auth.guard.js'
 import { type AuthenticatedRequest } from '../auth/auth.types.js'
 import { CsrfGuard } from '../auth/csrf.guard.js'
 import { CurrentAuth } from '../auth/current-auth.decorator.js'
+import { ZodResponse } from '../common/zod-response.decorator.js'
 import { ZodValidationPipe } from '../common/zod-validation.pipe.js'
 import { AdminGuard } from './admin.guard.js'
 import { AdminService } from './admin.service.js'
@@ -36,6 +40,7 @@ export class AdminController {
   constructor(private readonly admin: AdminService) {}
 
   @Get()
+  @ZodResponse(userListSchema)
   list(
     @Query(new ZodValidationPipe(userListQuerySchema)) query: UserListQuery
   ): Promise<UserList> {
@@ -44,6 +49,7 @@ export class AdminController {
 
   @Patch(':id/role')
   @UseGuards(CsrfGuard)
+  @ZodResponse(userSchema)
   updateRole(
     @CurrentAuth() current: AuthenticatedRequest['auth'],
     @Param('id', ParseUUIDPipe) id: string,
@@ -54,6 +60,7 @@ export class AdminController {
 
   @Patch(':id/status')
   @UseGuards(CsrfGuard)
+  @ZodResponse(userSchema)
   updateStatus(
     @CurrentAuth() current: AuthenticatedRequest['auth'],
     @Param('id', ParseUUIDPipe) id: string,
@@ -66,6 +73,7 @@ export class AdminController {
 
   @Post(':id/reset-password')
   @UseGuards(CsrfGuard)
+  @ZodResponse(resetPasswordResponseSchema)
   resetPassword(
     @CurrentAuth() current: AuthenticatedRequest['auth'],
     @Param('id', ParseUUIDPipe) id: string

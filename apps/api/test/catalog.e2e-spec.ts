@@ -1,5 +1,10 @@
 import { type INestApplication } from '@nestjs/common'
 import { Test } from '@nestjs/testing'
+import {
+  catalogCompanyListSchema,
+  catalogPatentDetailResponseSchema,
+  catalogPatentListSchema,
+} from '@tech-scout/contracts'
 import request from 'supertest'
 import { AppModule } from '../src/app.module.js'
 import { configureApp } from '../src/app.setup.js'
@@ -97,12 +102,20 @@ describeWithDatabase('Catalog 查询（端到端）', () => {
       totalPages: 2,
       items: [{ patentId: 'patent-1', totalScore: 8 }],
     })
+    expect(catalogPatentListSchema.parse(first.body).items[0]).toHaveProperty(
+      'patentDate',
+      '2025-01-03'
+    )
 
     const second = await agent
       .get('/api/v1/catalog/domains/ai_chips_edge_inference/patents')
       .query({ page: 2, pageSize: 1 })
       .expect(200)
     expect(second.body.items[0].patentId).toBe('patent-2')
+    expect(catalogPatentListSchema.parse(second.body).items[0]).toHaveProperty(
+      'patentDate',
+      '2024-05-10'
+    )
 
     const invalid = await agent
       .get('/api/v1/catalog/domains/ai_chips_edge_inference/patents')
@@ -174,6 +187,9 @@ describeWithDatabase('Catalog 查询（端到端）', () => {
         sourceRowNumber: 10,
       },
     })
+    expect(
+      catalogPatentDetailResponseSchema.parse(response.body).patent.patentDate
+    ).toBe('2025-01-03')
     expect(JSON.stringify(response.body)).not.toContain('D:/private')
 
     const missing = await agent
@@ -202,6 +218,9 @@ describeWithDatabase('Catalog 查询（端到端）', () => {
       total: 1,
       items: [{ companyId: 'company-1', patentCount: 2 }],
     })
+    expect(
+      catalogCompanyListSchema.parse(ranking.body).items[0]
+    ).toHaveProperty('latestPatentDate', '2025-01-03')
 
     for (const query of [
       'Acme Artificial Intelligence',

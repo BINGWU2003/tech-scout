@@ -7,10 +7,20 @@ import {
   UseInterceptors,
 } from '@nestjs/common'
 import {
-  catalogPatentListQuerySchema,
+  catalogCandidateDetailResponseSchema,
+  catalogCompanyDetailResponseSchema,
+  catalogCompanyListSchema,
   catalogCompanyListQuerySchema,
   catalogCompanyPatentListQuerySchema,
+  catalogDomainDetailResponseSchema,
+  catalogDomainListSchema,
+  catalogEvidenceListSchema,
   catalogPageQuerySchema,
+  catalogPatentDetailResponseSchema,
+  catalogPatentListQuerySchema,
+  catalogPatentListSchema,
+  catalogReleaseSchema,
+  catalogSourceResponseSchema,
   entityIdSchema,
   type CatalogDomainList,
   type CatalogDomainDetailResponse,
@@ -28,6 +38,7 @@ import {
   type CatalogRelease,
 } from '@tech-scout/contracts'
 import { AuthGuard } from '../auth/auth.guard.js'
+import { ZodResponse } from '../common/zod-response.decorator.js'
 import { ZodValidationPipe } from '../common/zod-validation.pipe.js'
 import { CatalogAvailabilityInterceptor } from './catalog-availability.interceptor.js'
 import { CatalogRepository } from './catalog.repository.js'
@@ -39,16 +50,19 @@ export class CatalogController {
   constructor(private readonly catalog: CatalogRepository) {}
 
   @Get('releases/current')
+  @ZodResponse(catalogReleaseSchema)
   currentRelease(): Promise<CatalogRelease> {
     return this.catalog.currentRelease()
   }
 
   @Get('domains')
+  @ZodResponse(catalogDomainListSchema)
   listDomains(): Promise<CatalogDomainList> {
     return this.catalog.listDomains()
   }
 
   @Get('domains/:domainId')
+  @ZodResponse(catalogDomainDetailResponseSchema)
   domainDetail(
     @Param('domainId', new ZodValidationPipe(entityIdSchema)) domainId: string
   ): Promise<CatalogDomainDetailResponse> {
@@ -56,6 +70,7 @@ export class CatalogController {
   }
 
   @Get('domains/:domainId/patents')
+  @ZodResponse(catalogPatentListSchema)
   listDomainPatents(
     @Param('domainId', new ZodValidationPipe(entityIdSchema)) domainId: string,
     @Query(new ZodValidationPipe(catalogPatentListQuerySchema))
@@ -65,6 +80,7 @@ export class CatalogController {
   }
 
   @Get('patents/:patentId')
+  @ZodResponse(catalogPatentDetailResponseSchema)
   patentDetail(
     @Param('patentId', new ZodValidationPipe(entityIdSchema)) patentId: string
   ): Promise<CatalogPatentDetailResponse> {
@@ -72,6 +88,7 @@ export class CatalogController {
   }
 
   @Get('domains/:domainId/companies')
+  @ZodResponse(catalogCompanyListSchema)
   listDomainCompanies(
     @Param('domainId', new ZodValidationPipe(entityIdSchema)) domainId: string,
     @Query(new ZodValidationPipe(catalogCompanyListQuerySchema))
@@ -81,6 +98,7 @@ export class CatalogController {
   }
 
   @Get('companies')
+  @ZodResponse(catalogCompanyListSchema)
   listCompanies(
     @Query(new ZodValidationPipe(catalogCompanyListQuerySchema))
     query: CatalogCompanyListQuery
@@ -89,6 +107,7 @@ export class CatalogController {
   }
 
   @Get('companies/:companyId')
+  @ZodResponse(catalogCompanyDetailResponseSchema)
   companyDetail(
     @Param('companyId', new ZodValidationPipe(entityIdSchema)) companyId: string
   ): Promise<CatalogCompanyDetailResponse> {
@@ -96,6 +115,7 @@ export class CatalogController {
   }
 
   @Get('companies/:companyId/patents')
+  @ZodResponse(catalogPatentListSchema)
   listCompanyPatents(
     @Param('companyId', new ZodValidationPipe(entityIdSchema))
     companyId: string,
@@ -106,6 +126,7 @@ export class CatalogController {
   }
 
   @Get('candidates/:candidateId')
+  @ZodResponse(catalogCandidateDetailResponseSchema)
   candidateDetail(
     @Param('candidateId', new ZodValidationPipe(entityIdSchema))
     candidateId: string
@@ -114,6 +135,7 @@ export class CatalogController {
   }
 
   @Get('candidates/:candidateId/evidence')
+  @ZodResponse(catalogEvidenceListSchema)
   candidateEvidence(
     @Param('candidateId', new ZodValidationPipe(entityIdSchema))
     candidateId: string,
@@ -124,6 +146,7 @@ export class CatalogController {
   }
 
   @Get('sources/:locator')
+  @ZodResponse(catalogSourceResponseSchema)
   sourceDetail(
     @Param('locator', new ZodValidationPipe(entityIdSchema)) locator: string
   ): Promise<CatalogSourceResponse> {

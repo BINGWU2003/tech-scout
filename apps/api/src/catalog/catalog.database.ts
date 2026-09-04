@@ -1,7 +1,19 @@
 import { Injectable, OnModuleDestroy } from '@nestjs/common'
 import { CamelCasePlugin, Kysely, PostgresDialect } from 'kysely'
-import { Pool } from 'pg'
+import { Pool, types } from 'pg'
 import { type DB } from '../generated/catalog.database.js'
+
+const catalogTypes = {
+  getTypeParser: (
+    oid: number,
+    format?: 'text' | 'binary'
+  ): ReturnType<typeof types.getTypeParser> => {
+    if (oid === types.builtins.DATE && format !== 'binary') {
+      return (value: string) => value
+    }
+    return types.getTypeParser(oid, format)
+  },
+}
 
 function catalogDatabaseUrl(): string {
   const value = process.env.CATALOG_DATABASE_URL
@@ -17,6 +29,7 @@ export class CatalogDatabase extends Kysely<DB> implements OnModuleDestroy {
         pool: new Pool({
           connectionString: catalogDatabaseUrl(),
           max: 5,
+          types: catalogTypes,
           options:
             '-c search_path=catalog -c default_transaction_read_only=on -c statement_timeout=5000',
         }),
