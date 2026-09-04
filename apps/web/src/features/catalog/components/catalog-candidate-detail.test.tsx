@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
-import { render } from 'vitest-browser-react'
 import { userEvent } from 'vitest/browser'
 import { CatalogCandidateDetail } from './catalog-candidate-detail'
+import { renderWithCatalogRouter } from './catalog-test-router'
 
 const candidate = {
   candidateId: 'candidate-3',
@@ -79,7 +79,7 @@ const evidence = {
 describe('CatalogCandidateDetail 候选项详情', () => {
   it('显示最终决策、建议和分页证据', async () => {
     const onPageChange = vi.fn()
-    const screen = await render(
+    const screen = await renderWithCatalogRouter(
       <CatalogCandidateDetail
         candidate={candidate}
         evidence={evidence}
@@ -103,6 +103,9 @@ describe('CatalogCandidateDetail 候选项详情', () => {
     await expect
       .element(screen.getByRole('tooltip'))
       .toHaveTextContent('Jane Doe')
+    await expect
+      .element(screen.getByText('共 21 条证据'))
+      .not.toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: '前往第 2 页' }))
     expect(onPageChange).toHaveBeenCalledWith(2)
   })

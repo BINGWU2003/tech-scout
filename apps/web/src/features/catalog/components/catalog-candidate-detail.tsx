@@ -1,3 +1,4 @@
+import { Link } from '@tanstack/react-router'
 import {
   flexRender,
   getCoreRowModel,
@@ -247,12 +248,13 @@ export function CatalogCandidateDetail({
                 className='rounded-md border p-3 text-sm'
               >
                 {suggestion.suggestedCompanyId && suggestion.suggestedName ? (
-                  <a
+                  <Link
                     className='font-medium text-primary hover:underline'
-                    href={`/catalog/companies/${encodeURIComponent(suggestion.suggestedCompanyId)}`}
+                    to='/catalog/companies/$companyId'
+                    params={{ companyId: suggestion.suggestedCompanyId }}
                   >
                     {suggestion.suggestedName}
-                  </a>
+                  </Link>
                 ) : (
                   <div className='font-medium'>未关联公司</div>
                 )}
@@ -336,12 +338,7 @@ export function CatalogCandidateDetail({
               </TableBody>
             </Table>
           </div>
-          <div className='flex flex-wrap items-center justify-between gap-3'>
-            <span className='text-sm text-muted-foreground'>
-              共 {evidence.total.toLocaleString()} 条证据
-            </span>
-            <DataTablePagination table={table} />
-          </div>
+          <DataTablePagination table={table} className='mt-auto' />
         </CardContent>
       </Card>
     </div>

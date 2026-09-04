@@ -1,3 +1,4 @@
+import { Link } from '@tanstack/react-router'
 import {
   flexRender,
   getCoreRowModel,
@@ -10,8 +11,8 @@ import {
   type CatalogPatentListQuery,
   type CatalogPatentSummary,
 } from '@tech-scout/contracts'
-import { Search, X } from 'lucide-react'
-import { useState, type FormEvent } from 'react'
+import { X } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import { DataTablePagination } from '@/components/data-table'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -31,6 +32,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { useDebouncedCallback } from '@/hooks/use-debounced-callback'
 import { cn } from '@/lib/utils'
 import { CatalogTableTooltip } from './catalog-table-tooltip'
 import { YearRangePicker } from './year-range-picker'
@@ -43,12 +45,13 @@ const columns: ColumnDef<CatalogPatentSummary>[] = [
     cell: ({ row }) => (
       <div className='flex min-w-0 flex-col items-start'>
         <CatalogTableTooltip content={row.original.title}>
-          <a
+          <Link
             className='inline-block max-w-full truncate align-bottom font-medium text-primary hover:underline'
-            href={`/catalog/patents/${encodeURIComponent(row.original.patentId)}`}
+            to='/catalog/patents/$patentId'
+            params={{ patentId: row.original.patentId }}
           >
             {row.original.title}
-          </a>
+          </Link>
         </CatalogTableTooltip>
         <CatalogTableTooltip content={row.original.patentId}>
           <span
@@ -149,6 +152,36 @@ export function CatalogPatentTable({
     partyName.trim() !== '' ||
     fromYear !== undefined ||
     toYear !== undefined
+  const { cancel: cancelTitleQuery, run: runTitleQuery } = useDebouncedCallback(
+    (value: string) =>
+      onQueryChange({ page: 1, title: value.trim() || undefined }),
+    300
+  )
+  const { cancel: cancelCpcQuery, run: runCpcQuery } = useDebouncedCallback(
+    (value: string) =>
+      onQueryChange({ page: 1, cpcPrefix: value.trim() || undefined }),
+    300
+  )
+  const { cancel: cancelPartyQuery, run: runPartyQuery } = useDebouncedCallback(
+    (value: string) =>
+      onQueryChange({ page: 1, partyName: value.trim() || undefined }),
+    300
+  )
+
+  useEffect(() => {
+    cancelTitleQuery()
+    setTitle(query.title ?? '')
+  }, [cancelTitleQuery, query.title])
+  useEffect(() => {
+    cancelCpcQuery()
+    setCpcPrefix(query.cpcPrefix ?? '')
+  }, [cancelCpcQuery, query.cpcPrefix])
+  useEffect(() => {
+    cancelPartyQuery()
+    setPartyName(query.partyName ?? '')
+  }, [cancelPartyQuery, query.partyName])
+  useEffect(() => setFromYear(query.fromYear), [query.fromYear])
+  useEffect(() => setToYear(query.toYear), [query.toYear])
 
   const pagination: PaginationState = {
     pageIndex: result.page - 1,
@@ -172,19 +205,10 @@ export function CatalogPatentTable({
     getCoreRowModel: getCoreRowModel(),
   })
 
-  const submit = (event: FormEvent) => {
-    event.preventDefault()
-    onQueryChange({
-      page: 1,
-      title: title.trim() || undefined,
-      cpcPrefix: cpcPrefix.trim() || undefined,
-      partyName: partyName.trim() || undefined,
-      fromYear,
-      toYear,
-    })
-  }
-
   const reset = () => {
+    cancelTitleQuery()
+    cancelCpcQuery()
+    cancelPartyQuery()
     setTitle('')
     setCpcPrefix('')
     setPartyName('')
@@ -202,10 +226,7 @@ export function CatalogPatentTable({
 
   return (
     <div className='flex flex-1 flex-col gap-4'>
-      <form
-        className='flex w-full flex-col items-start justify-between gap-2 lg:flex-row lg:items-center'
-        onSubmit={submit}
-      >
+      <div className='flex w-full flex-col items-start justify-between gap-2 lg:flex-row lg:items-center'>
         <div
           className='flex flex-1 flex-wrap items-center gap-2'
           role='group'
@@ -216,21 +237,33 @@ export function CatalogPatentTable({
             aria-label='专利标题'
             placeholder='标题关键词'
             value={title}
-            onChange={(event) => setTitle(event.target.value)}
+            onChange={(event) => {
+              const value = event.target.value
+              setTitle(value)
+              runTitleQuery(value)
+            }}
           />
           <Input
             className='h-8 w-36'
             aria-label='CPC 前缀'
             placeholder='CPC 前缀'
             value={cpcPrefix}
-            onChange={(event) => setCpcPrefix(event.target.value)}
+            onChange={(event) => {
+              const value = event.target.value
+              setCpcPrefix(value)
+              runCpcQuery(value)
+            }}
           />
           <Input
             className='h-8 w-48'
             aria-label='受让人'
             placeholder='受让人'
             value={partyName}
-            onChange={(event) => setPartyName(event.target.value)}
+            onChange={(event) => {
+              const value = event.target.value
+              setPartyName(value)
+              runPartyQuery(value)
+            }}
           />
           <YearRangePicker
             fromYear={fromYear}
@@ -238,12 +271,9 @@ export function CatalogPatentTable({
             onChange={(range) => {
               setFromYear(range.fromYear)
               setToYear(range.toYear)
+              onQueryChange({ page: 1, ...range })
             }}
           />
-          <Button size='sm' type='submit'>
-            <Search className='size-4' />
-            搜索
-          </Button>
           {hasFilters ? (
             <Button size='sm' type='button' variant='ghost' onClick={reset}>
               <X className='size-4' />
@@ -282,7 +312,7 @@ export function CatalogPatentTable({
             </SelectContent>
           </Select>
         </div>
-      </form>
+      </div>
 
       <div className='overflow-hidden rounded-md border [&_[data-slot=table-container]]:overflow-x-hidden'>
         <Table className='table-fixed'>
@@ -343,12 +373,7 @@ export function CatalogPatentTable({
           </TableBody>
         </Table>
       </div>
-      <div className='flex flex-wrap items-center justify-between gap-3'>
-        <span className='text-sm text-muted-foreground'>
-          共 {result.total.toLocaleString()} 件专利
-        </span>
-        <DataTablePagination table={table} />
-      </div>
+      <DataTablePagination table={table} className='mt-auto' />
     </div>
   )
 }

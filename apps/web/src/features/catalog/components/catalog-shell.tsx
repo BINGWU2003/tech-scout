@@ -1,3 +1,4 @@
+import { Link } from '@tanstack/react-router'
 import { ArrowLeft, Database } from 'lucide-react'
 import { type ReactNode } from 'react'
 import { ConfigDrawer } from '@/components/config-drawer'
@@ -34,13 +35,13 @@ export function CatalogShell({
       <Main className='flex flex-1 flex-col gap-5'>
         <div className='flex flex-wrap items-start justify-between gap-3'>
           <div>
-            <a
+            <Link
               className='mb-2 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground'
-              href={backHref}
+              to={backHref}
             >
               <ArrowLeft className='size-4' />
               返回
-            </a>
+            </Link>
             <h2 className='text-2xl font-bold tracking-tight'>{title}</h2>
             {description ? (
               <p className='text-muted-foreground'>{description}</p>
@@ -66,16 +67,16 @@ export function CatalogDomainTabs({
   domainId: string
   active: 'companies' | 'patents'
 }) {
-  const base = `/catalog/domains/${encodeURIComponent(domainId)}`
   return (
     <nav
       className='flex w-fit gap-1 rounded-lg bg-muted p-1'
       aria-label='领域目录'
     >
       {(['companies', 'patents'] as const).map((item) => (
-        <a
+        <Link
           key={item}
-          href={`${base}/${item}`}
+          to={`/catalog/domains/$domainId/${item}`}
+          params={{ domainId }}
           aria-current={active === item ? 'page' : undefined}
           className={
             active === item
@@ -84,7 +85,7 @@ export function CatalogDomainTabs({
           }
         >
           {item === 'companies' ? '公司' : '专利'}
-        </a>
+        </Link>
       ))}
     </nav>
   )

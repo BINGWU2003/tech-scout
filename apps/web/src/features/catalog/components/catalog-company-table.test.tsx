@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
-import { render } from 'vitest-browser-react'
 import { userEvent } from 'vitest/browser'
 import { CatalogCompanyTable } from './catalog-company-table'
+import { renderWithCatalogRouter } from './catalog-test-router'
 
 const result = {
   release: {
@@ -34,7 +34,7 @@ const result = {
 describe('CatalogCompanyTable 公司表格', () => {
   it('渲染公司链接并保留分页导航', async () => {
     const onQueryChange = vi.fn()
-    const screen = await render(
+    const screen = await renderWithCatalogRouter(
       <CatalogCompanyTable
         result={result}
         query={{
@@ -58,7 +58,7 @@ describe('CatalogCompanyTable 公司表格', () => {
       .toHaveTextContent('Acme AI')
     await expect
       .element(screen.getByRole('button', { name: '搜索' }))
-      .toBeInTheDocument()
+      .not.toBeInTheDocument()
     await expect
       .element(screen.getByRole('button', { name: '重置' }))
       .not.toBeInTheDocument()
@@ -68,13 +68,16 @@ describe('CatalogCompanyTable 公司表格', () => {
     await expect
       .element(screen.getByRole('group', { name: '公司排序' }))
       .toBeInTheDocument()
+    await expect
+      .element(screen.getByText('共 22 家已确认公司'))
+      .not.toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: '前往第 2 页' }))
     expect(onQueryChange).toHaveBeenCalledWith({ page: 2 })
   })
 
   it('仅在存在搜索条件时显示重置按钮', async () => {
     const onQueryChange = vi.fn()
-    const screen = await render(
+    const screen = await renderWithCatalogRouter(
       <CatalogCompanyTable
         result={result}
         query={{
@@ -88,6 +91,10 @@ describe('CatalogCompanyTable 公司表格', () => {
     )
 
     await userEvent.fill(screen.getByLabelText('国家或地区代码'), 'CN')
+    expect(onQueryChange).not.toHaveBeenCalled()
+    await expect
+      .poll(() => onQueryChange.mock.lastCall?.[0])
+      .toEqual({ page: 1, country: 'CN' })
     await expect
       .element(screen.getByRole('button', { name: '重置' }))
       .toBeInTheDocument()

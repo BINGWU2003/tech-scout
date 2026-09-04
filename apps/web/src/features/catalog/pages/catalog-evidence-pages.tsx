@@ -1,14 +1,11 @@
-import { useQuery } from '@tanstack/react-query'
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
 import { catalogPageQuerySchema } from '@tech-scout/contracts'
 import { Skeleton } from '@/components/ui/skeleton'
 import { catalogApi } from '@/lib/catalog-api'
 import { CatalogCandidateDetail } from '../components/catalog-candidate-detail'
 import { CatalogPatentDetail } from '../components/catalog-patent-detail'
-import {
-  CatalogLoadError,
-  CatalogUnavailableFields,
-} from '../components/catalog-query-state'
+import { CatalogLoadError } from '../components/catalog-query-state'
 import { CatalogShell } from '../components/catalog-shell'
 import { useCatalogQueryState } from '../hooks/use-catalog-query-state'
 
@@ -33,12 +30,7 @@ export function CatalogPatentPage() {
       {patent.isError ? (
         <CatalogLoadError error={patent.error} title='专利详情加载失败' />
       ) : patent.data ? (
-        <>
-          <CatalogPatentDetail patent={patent.data.patent} />
-          <CatalogUnavailableFields
-            fields={patent.data.release.unavailableFields}
-          />
-        </>
+        <CatalogPatentDetail patent={patent.data.patent} />
       ) : (
         <Skeleton className='h-96 rounded-xl' />
       )}
@@ -56,6 +48,7 @@ export function CatalogCandidatePage() {
   const evidence = useQuery({
     queryKey: ['catalog', 'candidate-evidence', candidateId, query],
     queryFn: () => catalogApi.candidateEvidence(candidateId, query),
+    placeholderData: keepPreviousData,
   })
   const error = candidate.error ?? evidence.error
 
@@ -68,16 +61,11 @@ export function CatalogCandidatePage() {
       {error ? (
         <CatalogLoadError error={error} title='候选证据加载失败' />
       ) : candidate.data && evidence.data ? (
-        <>
-          <CatalogCandidateDetail
-            candidate={candidate.data.candidate}
-            evidence={evidence.data}
-            onPageChange={(page) => updateQuery({ page })}
-          />
-          <CatalogUnavailableFields
-            fields={evidence.data.release.unavailableFields}
-          />
-        </>
+        <CatalogCandidateDetail
+          candidate={candidate.data.candidate}
+          evidence={evidence.data}
+          onPageChange={(page) => updateQuery({ page })}
+        />
       ) : (
         <Skeleton className='h-96 rounded-xl' />
       )}

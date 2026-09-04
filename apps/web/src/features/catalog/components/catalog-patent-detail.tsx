@@ -1,3 +1,4 @@
+import { Link } from '@tanstack/react-router'
 import { type CatalogPatentDetail as CatalogPatentDetailData } from '@tech-scout/contracts'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -90,12 +91,13 @@ export function CatalogPatentDetail({
             patent.domainMatches.map((match) => (
               <div key={match.domainId} className='rounded-md border p-4'>
                 <div className='mb-3 flex flex-wrap items-center justify-between gap-2'>
-                  <a
+                  <Link
                     className='font-medium text-primary hover:underline'
-                    href={`/catalog/domains/${encodeURIComponent(match.domainId)}/patents`}
+                    to='/catalog/domains/$domainId/patents'
+                    params={{ domainId: match.domainId }}
                   >
                     {match.domainName}
-                  </a>
+                  </Link>
                   <div className='flex gap-2'>
                     <Badge>得分 {match.totalScore}</Badge>
                     <Badge variant='outline'>{match.ruleVersion}</Badge>

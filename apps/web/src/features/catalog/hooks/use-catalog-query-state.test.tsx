@@ -25,7 +25,7 @@ function QueryHarness() {
   )
 }
 
-function createTestRouter(initialEntry = '/catalog', catalogQuery?: unknown) {
+function createTestRouter(initialEntry = '/catalog') {
   const rootRoute = createRootRoute()
   const catalogRoute = createRoute({
     getParentRoute: () => rootRoute,
@@ -33,9 +33,6 @@ function createTestRouter(initialEntry = '/catalog', catalogQuery?: unknown) {
     component: QueryHarness,
   })
   const history = createMemoryHistory({ initialEntries: [initialEntry] })
-  if (catalogQuery !== undefined) {
-    history.replace(initialEntry, { catalogQuery })
-  }
   const router = createRouter({
     routeTree: rootRoute.addChildren([catalogRoute]),
     history,
@@ -44,7 +41,7 @@ function createTestRouter(initialEntry = '/catalog', catalogQuery?: unknown) {
   return router
 }
 
-describe('Catalog 查询历史状态', () => {
+describe('Catalog URL 查询状态', () => {
   it('从 Contracts schema 取得默认查询状态', async () => {
     const router = createTestRouter()
     const screen = await render(<RouterProvider router={router} />)
@@ -56,30 +53,19 @@ describe('Catalog 查询历史状态', () => {
       )
   })
 
-  it('更新查询时保持干净 URL 并写入当前历史记录', async () => {
+  it('更新查询时将表格状态写入 URL', async () => {
     const router = createTestRouter()
     const screen = await render(<RouterProvider router={router} />)
 
     await screen.getByRole('button', { name: '跳到第 3 页' }).click()
 
-    await expect.poll(() => router.state.location.href).toBe('/catalog')
-    expect(router.state.location.state).toMatchObject({
-      catalogQuery: {
-        page: 3,
-        pageSize: 20,
-        sort: 'patentCount',
-        order: 'desc',
-      },
-    })
+    await expect.poll(() => router.state.location.href).toBe('/catalog?page=3')
   })
 
-  it('恢复当前历史记录中符合契约的查询状态', async () => {
-    const router = createTestRouter('/catalog', {
-      page: 4,
-      pageSize: 50,
-      sort: 'name',
-      order: 'asc',
-    })
+  it('从 URL 恢复符合契约的表格状态', async () => {
+    const router = createTestRouter(
+      '/catalog?page=4&pageSize=50&sort=name&order=asc'
+    )
     const screen = await render(<RouterProvider router={router} />)
 
     await expect
@@ -87,8 +73,8 @@ describe('Catalog 查询历史状态', () => {
       .toHaveTextContent('{"page":4,"pageSize":50,"sort":"name","order":"asc"}')
   })
 
-  it('在历史状态不符合契约时恢复默认查询', async () => {
-    const router = createTestRouter('/catalog', { page: 0 })
+  it('没有 URL 查询参数时恢复默认查询', async () => {
+    const router = createTestRouter('/catalog')
     const screen = await render(<RouterProvider router={router} />)
 
     await expect
@@ -98,24 +84,16 @@ describe('Catalog 查询历史状态', () => {
       )
   })
 
-  it('清理旧查询 URL 并重置为默认状态', async () => {
+  it('URL 查询参数无效时恢复默认状态', async () => {
     const router = createTestRouter(
-      '/catalog?page=4&pageSize=50&sort=name&order=asc',
-      {
-        page: 3,
-        pageSize: 100,
-        sort: 'latestPatentDate',
-        order: 'asc',
-      }
+      '/catalog?page=0&pageSize=500&sort=unknown&order=asc'
     )
     const screen = await render(<RouterProvider router={router} />)
 
-    await expect.poll(() => router.state.location.href).toBe('/catalog')
     await expect
       .element(screen.getByLabelText('当前查询'))
       .toHaveTextContent(
         '{"page":1,"pageSize":20,"sort":"patentCount","order":"desc"}'
       )
-    expect(router.history.length).toBe(1)
   })
 })

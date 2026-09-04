@@ -1,3 +1,4 @@
+import { Link } from '@tanstack/react-router'
 import {
   flexRender,
   getCoreRowModel,
@@ -10,8 +11,8 @@ import {
   type CatalogCompanyListQuery,
   type CatalogCompanySummary,
 } from '@tech-scout/contracts'
-import { Search, X } from 'lucide-react'
-import { useState, type FormEvent } from 'react'
+import { X } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import { DataTablePagination } from '@/components/data-table'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -31,6 +32,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { useDebouncedCallback } from '@/hooks/use-debounced-callback'
 import { cn } from '@/lib/utils'
 import { CatalogTableTooltip } from './catalog-table-tooltip'
 
@@ -45,12 +47,13 @@ const columns: ColumnDef<CatalogCompanySummary>[] = [
       return (
         <div className='flex min-w-0 flex-col items-start'>
           <CatalogTableTooltip content={row.original.preferredName}>
-            <a
+            <Link
               className='inline-block max-w-full truncate align-bottom font-medium text-primary hover:underline'
-              href={`/catalog/companies/${encodeURIComponent(row.original.companyId)}`}
+              to='/catalog/companies/$companyId'
+              params={{ companyId: row.original.companyId }}
             >
               {row.original.preferredName}
-            </a>
+            </Link>
           </CatalogTableTooltip>
           <CatalogTableTooltip content={secondaryName}>
             <span
@@ -112,6 +115,28 @@ export function CatalogCompanyTable({
   const [search, setSearch] = useState(query.query ?? '')
   const [country, setCountry] = useState(query.country ?? '')
   const hasFilters = search.trim() !== '' || country.trim() !== ''
+  const { cancel: cancelSearchQuery, run: runSearchQuery } =
+    useDebouncedCallback(
+      (value: string) =>
+        onQueryChange({ page: 1, query: value.trim() || undefined }),
+      300
+    )
+  const { cancel: cancelCountryQuery, run: runCountryQuery } =
+    useDebouncedCallback(
+      (value: string) =>
+        onQueryChange({ page: 1, country: value.trim() || undefined }),
+      300
+    )
+
+  useEffect(() => {
+    cancelSearchQuery()
+    setSearch(query.query ?? '')
+  }, [cancelSearchQuery, query.query])
+  useEffect(() => {
+    cancelCountryQuery()
+    setCountry(query.country ?? '')
+  }, [cancelCountryQuery, query.country])
+
   const pagination: PaginationState = {
     pageIndex: result.page - 1,
     pageSize: result.pageSize,
@@ -134,15 +159,9 @@ export function CatalogCompanyTable({
     getCoreRowModel: getCoreRowModel(),
   })
 
-  const submit = (event: FormEvent) => {
-    event.preventDefault()
-    onQueryChange({
-      page: 1,
-      query: search.trim() || undefined,
-      country: country.trim() || undefined,
-    })
-  }
   const reset = () => {
+    cancelSearchQuery()
+    cancelCountryQuery()
     setSearch('')
     setCountry('')
     onQueryChange({ page: 1, query: undefined, country: undefined })
@@ -150,10 +169,7 @@ export function CatalogCompanyTable({
 
   return (
     <div className='flex flex-1 flex-col gap-4'>
-      <form
-        className='flex w-full flex-col items-start justify-between gap-2 lg:flex-row lg:items-center'
-        onSubmit={submit}
-      >
+      <div className='flex w-full flex-col items-start justify-between gap-2 lg:flex-row lg:items-center'>
         <div
           className='flex flex-1 flex-wrap items-center gap-2'
           role='group'
@@ -164,19 +180,23 @@ export function CatalogCompanyTable({
             aria-label='搜索公司'
             placeholder='名称、别名或外部 ID'
             value={search}
-            onChange={(event) => setSearch(event.target.value)}
+            onChange={(event) => {
+              const value = event.target.value
+              setSearch(value)
+              runSearchQuery(value)
+            }}
           />
           <Input
             className='h-8 w-28'
             aria-label='国家或地区代码'
             placeholder='国家代码'
             value={country}
-            onChange={(event) => setCountry(event.target.value)}
+            onChange={(event) => {
+              const value = event.target.value
+              setCountry(value)
+              runCountryQuery(value)
+            }}
           />
-          <Button size='sm' type='submit'>
-            <Search className='size-4' />
-            搜索
-          </Button>
           {hasFilters ? (
             <Button size='sm' type='button' variant='ghost' onClick={reset}>
               <X className='size-4' />
@@ -215,7 +235,7 @@ export function CatalogCompanyTable({
             </SelectContent>
           </Select>
         </div>
-      </form>
+      </div>
 
       <div className='overflow-hidden rounded-md border [&_[data-slot=table-container]]:overflow-x-hidden'>
         <Table className='table-fixed'>
@@ -276,12 +296,7 @@ export function CatalogCompanyTable({
           </TableBody>
         </Table>
       </div>
-      <div className='flex flex-wrap items-center justify-between gap-3'>
-        <span className='text-sm text-muted-foreground'>
-          共 {result.total.toLocaleString()} 家已确认公司
-        </span>
-        <DataTablePagination table={table} />
-      </div>
+      <DataTablePagination table={table} className='mt-auto' />
     </div>
   )
 }

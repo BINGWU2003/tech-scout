@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query'
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
 import {
   catalogCompanyListQuerySchema,
@@ -9,10 +9,7 @@ import { catalogApi } from '@/lib/catalog-api'
 import { CatalogCompanyDetail } from '../components/catalog-company-detail'
 import { CatalogCompanyTable } from '../components/catalog-company-table'
 import { CatalogPatentTable } from '../components/catalog-patent-table'
-import {
-  CatalogLoadError,
-  CatalogUnavailableFields,
-} from '../components/catalog-query-state'
+import { CatalogLoadError } from '../components/catalog-query-state'
 import { CatalogShell } from '../components/catalog-shell'
 import { useCatalogQueryState } from '../hooks/use-catalog-query-state'
 
@@ -30,6 +27,7 @@ export function CatalogCompaniesPage() {
   const companies = useQuery({
     queryKey: ['catalog', 'companies', query],
     queryFn: () => catalogApi.companies(query),
+    placeholderData: keepPreviousData,
   })
 
   return (
@@ -41,16 +39,11 @@ export function CatalogCompaniesPage() {
       {companies.isError ? (
         <CatalogLoadError error={companies.error} title='公司目录加载失败' />
       ) : companies.data ? (
-        <>
-          <CatalogCompanyTable
-            result={companies.data}
-            query={query}
-            onQueryChange={updateQuery}
-          />
-          <CatalogUnavailableFields
-            fields={companies.data.release.unavailableFields}
-          />
-        </>
+        <CatalogCompanyTable
+          result={companies.data}
+          query={query}
+          onQueryChange={updateQuery}
+        />
       ) : (
         <Skeleton className='h-96 rounded-xl' />
       )}
@@ -76,26 +69,16 @@ export function CatalogCompanyPage() {
       {company.isError ? (
         <CatalogLoadError error={company.error} title='公司详情加载失败' />
       ) : company.data ? (
-        <>
-          <CatalogCompanyDetail
-            company={company.data.company}
-            onDomainPatentsOpen={(domainId) =>
-              navigate({
-                to: '/catalog/companies/$companyId/patents',
-                params: { companyId },
-                state: (previous) => ({
-                  ...previous,
-                  catalogQuery: catalogCompanyPatentListQuerySchema.parse({
-                    domainId,
-                  }),
-                }),
-              })
-            }
-          />
-          <CatalogUnavailableFields
-            fields={company.data.release.unavailableFields}
-          />
-        </>
+        <CatalogCompanyDetail
+          company={company.data.company}
+          onDomainPatentsOpen={(domainId) =>
+            navigate({
+              to: '/catalog/companies/$companyId/patents',
+              params: { companyId },
+              search: { domainId },
+            })
+          }
+        />
       ) : (
         <Skeleton className='h-96 rounded-xl' />
       )}
@@ -115,6 +98,7 @@ export function CatalogCompanyPatentsPage() {
   const patents = useQuery({
     queryKey: ['catalog', 'company-patents', companyId, query],
     queryFn: () => catalogApi.companyPatents(companyId, query),
+    placeholderData: keepPreviousData,
   })
   const error = company.error ?? patents.error
 
@@ -132,16 +116,11 @@ export function CatalogCompanyPatentsPage() {
       {error ? (
         <CatalogLoadError error={error} title='公司专利加载失败' />
       ) : patents.data ? (
-        <>
-          <CatalogPatentTable
-            result={patents.data}
-            query={query}
-            onQueryChange={updateQuery}
-          />
-          <CatalogUnavailableFields
-            fields={patents.data.release.unavailableFields}
-          />
-        </>
+        <CatalogPatentTable
+          result={patents.data}
+          query={query}
+          onQueryChange={updateQuery}
+        />
       ) : (
         <Skeleton className='h-96 rounded-xl' />
       )}

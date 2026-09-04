@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
-import { render } from 'vitest-browser-react'
 import { CatalogCompanyDetail } from './catalog-company-detail'
+import { renderWithCatalogRouter } from './catalog-test-router'
 
 const company = {
   companyId: 'company-1',
@@ -84,7 +84,9 @@ const company = {
 
 describe('CatalogCompanyDetail 公司详情', () => {
   it('将公司身份与专利、关联关系和匹配证据联系起来', async () => {
-    const screen = await render(<CatalogCompanyDetail company={company} />)
+    const screen = await renderWithCatalogRouter(
+      <CatalogCompanyDetail company={company} />
+    )
 
     await expect.element(screen.getByText('Acme AI, Inc.')).toBeInTheDocument()
     await expect
@@ -108,7 +110,7 @@ describe('CatalogCompanyDetail 公司详情', () => {
 
   it('通过页面导航状态打开指定领域的公司专利', async () => {
     const onDomainPatentsOpen = vi.fn()
-    const screen = await render(
+    const screen = await renderWithCatalogRouter(
       <CatalogCompanyDetail
         company={company}
         onDomainPatentsOpen={onDomainPatentsOpen}

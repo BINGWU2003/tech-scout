@@ -12,8 +12,8 @@ import {
   type UserRole,
   type UserStatus,
 } from '@tech-scout/contracts'
-import { CircleCheck, CircleOff, KeyRound, LogOut, Search } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { CircleCheck, CircleOff, KeyRound, LogOut } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   DataTableColumnHeader,
   DataTablePagination,
@@ -45,6 +45,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { useDebouncedCallback } from '@/hooks/use-debounced-callback'
 import { useTableUrlState } from '@/hooks/use-table-url-state'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth-store'
@@ -220,6 +221,18 @@ export function UsersTable({
   const currentUserId = useAuthStore((state) => state.auth.user?.id)
   const [searchText, setSearchText] = useState(search.search ?? '')
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({})
+  const { cancel: cancelSearchQuery, run: runSearchQuery } =
+    useDebouncedCallback(
+      (value: string) =>
+        navigate({
+          search: (previous) => ({
+            ...previous,
+            page: undefined,
+            search: value.trim() || undefined,
+          }),
+        }),
+      300
+    )
   const columns = useMemo(
     () => createUsersColumns(currentUserId, onAction),
     [currentUserId, onAction]
@@ -230,6 +243,11 @@ export function UsersTable({
     pagination: { defaultPage: 1, defaultPageSize: 20 },
     globalFilter: { enabled: false },
   })
+
+  useEffect(() => {
+    cancelSearchQuery()
+    setSearchText(search.search ?? '')
+  }, [cancelSearchQuery, search.search])
 
   // eslint-disable-next-line react-hooks/incompatible-library
   const table = useReactTable({
@@ -243,14 +261,6 @@ export function UsersTable({
     getCoreRowModel: getCoreRowModel(),
   })
 
-  const applySearch = () =>
-    navigate({
-      search: (previous) => ({
-        ...previous,
-        page: undefined,
-        search: searchText.trim() || undefined,
-      }),
-    })
   const isFiltered = Boolean(
     searchText.trim() || search.search || search.role || search.status
   )
@@ -262,14 +272,13 @@ export function UsersTable({
           <Input
             className='h-8 w-48 lg:w-72'
             value={searchText}
-            onChange={(event) => setSearchText(event.target.value)}
-            onKeyDown={(event) => event.key === 'Enter' && applySearch()}
+            onChange={(event) => {
+              const value = event.target.value
+              setSearchText(value)
+              runSearchQuery(value)
+            }}
             placeholder='搜索用户名或邮箱'
           />
-          <Button size='sm' onClick={applySearch}>
-            <Search className='size-4' />
-            搜索
-          </Button>
           <div className='flex gap-2'>
             <Select
               value={search.role ?? 'all'}
@@ -319,6 +328,7 @@ export function UsersTable({
               variant='ghost'
               size='sm'
               onClick={() => {
+                cancelSearchQuery()
                 setSearchText('')
                 navigate({
                   search: (previous) => ({

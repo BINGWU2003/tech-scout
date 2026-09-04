@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
-import { render } from 'vitest-browser-react'
 import { userEvent } from 'vitest/browser'
 import { CatalogPatentTable } from './catalog-patent-table'
+import { renderWithCatalogRouter } from './catalog-test-router'
 
 const result = {
   release: {
@@ -37,7 +37,7 @@ const result = {
 describe('CatalogPatentTable 专利表格', () => {
   it('渲染专利链接并请求指定页码', async () => {
     const onQueryChange = vi.fn()
-    const screen = await render(
+    const screen = await renderWithCatalogRouter(
       <CatalogPatentTable
         result={result}
         query={{ page: 1, pageSize: 20, sort: 'score', order: 'desc' }}
@@ -65,13 +65,19 @@ describe('CatalogPatentTable 专利表格', () => {
     await expect
       .element(screen.getByRole('button', { name: '重置' }))
       .not.toBeInTheDocument()
+    await expect
+      .element(screen.getByRole('button', { name: '搜索' }))
+      .not.toBeInTheDocument()
+    await expect
+      .element(screen.getByText('共 41 件专利'))
+      .not.toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: '前往第 2 页' }))
     expect(onQueryChange).toHaveBeenCalledWith({ page: 2 })
   })
 
   it('仅在存在搜索条件时显示重置按钮', async () => {
     const onQueryChange = vi.fn()
-    const screen = await render(
+    const screen = await renderWithCatalogRouter(
       <CatalogPatentTable
         result={result}
         query={{ page: 1, pageSize: 20, sort: 'score', order: 'desc' }}
@@ -80,6 +86,10 @@ describe('CatalogPatentTable 专利表格', () => {
     )
 
     await userEvent.fill(screen.getByLabelText('专利标题'), 'accelerator')
+    expect(onQueryChange).not.toHaveBeenCalled()
+    await expect
+      .poll(() => onQueryChange.mock.lastCall?.[0])
+      .toEqual({ page: 1, title: 'accelerator' })
     await expect
       .element(screen.getByRole('button', { name: '重置' }))
       .toBeInTheDocument()
@@ -101,7 +111,7 @@ describe('CatalogPatentTable 专利表格', () => {
   })
 
   it('使用首项和数量简洁显示多个 CPC', async () => {
-    const screen = await render(
+    const screen = await renderWithCatalogRouter(
       <CatalogPatentTable
         result={result}
         query={{ page: 1, pageSize: 20, sort: 'score', order: 'desc' }}
@@ -122,9 +132,9 @@ describe('CatalogPatentTable 专利表格', () => {
       .toHaveTextContent('G06N3/063、G06T2207/10152、H10B61/00')
   })
 
-  it('提交完整的专利筛选条件', async () => {
+  it('输入和选择年份时立即更新专利查询条件', async () => {
     const onQueryChange = vi.fn()
-    const screen = await render(
+    const screen = await renderWithCatalogRouter(
       <CatalogPatentTable
         result={result}
         query={{ page: 1, pageSize: 20, sort: 'score', order: 'desc' }}
@@ -144,13 +154,42 @@ describe('CatalogPatentTable 专利表格', () => {
     await expect
       .element(screen.getByRole('button', { name: '授权年份：2025 – 2029' }))
       .toBeInTheDocument()
-    await userEvent.click(screen.getByRole('button', { name: '搜索' }))
-
+    await expect
+      .poll(() =>
+        onQueryChange.mock.calls.some(
+          ([patch]) => patch.title === 'accelerator'
+        )
+      )
+      .toBe(true)
+    await expect
+      .poll(() =>
+        onQueryChange.mock.calls.some(([patch]) => patch.cpcPrefix === 'g06n3')
+      )
+      .toBe(true)
+    await expect
+      .poll(() =>
+        onQueryChange.mock.calls.some(([patch]) => patch.partyName === 'Acme')
+      )
+      .toBe(true)
     expect(onQueryChange).toHaveBeenCalledWith({
       page: 1,
       title: 'accelerator',
+    })
+    expect(onQueryChange).toHaveBeenCalledWith({
+      page: 1,
       cpcPrefix: 'g06n3',
+    })
+    expect(onQueryChange).toHaveBeenCalledWith({
+      page: 1,
       partyName: 'Acme',
+    })
+    expect(onQueryChange).toHaveBeenCalledWith({
+      page: 1,
+      fromYear: 2025,
+      toYear: undefined,
+    })
+    expect(onQueryChange).toHaveBeenCalledWith({
+      page: 1,
       fromYear: 2025,
       toYear: 2029,
     })
@@ -158,7 +197,7 @@ describe('CatalogPatentTable 专利表格', () => {
 
   it('清除已选的授权年份范围', async () => {
     const onQueryChange = vi.fn()
-    const screen = await render(
+    const screen = await renderWithCatalogRouter(
       <CatalogPatentTable
         result={result}
         query={{
@@ -180,13 +219,9 @@ describe('CatalogPatentTable 专利表格', () => {
     await expect
       .element(screen.getByRole('button', { name: '授权年份' }))
       .toBeInTheDocument()
-    await userEvent.click(screen.getByRole('button', { name: '搜索' }))
 
-    expect(onQueryChange).toHaveBeenCalledWith({
+    expect(onQueryChange).toHaveBeenLastCalledWith({
       page: 1,
-      title: undefined,
-      cpcPrefix: undefined,
-      partyName: undefined,
       fromYear: undefined,
       toYear: undefined,
     })

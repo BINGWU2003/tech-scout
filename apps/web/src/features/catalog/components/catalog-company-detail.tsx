@@ -1,3 +1,4 @@
+import { Link } from '@tanstack/react-router'
 import { type CatalogCompanyDetail as CatalogCompanyDetailData } from '@tech-scout/contracts'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -112,12 +113,13 @@ export function CatalogCompanyDetail({
         <CardHeader>
           <div className='flex flex-wrap items-center justify-between gap-2'>
             <CardTitle>领域专利</CardTitle>
-            <a
+            <Link
               className='text-sm font-medium text-primary hover:underline'
-              href={`/catalog/companies/${encodeURIComponent(company.companyId)}/patents`}
+              to='/catalog/companies/$companyId/patents'
+              params={{ companyId: company.companyId }}
             >
               查看全部专利
-            </a>
+            </Link>
           </div>
         </CardHeader>
         <CardContent>
@@ -135,9 +137,10 @@ export function CatalogCompanyDetail({
                   company.domainStats.map((domain) => (
                     <TableRow key={domain.domainId}>
                       <TableCell>
-                        <a
+                        <Link
                           className='font-medium text-primary hover:underline'
-                          href={`/catalog/companies/${encodeURIComponent(company.companyId)}/patents`}
+                          to='/catalog/companies/$companyId/patents'
+                          params={{ companyId: company.companyId }}
                           onClick={(event) => {
                             if (
                               !onDomainPatentsOpen ||
@@ -154,7 +157,7 @@ export function CatalogCompanyDetail({
                           }}
                         >
                           {domain.domainName}
-                        </a>
+                        </Link>
                       </TableCell>
                       <TableCell>{domain.patentCount}</TableCell>
                       <TableCell>
@@ -187,12 +190,15 @@ export function CatalogCompanyDetail({
                 className='flex flex-wrap items-center justify-between gap-2 rounded-md border p-3 text-sm'
               >
                 <div>
-                  <a
+                  <Link
                     className='font-medium text-primary hover:underline'
-                    href={`/catalog/companies/${encodeURIComponent(relationship.relatedCompany.companyId)}`}
+                    to='/catalog/companies/$companyId'
+                    params={{
+                      companyId: relationship.relatedCompany.companyId,
+                    }}
                   >
                     {relationship.relatedCompany.preferredName}
-                  </a>
+                  </Link>
                   <div className='text-xs text-muted-foreground'>
                     {relationship.direction === 'outgoing'
                       ? '关联至'
@@ -222,12 +228,13 @@ export function CatalogCompanyDetail({
                 key={match.candidateId}
                 className='rounded-md border p-3 text-sm'
               >
-                <a
+                <Link
                   className='font-medium text-primary hover:underline'
-                  href={`/catalog/candidates/${encodeURIComponent(match.candidateId)}`}
+                  to='/catalog/candidates/$candidateId'
+                  params={{ candidateId: match.candidateId }}
                 >
                   {match.representativeName}
-                </a>
+                </Link>
                 <div className='text-xs text-muted-foreground'>
                   {match.matchMethod} · {match.decisionReason}
                 </div>

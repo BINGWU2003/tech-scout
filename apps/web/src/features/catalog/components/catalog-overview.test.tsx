@@ -1,6 +1,14 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import {
+  RouterProvider,
+  createMemoryHistory,
+  createRootRoute,
+  createRoute,
+  createRouter,
+} from '@tanstack/react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { render } from 'vitest-browser-react'
+import { userEvent } from 'vitest/browser'
 import { CatalogOverviewContent } from './catalog-overview'
 
 const domains = vi.hoisted(() => vi.fn())
@@ -36,6 +44,41 @@ const response = {
   ],
 }
 
+function createOverviewRouter() {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  })
+  const rootRoute = createRootRoute()
+  const overviewRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: '/catalog',
+    component: () => (
+      <QueryClientProvider client={client}>
+        <CatalogOverviewContent />
+      </QueryClientProvider>
+    ),
+  })
+  const companiesRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: '/catalog/companies',
+    component: () => <div>公司目录页面</div>,
+  })
+  const domainCompaniesRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: '/catalog/domains/$domainId/companies',
+    component: () => <div>领域公司页面</div>,
+  })
+
+  return createRouter({
+    routeTree: rootRoute.addChildren([
+      overviewRoute,
+      companiesRoute,
+      domainCompaniesRoute,
+    ]),
+    history: createMemoryHistory({ initialEntries: ['/catalog'] }),
+  })
+}
+
 describe('CatalogOverview 目录概览', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -43,13 +86,8 @@ describe('CatalogOverview 目录概览', () => {
   })
 
   it('显示当前版本、领域中英文名称并链接到对应表格', async () => {
-    const client = new QueryClient({
-      defaultOptions: { queries: { retry: false } },
-    })
     const screen = await render(
-      <QueryClientProvider client={client}>
-        <CatalogOverviewContent />
-      </QueryClientProvider>
+      <RouterProvider router={createOverviewRouter()} />
     )
 
     await expect
@@ -58,6 +96,7 @@ describe('CatalogOverview 目录概览', () => {
     await expect
       .element(screen.getByText('数据版本 2026-09-v6 · 数据截至 2025 年'))
       .toBeInTheDocument()
+    await expect.element(screen.getByText('数据覆盖说明')).toBeInTheDocument()
     await expect
       .element(screen.getByRole('link', { name: '浏览全部公司' }))
       .toHaveAttribute('href', '/catalog/companies')
@@ -87,6 +126,28 @@ describe('CatalogOverview 目录概览', () => {
       .toBeInTheDocument()
   })
 
+  it('点击目录入口时通过客户端路由跳转', async () => {
+    const router = createOverviewRouter()
+    const screen = await render(<RouterProvider router={router} />)
+    let routerHandledClick = false
+
+    document.addEventListener(
+      'click',
+      (event) => {
+        routerHandledClick = event.defaultPrevented
+        event.preventDefault()
+      },
+      { once: true }
+    )
+
+    await userEvent.click(screen.getByRole('link', { name: '浏览全部公司' }))
+
+    expect(routerHandledClick).toBe(true)
+    await expect
+      .poll(() => router.state.location.pathname)
+      .toBe('/catalog/companies')
+  })
+
   it('未配置中文名称时回退显示接口名称', async () => {
     domains.mockResolvedValue({
       ...response,
@@ -98,13 +159,8 @@ describe('CatalogOverview 目录概览', () => {
         },
       ],
     })
-    const client = new QueryClient({
-      defaultOptions: { queries: { retry: false } },
-    })
     const screen = await render(
-      <QueryClientProvider client={client}>
-        <CatalogOverviewContent />
-      </QueryClientProvider>
+      <RouterProvider router={createOverviewRouter()} />
     )
 
     await expect

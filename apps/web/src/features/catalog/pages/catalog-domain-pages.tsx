@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query'
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
 import {
   catalogCompanyListQuerySchema,
@@ -8,10 +8,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { catalogApi } from '@/lib/catalog-api'
 import { CatalogCompanyTable } from '../components/catalog-company-table'
 import { CatalogPatentTable } from '../components/catalog-patent-table'
-import {
-  CatalogLoadError,
-  CatalogUnavailableFields,
-} from '../components/catalog-query-state'
+import { CatalogLoadError } from '../components/catalog-query-state'
 import { CatalogDomainTabs, CatalogShell } from '../components/catalog-shell'
 import { useCatalogQueryState } from '../hooks/use-catalog-query-state'
 
@@ -34,6 +31,7 @@ export function CatalogDomainCompaniesPage() {
   const companies = useQuery({
     queryKey: ['catalog', 'domain-companies', domainId, query],
     queryFn: () => catalogApi.domainCompanies(domainId, query),
+    placeholderData: keepPreviousData,
   })
   const error = companies.error ?? domain.error
 
@@ -47,16 +45,11 @@ export function CatalogDomainCompaniesPage() {
       {error ? (
         <CatalogLoadError error={error} title='公司目录加载失败' />
       ) : companies.data ? (
-        <>
-          <CatalogCompanyTable
-            result={companies.data}
-            query={query}
-            onQueryChange={updateQuery}
-          />
-          <CatalogUnavailableFields
-            fields={companies.data.release.unavailableFields}
-          />
-        </>
+        <CatalogCompanyTable
+          result={companies.data}
+          query={query}
+          onQueryChange={updateQuery}
+        />
       ) : (
         <Skeleton className='h-96 rounded-xl' />
       )}
@@ -76,6 +69,7 @@ export function CatalogDomainPatentsPage() {
   const patents = useQuery({
     queryKey: ['catalog', 'domain-patents', domainId, query],
     queryFn: () => catalogApi.domainPatents(domainId, query),
+    placeholderData: keepPreviousData,
   })
   const error = patents.error ?? domain.error
 
@@ -89,16 +83,11 @@ export function CatalogDomainPatentsPage() {
       {error ? (
         <CatalogLoadError error={error} title='专利目录加载失败' />
       ) : patents.data ? (
-        <>
-          <CatalogPatentTable
-            result={patents.data}
-            query={query}
-            onQueryChange={updateQuery}
-          />
-          <CatalogUnavailableFields
-            fields={patents.data.release.unavailableFields}
-          />
-        </>
+        <CatalogPatentTable
+          result={patents.data}
+          query={query}
+          onQueryChange={updateQuery}
+        />
       ) : (
         <Skeleton className='h-96 rounded-xl' />
       )}

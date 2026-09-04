@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { render } from 'vitest-browser-react'
 import { CatalogPatentDetail } from './catalog-patent-detail'
+import { renderWithCatalogRouter } from './catalog-test-router'
 
 const patent = {
   patentId: 'patent-1',
@@ -55,7 +55,9 @@ const patent = {
 
 describe('CatalogPatentDetail 专利详情', () => {
   it('显示分类、相关方、匹配原因和可追溯来源', async () => {
-    const screen = await render(<CatalogPatentDetail patent={patent} />)
+    const screen = await renderWithCatalogRouter(
+      <CatalogPatentDetail patent={patent} />
+    )
 
     await expect
       .element(screen.getByText('G06N3/063').first())

@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
+import { Link } from '@tanstack/react-router'
 import { Building2, FileText } from 'lucide-react'
 import { ConfigDrawer } from '@/components/config-drawer'
 import { Header } from '@/components/layout/header'
@@ -58,7 +59,7 @@ export function CatalogOverviewContent() {
           ) : null}
         </div>
         <Button className='shrink-0' asChild variant='outline'>
-          <a href='/catalog/companies'>浏览全部公司</a>
+          <Link to='/catalog/companies'>浏览全部公司</Link>
         </Button>
       </div>
 
@@ -75,9 +76,10 @@ export function CatalogOverviewContent() {
               const localizedName = catalogDomainNames[domain.domainId]
 
               return (
-                <a
+                <Link
                   key={domain.domainId}
-                  href={`/catalog/domains/${encodeURIComponent(domain.domainId)}/companies`}
+                  to='/catalog/domains/$domainId/companies'
+                  params={{ domainId: domain.domainId }}
                   aria-label={`${localizedName ?? domain.name}${localizedName ? `（${domain.name}）` : ''} 公司`}
                   className='rounded-xl focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none'
                 >
@@ -121,7 +123,7 @@ export function CatalogOverviewContent() {
                       </div>
                     </CardContent>
                   </Card>
-                </a>
+                </Link>
               )
             })}
       </div>
