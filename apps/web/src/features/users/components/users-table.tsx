@@ -12,7 +12,7 @@ import {
   type UserRole,
   type UserStatus,
 } from '@tech-scout/contracts'
-import { CircleCheck, CircleOff, KeyRound, LogOut } from 'lucide-react'
+import { CircleCheck, CircleOff, KeyRound, LogOut, Search } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import {
   DataTableColumnHeader,
@@ -251,7 +251,9 @@ export function UsersTable({
         search: searchText.trim() || undefined,
       }),
     })
-  const isFiltered = Boolean(search.search || search.role || search.status)
+  const isFiltered = Boolean(
+    searchText.trim() || search.search || search.role || search.status
+  )
 
   return (
     <div className='flex flex-1 flex-col gap-4'>
@@ -264,7 +266,8 @@ export function UsersTable({
             onKeyDown={(event) => event.key === 'Enter' && applySearch()}
             placeholder='搜索用户名或邮箱'
           />
-          <Button size='sm' variant='outline' onClick={applySearch}>
+          <Button size='sm' onClick={applySearch}>
+            <Search className='size-4' />
             搜索
           </Button>
           <div className='flex gap-2'>
@@ -311,7 +314,7 @@ export function UsersTable({
               </SelectContent>
             </Select>
           </div>
-          {isFiltered && (
+          {isFiltered ? (
             <Button
               variant='ghost'
               size='sm'
@@ -331,7 +334,7 @@ export function UsersTable({
               重置
               <Cross2Icon className='ms-2 size-4' />
             </Button>
-          )}
+          ) : null}
         </div>
         <DataTableViewOptions table={table} />
       </div>

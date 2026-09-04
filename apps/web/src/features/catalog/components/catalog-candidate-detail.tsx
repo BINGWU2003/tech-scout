@@ -21,6 +21,8 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { cn } from '@/lib/utils'
+import { CatalogTableTooltip } from './catalog-table-tooltip'
 
 type CatalogEvidence = CatalogEvidenceList['items'][number]
 
@@ -28,64 +30,121 @@ const evidenceColumns: ColumnDef<CatalogEvidence>[] = [
   {
     accessorKey: 'publisher',
     header: '发布方',
+    meta: { className: 'w-[15%] max-w-0' },
     cell: ({ row }) => (
-      <div>
-        <div className='font-medium'>{row.original.publisher}</div>
-        <div className='text-xs text-muted-foreground'>
-          {row.original.sourceType}
-        </div>
+      <div className='flex min-w-0 flex-col items-start'>
+        <CatalogTableTooltip content={row.original.publisher}>
+          <span
+            className='inline-block max-w-full truncate align-bottom font-medium'
+            tabIndex={0}
+          >
+            {row.original.publisher}
+          </span>
+        </CatalogTableTooltip>
+        <CatalogTableTooltip content={row.original.sourceType}>
+          <span
+            className='inline-block max-w-full truncate align-bottom text-xs text-muted-foreground'
+            tabIndex={0}
+          >
+            {row.original.sourceType}
+          </span>
+        </CatalogTableTooltip>
       </div>
     ),
   },
   {
     accessorKey: 'legalName',
     header: '主体信息',
-    cell: ({ row }) => (
-      <div>
-        <div>{row.original.legalName ?? '未提供法定名称'}</div>
-        <div className='text-xs text-muted-foreground'>
-          {[
-            row.original.country,
-            row.original.identifierType,
-            row.original.identifierValue,
-          ]
-            .filter(Boolean)
-            .join(' · ') || '无外部标识'}
+    meta: { className: 'w-[32%] max-w-0' },
+    cell: ({ row }) => {
+      const legalName = row.original.legalName ?? '未提供法定名称'
+      const identifier =
+        [
+          row.original.country,
+          row.original.identifierType,
+          row.original.identifierValue,
+        ]
+          .filter(Boolean)
+          .join(' · ') || '无外部标识'
+
+      return (
+        <div className='flex min-w-0 flex-col items-start'>
+          <CatalogTableTooltip content={legalName}>
+            <span
+              className='inline-block max-w-full truncate align-bottom'
+              tabIndex={0}
+            >
+              {legalName}
+            </span>
+          </CatalogTableTooltip>
+          <CatalogTableTooltip content={identifier}>
+            <span
+              className='inline-block max-w-full truncate align-bottom text-xs text-muted-foreground'
+              tabIndex={0}
+            >
+              {identifier}
+            </span>
+          </CatalogTableTooltip>
         </div>
-      </div>
-    ),
+      )
+    },
   },
   {
     accessorKey: 'observedAt',
     header: '采集时间',
-    cell: ({ row }) =>
-      new Date(row.original.observedAt).toLocaleString('zh-CN'),
+    meta: { className: 'w-[20%] max-w-0' },
+    cell: ({ row }) => {
+      const observedAt = new Date(row.original.observedAt).toLocaleString(
+        'zh-CN'
+      )
+
+      return (
+        <CatalogTableTooltip content={observedAt}>
+          <span
+            className='inline-block max-w-full truncate align-bottom'
+            tabIndex={0}
+          >
+            {observedAt}
+          </span>
+        </CatalogTableTooltip>
+      )
+    },
   },
   {
     accessorKey: 'preserved',
     header: '已留存',
+    meta: { className: 'w-[8%]' },
     cell: ({ row }) => (row.original.preserved ? '是' : '否'),
   },
   {
     id: 'source',
     header: '来源',
-    cell: ({ row }) => (
-      <div className='max-w-64'>
-        <a
-          className='inline-flex items-center gap-1 font-medium text-primary hover:underline'
-          href={row.original.sourceUrl}
-          target='_blank'
-          rel='noreferrer'
-        >
-          查看证据
-          <ExternalLink className='size-3.5' />
-        </a>
-        <div className='truncate font-mono text-xs text-muted-foreground'>
-          {row.original.source.relativePath ?? row.original.source.dataset}:
-          {row.original.source.sourceRowNumber}
+    meta: { className: 'w-[25%] max-w-0' },
+    cell: ({ row }) => {
+      const sourceLocation = `${row.original.source.relativePath ?? row.original.source.dataset}:${row.original.source.sourceRowNumber}`
+
+      return (
+        <div className='flex min-w-0 flex-col items-start'>
+          <a
+            className='inline-flex items-center gap-1 font-medium text-primary hover:underline'
+            href={row.original.sourceUrl}
+            target='_blank'
+            rel='noreferrer'
+          >
+            查看证据
+            <ExternalLink className='size-3.5' />
+          </a>
+          <CatalogTableTooltip content={sourceLocation}>
+            <span
+              className='inline-block max-w-full truncate align-bottom font-mono text-xs text-muted-foreground'
+              tabIndex={0}
+            >
+              {sourceLocation}
+            </span>
+          </CatalogTableTooltip>
         </div>
-      </div>
-    ),
+      )
+    },
   },
 ]
 
@@ -218,13 +277,20 @@ export function CatalogCandidateDetail({
           <CardTitle>支持证据</CardTitle>
         </CardHeader>
         <CardContent className='space-y-4'>
-          <div className='overflow-hidden rounded-md border'>
-            <Table className='min-w-4xl'>
+          <div className='overflow-hidden rounded-md border [&_[data-slot=table-container]]:overflow-x-hidden'>
+            <Table className='table-fixed'>
               <TableHeader>
                 {table.getHeaderGroups().map((headerGroup) => (
                   <TableRow key={headerGroup.id}>
                     {headerGroup.headers.map((header) => (
-                      <TableHead key={header.id}>
+                      <TableHead
+                        key={header.id}
+                        className={cn(
+                          'overflow-hidden',
+                          header.column.columnDef.meta?.className,
+                          header.column.columnDef.meta?.thClassName
+                        )}
+                      >
                         {header.isPlaceholder
                           ? null
                           : flexRender(
@@ -241,7 +307,14 @@ export function CatalogCandidateDetail({
                   table.getRowModel().rows.map((row) => (
                     <TableRow key={row.id}>
                       {row.getVisibleCells().map((cell) => (
-                        <TableCell key={cell.id}>
+                        <TableCell
+                          key={cell.id}
+                          className={cn(
+                            'overflow-hidden',
+                            cell.column.columnDef.meta?.className,
+                            cell.column.columnDef.meta?.tdClassName
+                          )}
+                        >
                           {flexRender(
                             cell.column.columnDef.cell,
                             cell.getContext()

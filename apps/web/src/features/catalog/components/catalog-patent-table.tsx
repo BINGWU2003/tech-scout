@@ -31,51 +31,96 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { cn } from '@/lib/utils'
+import { CatalogTableTooltip } from './catalog-table-tooltip'
+import { YearRangePicker } from './year-range-picker'
 
 const columns: ColumnDef<CatalogPatentSummary>[] = [
   {
     accessorKey: 'title',
     header: '专利',
+    meta: { className: 'w-[34%] max-w-0' },
     cell: ({ row }) => (
-      <div className='min-w-64'>
-        <a
-          className='font-medium text-primary hover:underline'
-          href={`/catalog/patents/${encodeURIComponent(row.original.patentId)}`}
-        >
-          {row.original.title}
-        </a>
-        <div className='mt-1 text-xs text-muted-foreground'>
-          {row.original.patentId}
-        </div>
+      <div className='flex min-w-0 flex-col items-start'>
+        <CatalogTableTooltip content={row.original.title}>
+          <a
+            className='inline-block max-w-full truncate align-bottom font-medium text-primary hover:underline'
+            href={`/catalog/patents/${encodeURIComponent(row.original.patentId)}`}
+          >
+            {row.original.title}
+          </a>
+        </CatalogTableTooltip>
+        <CatalogTableTooltip content={row.original.patentId}>
+          <span
+            className='mt-1 inline-block max-w-full truncate align-bottom text-xs text-muted-foreground'
+            tabIndex={0}
+          >
+            {row.original.patentId}
+          </span>
+        </CatalogTableTooltip>
       </div>
     ),
   },
   {
     accessorKey: 'patentDate',
     header: '授权日期',
+    meta: { className: 'w-[14%]' },
     cell: ({ row }) => row.original.patentDate,
   },
   {
     id: 'assignees',
     header: '受让人',
-    cell: ({ row }) => row.original.assignees.join('、') || '未知',
+    meta: { className: 'w-[25%] max-w-0' },
+    cell: ({ row }) => {
+      const assignees = row.original.assignees.join('、') || '未知'
+
+      return (
+        <CatalogTableTooltip content={assignees}>
+          <span
+            className='inline-block max-w-full truncate align-bottom'
+            tabIndex={0}
+          >
+            {assignees}
+          </span>
+        </CatalogTableTooltip>
+      )
+    },
   },
   {
     id: 'cpcGroups',
     header: 'CPC',
-    cell: ({ row }) => (
-      <div className='flex max-w-72 flex-wrap gap-1'>
-        {row.original.cpcGroups.slice(0, 3).map((cpc) => (
-          <Badge key={cpc} variant='secondary'>
-            {cpc}
-          </Badge>
-        ))}
-      </div>
-    ),
+    meta: { className: 'w-[19%] max-w-0' },
+    cell: ({ row }) => {
+      const cpcGroups = row.original.cpcGroups
+      const content = cpcGroups.join('、') || '未知'
+
+      return (
+        <CatalogTableTooltip content={content}>
+          <span
+            className='inline-grid max-w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-1 align-bottom'
+            tabIndex={0}
+          >
+            {cpcGroups.length ? (
+              <>
+                <Badge variant='secondary' className='max-w-full min-w-0'>
+                  <span className='truncate'>{cpcGroups[0]}</span>
+                </Badge>
+                {cpcGroups.length > 1 ? (
+                  <Badge variant='outline'>+{cpcGroups.length - 1}</Badge>
+                ) : null}
+              </>
+            ) : (
+              <span>未知</span>
+            )}
+          </span>
+        </CatalogTableTooltip>
+      )
+    },
   },
   {
     accessorKey: 'totalScore',
     header: '入域分',
+    meta: { className: 'w-[8%]' },
     cell: ({ row }) => (
       <span className='tabular-nums'>{row.original.totalScore}</span>
     ),
@@ -96,8 +141,14 @@ export function CatalogPatentTable({
   const [title, setTitle] = useState(query.title ?? '')
   const [cpcPrefix, setCpcPrefix] = useState(query.cpcPrefix ?? '')
   const [partyName, setPartyName] = useState(query.partyName ?? '')
-  const [fromYear, setFromYear] = useState(query.fromYear?.toString() ?? '')
-  const [toYear, setToYear] = useState(query.toYear?.toString() ?? '')
+  const [fromYear, setFromYear] = useState(query.fromYear)
+  const [toYear, setToYear] = useState(query.toYear)
+  const hasFilters =
+    title.trim() !== '' ||
+    cpcPrefix.trim() !== '' ||
+    partyName.trim() !== '' ||
+    fromYear !== undefined ||
+    toYear !== undefined
 
   const pagination: PaginationState = {
     pageIndex: result.page - 1,
@@ -128,8 +179,8 @@ export function CatalogPatentTable({
       title: title.trim() || undefined,
       cpcPrefix: cpcPrefix.trim() || undefined,
       partyName: partyName.trim() || undefined,
-      fromYear: fromYear ? Number(fromYear) : undefined,
-      toYear: toYear ? Number(toYear) : undefined,
+      fromYear,
+      toYear,
     })
   }
 
@@ -137,8 +188,8 @@ export function CatalogPatentTable({
     setTitle('')
     setCpcPrefix('')
     setPartyName('')
-    setFromYear('')
-    setToYear('')
+    setFromYear(undefined)
+    setToYear(undefined)
     onQueryChange({
       page: 1,
       title: undefined,
@@ -151,64 +202,63 @@ export function CatalogPatentTable({
 
   return (
     <div className='flex flex-1 flex-col gap-4'>
-      <form className='flex flex-wrap items-center gap-2' onSubmit={submit}>
-        <Input
-          className='h-9 w-56'
-          aria-label='专利标题'
-          placeholder='标题关键词'
-          value={title}
-          onChange={(event) => setTitle(event.target.value)}
-        />
-        <Input
-          className='h-9 w-36'
-          aria-label='CPC 前缀'
-          placeholder='CPC 前缀'
-          value={cpcPrefix}
-          onChange={(event) => setCpcPrefix(event.target.value)}
-        />
-        <Input
-          className='h-9 w-48'
-          aria-label='受让人'
-          placeholder='受让人'
-          value={partyName}
-          onChange={(event) => setPartyName(event.target.value)}
-        />
-        <Input
-          className='h-9 w-28'
-          aria-label='起始年份'
-          placeholder='起始年份'
-          type='number'
-          min={1800}
-          max={2100}
-          value={fromYear}
-          onChange={(event) => setFromYear(event.target.value)}
-        />
-        <Input
-          className='h-9 w-28'
-          aria-label='结束年份'
-          placeholder='结束年份'
-          type='number'
-          min={1800}
-          max={2100}
-          value={toYear}
-          onChange={(event) => setToYear(event.target.value)}
-        />
-        <Button size='sm' type='submit'>
-          <Search className='size-4' />
-          筛选
-        </Button>
-        <Button size='sm' type='button' variant='ghost' onClick={reset}>
-          <X className='size-4' />
-          重置
-        </Button>
-        <div className='ms-auto flex gap-2'>
+      <form
+        className='flex w-full flex-col items-start justify-between gap-2 lg:flex-row lg:items-center'
+        onSubmit={submit}
+      >
+        <div
+          className='flex flex-1 flex-wrap items-center gap-2'
+          role='group'
+          aria-label='专利搜索条件'
+        >
+          <Input
+            className='h-8 w-56'
+            aria-label='专利标题'
+            placeholder='标题关键词'
+            value={title}
+            onChange={(event) => setTitle(event.target.value)}
+          />
+          <Input
+            className='h-8 w-36'
+            aria-label='CPC 前缀'
+            placeholder='CPC 前缀'
+            value={cpcPrefix}
+            onChange={(event) => setCpcPrefix(event.target.value)}
+          />
+          <Input
+            className='h-8 w-48'
+            aria-label='受让人'
+            placeholder='受让人'
+            value={partyName}
+            onChange={(event) => setPartyName(event.target.value)}
+          />
+          <YearRangePicker
+            fromYear={fromYear}
+            toYear={toYear}
+            onChange={(range) => {
+              setFromYear(range.fromYear)
+              setToYear(range.toYear)
+            }}
+          />
+          <Button size='sm' type='submit'>
+            <Search className='size-4' />
+            搜索
+          </Button>
+          {hasFilters ? (
+            <Button size='sm' type='button' variant='ghost' onClick={reset}>
+              <X className='size-4' />
+              重置
+            </Button>
+          ) : null}
+        </div>
+        <div className='flex shrink-0 gap-2' role='group' aria-label='专利排序'>
           <Select
             value={query.sort}
             onValueChange={(sort: CatalogPatentListQuery['sort']) =>
               onQueryChange({ page: 1, sort })
             }
           >
-            <SelectTrigger className='h-9 w-36' aria-label='专利排序字段'>
+            <SelectTrigger className='h-8 w-36' aria-label='专利排序字段'>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -223,7 +273,7 @@ export function CatalogPatentTable({
               onQueryChange({ page: 1, order })
             }
           >
-            <SelectTrigger className='h-9 w-24' aria-label='专利排序方向'>
+            <SelectTrigger className='h-8 w-24' aria-label='专利排序方向'>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -234,13 +284,20 @@ export function CatalogPatentTable({
         </div>
       </form>
 
-      <div className='overflow-hidden rounded-md border'>
-        <Table className='min-w-5xl'>
+      <div className='overflow-hidden rounded-md border [&_[data-slot=table-container]]:overflow-x-hidden'>
+        <Table className='table-fixed'>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
                 {headerGroup.headers.map((header) => (
-                  <TableHead key={header.id}>
+                  <TableHead
+                    key={header.id}
+                    className={cn(
+                      'overflow-hidden',
+                      header.column.columnDef.meta?.className,
+                      header.column.columnDef.meta?.thClassName
+                    )}
+                  >
                     {header.isPlaceholder
                       ? null
                       : flexRender(
@@ -257,7 +314,14 @@ export function CatalogPatentTable({
               table.getRowModel().rows.map((row) => (
                 <TableRow key={row.id}>
                   {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id}>
+                    <TableCell
+                      key={cell.id}
+                      className={cn(
+                        'overflow-hidden',
+                        cell.column.columnDef.meta?.className,
+                        cell.column.columnDef.meta?.tdClassName
+                      )}
+                    >
                       {flexRender(
                         cell.column.columnDef.cell,
                         cell.getContext()

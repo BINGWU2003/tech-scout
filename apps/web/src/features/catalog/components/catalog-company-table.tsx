@@ -31,38 +31,55 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { cn } from '@/lib/utils'
+import { CatalogTableTooltip } from './catalog-table-tooltip'
 
 const columns: ColumnDef<CatalogCompanySummary>[] = [
   {
     accessorKey: 'preferredName',
     header: '公司',
-    cell: ({ row }) => (
-      <div className='min-w-56'>
-        <a
-          className='font-medium text-primary hover:underline'
-          href={`/catalog/companies/${encodeURIComponent(row.original.companyId)}`}
-        >
-          {row.original.preferredName}
-        </a>
-        <div className='mt-1 text-xs text-muted-foreground'>
-          {row.original.legalName ?? row.original.companyId}
+    meta: { className: 'w-[34%] max-w-0' },
+    cell: ({ row }) => {
+      const secondaryName = row.original.legalName ?? row.original.companyId
+
+      return (
+        <div className='flex min-w-0 flex-col items-start'>
+          <CatalogTableTooltip content={row.original.preferredName}>
+            <a
+              className='inline-block max-w-full truncate align-bottom font-medium text-primary hover:underline'
+              href={`/catalog/companies/${encodeURIComponent(row.original.companyId)}`}
+            >
+              {row.original.preferredName}
+            </a>
+          </CatalogTableTooltip>
+          <CatalogTableTooltip content={secondaryName}>
+            <span
+              className='mt-1 inline-block max-w-full truncate align-bottom text-xs text-muted-foreground'
+              tabIndex={0}
+            >
+              {secondaryName}
+            </span>
+          </CatalogTableTooltip>
         </div>
-      </div>
-    ),
+      )
+    },
   },
   {
     accessorKey: 'country',
     header: '国家/地区',
+    meta: { className: 'w-[13%]' },
     cell: ({ row }) => row.original.country ?? '未知',
   },
   {
     accessorKey: 'provider',
     header: '身份来源',
+    meta: { className: 'w-[14%]' },
     cell: ({ row }) => <Badge variant='outline'>{row.original.provider}</Badge>,
   },
   {
     accessorKey: 'patentCount',
     header: '相关专利',
+    meta: { className: 'w-[12%]' },
     cell: ({ row }) => (
       <span className='tabular-nums'>{row.original.patentCount}</span>
     ),
@@ -70,11 +87,13 @@ const columns: ColumnDef<CatalogCompanySummary>[] = [
   {
     accessorKey: 'latestPatentDate',
     header: '最近授权',
+    meta: { className: 'w-[15%]' },
     cell: ({ row }) => row.original.latestPatentDate ?? '未知',
   },
   {
     accessorKey: 'entityStatus',
     header: '主体状态',
+    meta: { className: 'w-[12%]' },
     cell: ({ row }) => row.original.entityStatus ?? '未知',
   },
 ]
@@ -92,6 +111,7 @@ export function CatalogCompanyTable({
 }: CatalogCompanyTableProps) {
   const [search, setSearch] = useState(query.query ?? '')
   const [country, setCountry] = useState(query.country ?? '')
+  const hasFilters = search.trim() !== '' || country.trim() !== ''
   const pagination: PaginationState = {
     pageIndex: result.page - 1,
     pageSize: result.pageSize,
@@ -130,37 +150,48 @@ export function CatalogCompanyTable({
 
   return (
     <div className='flex flex-1 flex-col gap-4'>
-      <form className='flex flex-wrap items-center gap-2' onSubmit={submit}>
-        <Input
-          className='h-9 w-64'
-          aria-label='搜索公司'
-          placeholder='名称、别名或外部 ID'
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-        />
-        <Input
-          className='h-9 w-28'
-          aria-label='国家或地区代码'
-          placeholder='国家代码'
-          value={country}
-          onChange={(event) => setCountry(event.target.value)}
-        />
-        <Button size='sm' type='submit'>
-          <Search className='size-4' />
-          筛选
-        </Button>
-        <Button size='sm' type='button' variant='ghost' onClick={reset}>
-          <X className='size-4' />
-          重置
-        </Button>
-        <div className='ms-auto flex gap-2'>
+      <form
+        className='flex w-full flex-col items-start justify-between gap-2 lg:flex-row lg:items-center'
+        onSubmit={submit}
+      >
+        <div
+          className='flex flex-1 flex-wrap items-center gap-2'
+          role='group'
+          aria-label='公司搜索条件'
+        >
+          <Input
+            className='h-8 w-48 lg:w-72'
+            aria-label='搜索公司'
+            placeholder='名称、别名或外部 ID'
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+          />
+          <Input
+            className='h-8 w-28'
+            aria-label='国家或地区代码'
+            placeholder='国家代码'
+            value={country}
+            onChange={(event) => setCountry(event.target.value)}
+          />
+          <Button size='sm' type='submit'>
+            <Search className='size-4' />
+            搜索
+          </Button>
+          {hasFilters ? (
+            <Button size='sm' type='button' variant='ghost' onClick={reset}>
+              <X className='size-4' />
+              重置
+            </Button>
+          ) : null}
+        </div>
+        <div className='flex shrink-0 gap-2' role='group' aria-label='公司排序'>
           <Select
             value={query.sort}
             onValueChange={(sort: CatalogCompanyListQuery['sort']) =>
               onQueryChange({ page: 1, sort })
             }
           >
-            <SelectTrigger className='h-9 w-36' aria-label='公司排序字段'>
+            <SelectTrigger className='h-8 w-36' aria-label='公司排序字段'>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -175,7 +206,7 @@ export function CatalogCompanyTable({
               onQueryChange({ page: 1, order })
             }
           >
-            <SelectTrigger className='h-9 w-24' aria-label='公司排序方向'>
+            <SelectTrigger className='h-8 w-24' aria-label='公司排序方向'>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -186,13 +217,20 @@ export function CatalogCompanyTable({
         </div>
       </form>
 
-      <div className='overflow-hidden rounded-md border'>
-        <Table className='min-w-4xl'>
+      <div className='overflow-hidden rounded-md border [&_[data-slot=table-container]]:overflow-x-hidden'>
+        <Table className='table-fixed'>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
                 {headerGroup.headers.map((header) => (
-                  <TableHead key={header.id}>
+                  <TableHead
+                    key={header.id}
+                    className={cn(
+                      'overflow-hidden',
+                      header.column.columnDef.meta?.className,
+                      header.column.columnDef.meta?.thClassName
+                    )}
+                  >
                     {header.isPlaceholder
                       ? null
                       : flexRender(
@@ -209,7 +247,14 @@ export function CatalogCompanyTable({
               table.getRowModel().rows.map((row) => (
                 <TableRow key={row.id}>
                   {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id}>
+                    <TableCell
+                      key={cell.id}
+                      className={cn(
+                        'overflow-hidden',
+                        cell.column.columnDef.meta?.className,
+                        cell.column.columnDef.meta?.tdClassName
+                      )}
+                    >
                       {flexRender(
                         cell.column.columnDef.cell,
                         cell.getContext()

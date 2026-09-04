@@ -97,6 +97,12 @@ describe('CatalogCandidateDetail 候选项详情', () => {
     await expect
       .element(screen.getByRole('link', { name: '查看证据' }))
       .toHaveAttribute('href', 'https://example.com/evidence/2')
+    const legalName = screen.getByText('Jane Doe')
+    await expect.element(legalName).toHaveClass('inline-block')
+    await userEvent.hover(legalName)
+    await expect
+      .element(screen.getByRole('tooltip'))
+      .toHaveTextContent('Jane Doe')
     await userEvent.click(screen.getByRole('button', { name: '前往第 2 页' }))
     expect(onPageChange).toHaveBeenCalledWith(2)
   })
