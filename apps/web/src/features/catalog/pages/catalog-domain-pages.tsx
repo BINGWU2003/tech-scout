@@ -1,8 +1,8 @@
 import { useQuery } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
 import {
-  type CatalogCompanyListQuery,
-  type CatalogPatentListQuery,
+  catalogCompanyListQuerySchema,
+  catalogPatentListQuerySchema,
 } from '@tech-scout/contracts'
 import { Skeleton } from '@/components/ui/skeleton'
 import { catalogApi } from '@/lib/catalog-api'
@@ -13,6 +13,7 @@ import {
   CatalogUnavailableFields,
 } from '../components/catalog-query-state'
 import { CatalogDomainTabs, CatalogShell } from '../components/catalog-shell'
+import { useCatalogQueryState } from '../hooks/use-catalog-query-state'
 
 const companiesRoute = getRouteApi(
   '/_authenticated/catalog/domains/$domainId/companies'
@@ -23,18 +24,17 @@ const patentsRoute = getRouteApi(
 
 export function CatalogDomainCompaniesPage() {
   const { domainId } = companiesRoute.useParams()
-  const search = companiesRoute.useSearch()
-  const navigate = companiesRoute.useNavigate()
+  const { query, updateQuery } = useCatalogQueryState(
+    catalogCompanyListQuerySchema
+  )
   const domain = useQuery({
     queryKey: ['catalog', 'domain', domainId],
     queryFn: () => catalogApi.domain(domainId),
   })
   const companies = useQuery({
-    queryKey: ['catalog', 'domain-companies', domainId, search],
-    queryFn: () => catalogApi.domainCompanies(domainId, search),
+    queryKey: ['catalog', 'domain-companies', domainId, query],
+    queryFn: () => catalogApi.domainCompanies(domainId, query),
   })
-  const updateQuery = (patch: Partial<CatalogCompanyListQuery>) =>
-    navigate({ search: (previous) => ({ ...previous, ...patch }) })
   const error = companies.error ?? domain.error
 
   return (
@@ -50,7 +50,7 @@ export function CatalogDomainCompaniesPage() {
         <>
           <CatalogCompanyTable
             result={companies.data}
-            query={search}
+            query={query}
             onQueryChange={updateQuery}
           />
           <CatalogUnavailableFields
@@ -66,18 +66,17 @@ export function CatalogDomainCompaniesPage() {
 
 export function CatalogDomainPatentsPage() {
   const { domainId } = patentsRoute.useParams()
-  const search = patentsRoute.useSearch()
-  const navigate = patentsRoute.useNavigate()
+  const { query, updateQuery } = useCatalogQueryState(
+    catalogPatentListQuerySchema
+  )
   const domain = useQuery({
     queryKey: ['catalog', 'domain', domainId],
     queryFn: () => catalogApi.domain(domainId),
   })
   const patents = useQuery({
-    queryKey: ['catalog', 'domain-patents', domainId, search],
-    queryFn: () => catalogApi.domainPatents(domainId, search),
+    queryKey: ['catalog', 'domain-patents', domainId, query],
+    queryFn: () => catalogApi.domainPatents(domainId, query),
   })
-  const updateQuery = (patch: Partial<CatalogPatentListQuery>) =>
-    navigate({ search: (previous) => ({ ...previous, ...patch }) })
   const error = patents.error ?? domain.error
 
   return (
@@ -93,7 +92,7 @@ export function CatalogDomainPatentsPage() {
         <>
           <CatalogPatentTable
             result={patents.data}
-            query={search}
+            query={query}
             onQueryChange={updateQuery}
           />
           <CatalogUnavailableFields

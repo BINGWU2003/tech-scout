@@ -1,8 +1,8 @@
 import { useQuery } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
 import {
-  type CatalogCompanyListQuery,
-  type CatalogCompanyPatentListQuery,
+  catalogCompanyListQuerySchema,
+  catalogCompanyPatentListQuerySchema,
 } from '@tech-scout/contracts'
 import { Skeleton } from '@/components/ui/skeleton'
 import { catalogApi } from '@/lib/catalog-api'
@@ -14,8 +14,8 @@ import {
   CatalogUnavailableFields,
 } from '../components/catalog-query-state'
 import { CatalogShell } from '../components/catalog-shell'
+import { useCatalogQueryState } from '../hooks/use-catalog-query-state'
 
-const companiesRoute = getRouteApi('/_authenticated/catalog/companies/')
 const companyRoute = getRouteApi(
   '/_authenticated/catalog/companies/$companyId/'
 )
@@ -24,14 +24,13 @@ const companyPatentsRoute = getRouteApi(
 )
 
 export function CatalogCompaniesPage() {
-  const search = companiesRoute.useSearch()
-  const navigate = companiesRoute.useNavigate()
+  const { query, updateQuery } = useCatalogQueryState(
+    catalogCompanyListQuerySchema
+  )
   const companies = useQuery({
-    queryKey: ['catalog', 'companies', search],
-    queryFn: () => catalogApi.companies(search),
+    queryKey: ['catalog', 'companies', query],
+    queryFn: () => catalogApi.companies(query),
   })
-  const updateQuery = (patch: Partial<CatalogCompanyListQuery>) =>
-    navigate({ search: (previous) => ({ ...previous, ...patch }) })
 
   return (
     <CatalogShell
@@ -45,7 +44,7 @@ export function CatalogCompaniesPage() {
         <>
           <CatalogCompanyTable
             result={companies.data}
-            query={search}
+            query={query}
             onQueryChange={updateQuery}
           />
           <CatalogUnavailableFields
@@ -61,6 +60,7 @@ export function CatalogCompaniesPage() {
 
 export function CatalogCompanyPage() {
   const { companyId } = companyRoute.useParams()
+  const navigate = companyRoute.useNavigate()
   const company = useQuery({
     queryKey: ['catalog', 'company', companyId],
     queryFn: () => catalogApi.company(companyId),
@@ -77,7 +77,21 @@ export function CatalogCompanyPage() {
         <CatalogLoadError error={company.error} title='公司详情加载失败' />
       ) : company.data ? (
         <>
-          <CatalogCompanyDetail company={company.data.company} />
+          <CatalogCompanyDetail
+            company={company.data.company}
+            onDomainPatentsOpen={(domainId) =>
+              navigate({
+                to: '/catalog/companies/$companyId/patents',
+                params: { companyId },
+                state: (previous) => ({
+                  ...previous,
+                  catalogQuery: catalogCompanyPatentListQuerySchema.parse({
+                    domainId,
+                  }),
+                }),
+              })
+            }
+          />
           <CatalogUnavailableFields
             fields={company.data.release.unavailableFields}
           />
@@ -91,26 +105,25 @@ export function CatalogCompanyPage() {
 
 export function CatalogCompanyPatentsPage() {
   const { companyId } = companyPatentsRoute.useParams()
-  const search = companyPatentsRoute.useSearch()
-  const navigate = companyPatentsRoute.useNavigate()
+  const { query, updateQuery } = useCatalogQueryState(
+    catalogCompanyPatentListQuerySchema
+  )
   const company = useQuery({
     queryKey: ['catalog', 'company', companyId],
     queryFn: () => catalogApi.company(companyId),
   })
   const patents = useQuery({
-    queryKey: ['catalog', 'company-patents', companyId, search],
-    queryFn: () => catalogApi.companyPatents(companyId, search),
+    queryKey: ['catalog', 'company-patents', companyId, query],
+    queryFn: () => catalogApi.companyPatents(companyId, query),
   })
-  const updateQuery = (patch: Partial<CatalogCompanyPatentListQuery>) =>
-    navigate({ search: (previous) => ({ ...previous, ...patch }) })
   const error = company.error ?? patents.error
 
   return (
     <CatalogShell
       title={`${company.data?.company.preferredName ?? '公司'}的专利`}
       description={
-        search.domainId
-          ? `已限定领域：${search.domainId}`
+        query.domainId
+          ? `已限定领域：${query.domainId}`
           : '当前发布中与该公司已接受匹配关联的全部专利。'
       }
       releaseId={patents.data?.release.releaseId}
@@ -122,7 +135,7 @@ export function CatalogCompanyPatentsPage() {
         <>
           <CatalogPatentTable
             result={patents.data}
-            query={search}
+            query={query}
             onQueryChange={updateQuery}
           />
           <CatalogUnavailableFields

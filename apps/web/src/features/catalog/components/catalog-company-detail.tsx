@@ -16,8 +16,10 @@ function valueOrUnknown(value: null | string) {
 
 export function CatalogCompanyDetail({
   company,
+  onDomainPatentsOpen,
 }: {
   company: CatalogCompanyDetailData
+  onDomainPatentsOpen?: (domainId: string) => void
 }) {
   return (
     <div className='grid gap-4 xl:grid-cols-3'>
@@ -135,7 +137,21 @@ export function CatalogCompanyDetail({
                       <TableCell>
                         <a
                           className='font-medium text-primary hover:underline'
-                          href={`/catalog/companies/${encodeURIComponent(company.companyId)}/patents?domainId=${encodeURIComponent(domain.domainId)}`}
+                          href={`/catalog/companies/${encodeURIComponent(company.companyId)}/patents`}
+                          onClick={(event) => {
+                            if (
+                              !onDomainPatentsOpen ||
+                              event.button !== 0 ||
+                              event.metaKey ||
+                              event.ctrlKey ||
+                              event.shiftKey ||
+                              event.altKey
+                            ) {
+                              return
+                            }
+                            event.preventDefault()
+                            onDomainPatentsOpen(domain.domainId)
+                          }}
                         >
                           {domain.domainName}
                         </a>

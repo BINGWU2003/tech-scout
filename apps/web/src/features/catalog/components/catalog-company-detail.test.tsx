@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { render } from 'vitest-browser-react'
 import { CatalogCompanyDetail } from './catalog-company-detail'
 
@@ -97,15 +97,28 @@ describe('CatalogCompanyDetail 公司详情', () => {
       .element(
         screen.getByRole('link', { name: /AI chips and edge inference/ })
       )
-      .toHaveAttribute(
-        'href',
-        '/catalog/companies/company-1/patents?domainId=ai_chips_edge_inference'
-      )
+      .toHaveAttribute('href', '/catalog/companies/company-1/patents')
     await expect
       .element(screen.getByRole('link', { name: 'Acme Holdings' }))
       .toHaveAttribute('href', '/catalog/companies/company-2')
     await expect
       .element(screen.getByRole('link', { name: 'ACME AI INC' }))
       .toHaveAttribute('href', '/catalog/candidates/candidate-1')
+  })
+
+  it('通过页面导航状态打开指定领域的公司专利', async () => {
+    const onDomainPatentsOpen = vi.fn()
+    const screen = await render(
+      <CatalogCompanyDetail
+        company={company}
+        onDomainPatentsOpen={onDomainPatentsOpen}
+      />
+    )
+
+    await screen
+      .getByRole('link', { name: /AI chips and edge inference/ })
+      .click()
+
+    expect(onDomainPatentsOpen).toHaveBeenCalledWith('ai_chips_edge_inference')
   })
 })

@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
+import { catalogPageQuerySchema } from '@tech-scout/contracts'
 import { Skeleton } from '@/components/ui/skeleton'
 import { catalogApi } from '@/lib/catalog-api'
 import { CatalogCandidateDetail } from '../components/catalog-candidate-detail'
@@ -9,6 +10,7 @@ import {
   CatalogUnavailableFields,
 } from '../components/catalog-query-state'
 import { CatalogShell } from '../components/catalog-shell'
+import { useCatalogQueryState } from '../hooks/use-catalog-query-state'
 
 const patentRoute = getRouteApi('/_authenticated/catalog/patents/$patentId')
 const candidateRoute = getRouteApi(
@@ -46,15 +48,14 @@ export function CatalogPatentPage() {
 
 export function CatalogCandidatePage() {
   const { candidateId } = candidateRoute.useParams()
-  const search = candidateRoute.useSearch()
-  const navigate = candidateRoute.useNavigate()
+  const { query, updateQuery } = useCatalogQueryState(catalogPageQuerySchema)
   const candidate = useQuery({
     queryKey: ['catalog', 'candidate', candidateId],
     queryFn: () => catalogApi.candidate(candidateId),
   })
   const evidence = useQuery({
-    queryKey: ['catalog', 'candidate-evidence', candidateId, search],
-    queryFn: () => catalogApi.candidateEvidence(candidateId, search),
+    queryKey: ['catalog', 'candidate-evidence', candidateId, query],
+    queryFn: () => catalogApi.candidateEvidence(candidateId, query),
   })
   const error = candidate.error ?? evidence.error
 
@@ -71,9 +72,7 @@ export function CatalogCandidatePage() {
           <CatalogCandidateDetail
             candidate={candidate.data.candidate}
             evidence={evidence.data}
-            onPageChange={(page) =>
-              navigate({ search: (previous) => ({ ...previous, page }) })
-            }
+            onPageChange={(page) => updateQuery({ page })}
           />
           <CatalogUnavailableFields
             fields={evidence.data.release.unavailableFields}
