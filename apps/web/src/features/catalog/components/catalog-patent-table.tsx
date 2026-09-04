@@ -1,4 +1,3 @@
-import { Link } from '@tanstack/react-router'
 import {
   flexRender,
   getCoreRowModel,
@@ -12,7 +11,7 @@ import {
   type CatalogPatentSummary,
 } from '@tech-scout/contracts'
 import { X } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { DataTablePagination } from '@/components/data-table'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -34,101 +33,110 @@ import {
 } from '@/components/ui/table'
 import { useDebouncedCallback } from '@/hooks/use-debounced-callback'
 import { cn } from '@/lib/utils'
+import {
+  CatalogPatentDetailDialog,
+  type CatalogPatentReference,
+} from './catalog-patent-detail-dialog'
 import { CatalogTableTooltip } from './catalog-table-tooltip'
 import { YearRangePicker } from './year-range-picker'
 
-const columns: ColumnDef<CatalogPatentSummary>[] = [
-  {
-    accessorKey: 'title',
-    header: '专利',
-    meta: { className: 'w-[34%] max-w-0' },
-    cell: ({ row }) => (
-      <div className='flex min-w-0 flex-col items-start'>
-        <CatalogTableTooltip content={row.original.title}>
-          <Link
-            className='inline-block max-w-full truncate align-bottom font-medium text-primary hover:underline'
-            to='/catalog/patents/$patentId'
-            params={{ patentId: row.original.patentId }}
-          >
-            {row.original.title}
-          </Link>
-        </CatalogTableTooltip>
-        <CatalogTableTooltip content={row.original.patentId}>
-          <span
-            className='mt-1 inline-block max-w-full truncate align-bottom text-xs text-muted-foreground'
-            tabIndex={0}
-          >
-            {row.original.patentId}
-          </span>
-        </CatalogTableTooltip>
-      </div>
-    ),
-  },
-  {
-    accessorKey: 'patentDate',
-    header: '授权日期',
-    meta: { className: 'w-[14%]' },
-    cell: ({ row }) => row.original.patentDate,
-  },
-  {
-    id: 'assignees',
-    header: '受让人',
-    meta: { className: 'w-[25%] max-w-0' },
-    cell: ({ row }) => {
-      const assignees = row.original.assignees.join('、') || '未知'
-
-      return (
-        <CatalogTableTooltip content={assignees}>
-          <span
-            className='inline-block max-w-full truncate align-bottom'
-            tabIndex={0}
-          >
-            {assignees}
-          </span>
-        </CatalogTableTooltip>
-      )
+function createColumns(
+  onOpen: (patent: CatalogPatentReference, trigger: HTMLButtonElement) => void
+): ColumnDef<CatalogPatentSummary>[] {
+  return [
+    {
+      accessorKey: 'title',
+      header: '专利',
+      meta: { className: 'w-[34%] max-w-0' },
+      cell: ({ row }) => (
+        <div className='flex min-w-0 flex-col items-start'>
+          <CatalogTableTooltip content={row.original.title}>
+            <Button
+              className='h-auto max-w-full justify-start truncate p-0 align-bottom'
+              type='button'
+              variant='link'
+              onClick={(event) => onOpen(row.original, event.currentTarget)}
+            >
+              {row.original.title}
+            </Button>
+          </CatalogTableTooltip>
+          <CatalogTableTooltip content={row.original.patentId}>
+            <span
+              className='mt-1 inline-block max-w-full truncate align-bottom text-xs text-muted-foreground'
+              tabIndex={0}
+            >
+              {row.original.patentId}
+            </span>
+          </CatalogTableTooltip>
+        </div>
+      ),
     },
-  },
-  {
-    id: 'cpcGroups',
-    header: 'CPC',
-    meta: { className: 'w-[19%] max-w-0' },
-    cell: ({ row }) => {
-      const cpcGroups = row.original.cpcGroups
-      const content = cpcGroups.join('、') || '未知'
-
-      return (
-        <CatalogTableTooltip content={content}>
-          <span
-            className='inline-grid max-w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-1 align-bottom'
-            tabIndex={0}
-          >
-            {cpcGroups.length ? (
-              <>
-                <Badge variant='secondary' className='max-w-full min-w-0'>
-                  <span className='truncate'>{cpcGroups[0]}</span>
-                </Badge>
-                {cpcGroups.length > 1 ? (
-                  <Badge variant='outline'>+{cpcGroups.length - 1}</Badge>
-                ) : null}
-              </>
-            ) : (
-              <span>未知</span>
-            )}
-          </span>
-        </CatalogTableTooltip>
-      )
+    {
+      accessorKey: 'patentDate',
+      header: '授权日期',
+      meta: { className: 'w-[14%]' },
+      cell: ({ row }) => row.original.patentDate,
     },
-  },
-  {
-    accessorKey: 'totalScore',
-    header: '入域分',
-    meta: { className: 'w-[8%]' },
-    cell: ({ row }) => (
-      <span className='tabular-nums'>{row.original.totalScore}</span>
-    ),
-  },
-]
+    {
+      id: 'assignees',
+      header: '受让人',
+      meta: { className: 'w-[25%] max-w-0' },
+      cell: ({ row }) => {
+        const assignees = row.original.assignees.join('、') || '未知'
+
+        return (
+          <CatalogTableTooltip content={assignees}>
+            <span
+              className='inline-block max-w-full truncate align-bottom'
+              tabIndex={0}
+            >
+              {assignees}
+            </span>
+          </CatalogTableTooltip>
+        )
+      },
+    },
+    {
+      id: 'cpcGroups',
+      header: 'CPC',
+      meta: { className: 'w-[19%] max-w-0' },
+      cell: ({ row }) => {
+        const cpcGroups = row.original.cpcGroups
+        const content = cpcGroups.join('、') || '未知'
+
+        return (
+          <CatalogTableTooltip content={content}>
+            <span
+              className='inline-grid max-w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-1 align-bottom'
+              tabIndex={0}
+            >
+              {cpcGroups.length ? (
+                <>
+                  <Badge variant='secondary' className='max-w-full min-w-0'>
+                    <span className='truncate'>{cpcGroups[0]}</span>
+                  </Badge>
+                  {cpcGroups.length > 1 ? (
+                    <Badge variant='outline'>+{cpcGroups.length - 1}</Badge>
+                  ) : null}
+                </>
+              ) : (
+                <span>未知</span>
+              )}
+            </span>
+          </CatalogTableTooltip>
+        )
+      },
+    },
+    {
+      accessorKey: 'totalScore',
+      header: '入域分',
+      meta: { className: 'w-[8%]' },
+      cell: ({ row }) => (
+        <span className='tabular-nums'>{row.original.totalScore}</span>
+      ),
+    },
+  ]
+}
 
 type CatalogPatentTableProps = {
   result: CatalogPatentList
@@ -146,6 +154,17 @@ export function CatalogPatentTable({
   const [partyName, setPartyName] = useState(query.partyName ?? '')
   const [fromYear, setFromYear] = useState(query.fromYear)
   const [toYear, setToYear] = useState(query.toYear)
+  const [selectedPatent, setSelectedPatent] =
+    useState<CatalogPatentReference | null>(null)
+  const patentTriggerRef = useRef<HTMLButtonElement>(null)
+  const columns = useMemo(
+    () =>
+      createColumns((patent, trigger) => {
+        patentTriggerRef.current = trigger
+        setSelectedPatent(patent)
+      }),
+    []
+  )
   const hasFilters =
     title.trim() !== '' ||
     cpcPrefix.trim() !== '' ||
@@ -374,6 +393,13 @@ export function CatalogPatentTable({
         </Table>
       </div>
       <DataTablePagination table={table} className='mt-auto' />
+      <CatalogPatentDetailDialog
+        patent={selectedPatent}
+        onOpenChange={(open) => {
+          if (!open) setSelectedPatent(null)
+        }}
+        returnFocusRef={patentTriggerRef}
+      />
     </div>
   )
 }

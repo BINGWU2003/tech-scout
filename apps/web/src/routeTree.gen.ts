@@ -31,9 +31,7 @@ import { Route as AuthenticatedSettingsAppearanceRouteImport } from './routes/_a
 import { Route as AuthenticatedSettingsAccountRouteImport } from './routes/_authenticated/settings/account'
 import { Route as AuthenticatedErrorsErrorRouteImport } from './routes/_authenticated/errors/$error'
 import { Route as AuthenticatedCatalogCompaniesIndexRouteImport } from './routes/_authenticated/catalog/companies/index'
-import { Route as AuthenticatedCatalogPatentsPatentIdRouteImport } from './routes/_authenticated/catalog/patents/$patentId'
 import { Route as AuthenticatedCatalogCandidatesCandidateIdRouteImport } from './routes/_authenticated/catalog/candidates/$candidateId'
-import { Route as AuthenticatedCatalogCompaniesCompanyIdIndexRouteImport } from './routes/_authenticated/catalog/companies/$companyId/index'
 import { Route as AuthenticatedCatalogDomainsDomainIdPatentsRouteImport } from './routes/_authenticated/catalog/domains/$domainId/patents'
 import { Route as AuthenticatedCatalogDomainsDomainIdCompaniesRouteImport } from './routes/_authenticated/catalog/domains/$domainId/companies'
 import { Route as AuthenticatedCatalogCompaniesCompanyIdPatentsRouteImport } from './routes/_authenticated/catalog/companies/$companyId/patents'
@@ -156,22 +154,10 @@ const AuthenticatedCatalogCompaniesIndexRoute =
     path: '/catalog/companies/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
-const AuthenticatedCatalogPatentsPatentIdRoute =
-  AuthenticatedCatalogPatentsPatentIdRouteImport.update({
-    id: '/catalog/patents/$patentId',
-    path: '/catalog/patents/$patentId',
-    getParentRoute: () => AuthenticatedRouteRoute,
-  } as any)
 const AuthenticatedCatalogCandidatesCandidateIdRoute =
   AuthenticatedCatalogCandidatesCandidateIdRouteImport.update({
     id: '/catalog/candidates/$candidateId',
     path: '/catalog/candidates/$candidateId',
-    getParentRoute: () => AuthenticatedRouteRoute,
-  } as any)
-const AuthenticatedCatalogCompaniesCompanyIdIndexRoute =
-  AuthenticatedCatalogCompaniesCompanyIdIndexRouteImport.update({
-    id: '/catalog/companies/$companyId/',
-    path: '/catalog/companies/$companyId/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedCatalogDomainsDomainIdPatentsRoute =
@@ -215,12 +201,10 @@ export interface FileRoutesByFullPath {
   '/tasks/': typeof AuthenticatedTasksIndexRoute
   '/users/': typeof AuthenticatedUsersIndexRoute
   '/catalog/candidates/$candidateId': typeof AuthenticatedCatalogCandidatesCandidateIdRoute
-  '/catalog/patents/$patentId': typeof AuthenticatedCatalogPatentsPatentIdRoute
   '/catalog/companies/': typeof AuthenticatedCatalogCompaniesIndexRoute
   '/catalog/companies/$companyId/patents': typeof AuthenticatedCatalogCompaniesCompanyIdPatentsRoute
   '/catalog/domains/$domainId/companies': typeof AuthenticatedCatalogDomainsDomainIdCompaniesRoute
   '/catalog/domains/$domainId/patents': typeof AuthenticatedCatalogDomainsDomainIdPatentsRoute
-  '/catalog/companies/$companyId/': typeof AuthenticatedCatalogCompaniesCompanyIdIndexRoute
 }
 export interface FileRoutesByTo {
   '/sign-in': typeof authSignInRoute
@@ -243,12 +227,10 @@ export interface FileRoutesByTo {
   '/tasks': typeof AuthenticatedTasksIndexRoute
   '/users': typeof AuthenticatedUsersIndexRoute
   '/catalog/candidates/$candidateId': typeof AuthenticatedCatalogCandidatesCandidateIdRoute
-  '/catalog/patents/$patentId': typeof AuthenticatedCatalogPatentsPatentIdRoute
   '/catalog/companies': typeof AuthenticatedCatalogCompaniesIndexRoute
   '/catalog/companies/$companyId/patents': typeof AuthenticatedCatalogCompaniesCompanyIdPatentsRoute
   '/catalog/domains/$domainId/companies': typeof AuthenticatedCatalogDomainsDomainIdCompaniesRoute
   '/catalog/domains/$domainId/patents': typeof AuthenticatedCatalogDomainsDomainIdPatentsRoute
-  '/catalog/companies/$companyId': typeof AuthenticatedCatalogCompaniesCompanyIdIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -274,12 +256,10 @@ export interface FileRoutesById {
   '/_authenticated/tasks/': typeof AuthenticatedTasksIndexRoute
   '/_authenticated/users/': typeof AuthenticatedUsersIndexRoute
   '/_authenticated/catalog/candidates/$candidateId': typeof AuthenticatedCatalogCandidatesCandidateIdRoute
-  '/_authenticated/catalog/patents/$patentId': typeof AuthenticatedCatalogPatentsPatentIdRoute
   '/_authenticated/catalog/companies/': typeof AuthenticatedCatalogCompaniesIndexRoute
   '/_authenticated/catalog/companies/$companyId/patents': typeof AuthenticatedCatalogCompaniesCompanyIdPatentsRoute
   '/_authenticated/catalog/domains/$domainId/companies': typeof AuthenticatedCatalogDomainsDomainIdCompaniesRoute
   '/_authenticated/catalog/domains/$domainId/patents': typeof AuthenticatedCatalogDomainsDomainIdPatentsRoute
-  '/_authenticated/catalog/companies/$companyId/': typeof AuthenticatedCatalogCompaniesCompanyIdIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -305,12 +285,10 @@ export interface FileRouteTypes {
     | '/tasks/'
     | '/users/'
     | '/catalog/candidates/$candidateId'
-    | '/catalog/patents/$patentId'
     | '/catalog/companies/'
     | '/catalog/companies/$companyId/patents'
     | '/catalog/domains/$domainId/companies'
     | '/catalog/domains/$domainId/patents'
-    | '/catalog/companies/$companyId/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/sign-in'
@@ -333,12 +311,10 @@ export interface FileRouteTypes {
     | '/tasks'
     | '/users'
     | '/catalog/candidates/$candidateId'
-    | '/catalog/patents/$patentId'
     | '/catalog/companies'
     | '/catalog/companies/$companyId/patents'
     | '/catalog/domains/$domainId/companies'
     | '/catalog/domains/$domainId/patents'
-    | '/catalog/companies/$companyId'
   id:
     | '__root__'
     | '/_authenticated'
@@ -363,12 +339,10 @@ export interface FileRouteTypes {
     | '/_authenticated/tasks/'
     | '/_authenticated/users/'
     | '/_authenticated/catalog/candidates/$candidateId'
-    | '/_authenticated/catalog/patents/$patentId'
     | '/_authenticated/catalog/companies/'
     | '/_authenticated/catalog/companies/$companyId/patents'
     | '/_authenticated/catalog/domains/$domainId/companies'
     | '/_authenticated/catalog/domains/$domainId/patents'
-    | '/_authenticated/catalog/companies/$companyId/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -538,25 +512,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedCatalogCompaniesIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/_authenticated/catalog/patents/$patentId': {
-      id: '/_authenticated/catalog/patents/$patentId'
-      path: '/catalog/patents/$patentId'
-      fullPath: '/catalog/patents/$patentId'
-      preLoaderRoute: typeof AuthenticatedCatalogPatentsPatentIdRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
     '/_authenticated/catalog/candidates/$candidateId': {
       id: '/_authenticated/catalog/candidates/$candidateId'
       path: '/catalog/candidates/$candidateId'
       fullPath: '/catalog/candidates/$candidateId'
       preLoaderRoute: typeof AuthenticatedCatalogCandidatesCandidateIdRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/catalog/companies/$companyId/': {
-      id: '/_authenticated/catalog/companies/$companyId/'
-      path: '/catalog/companies/$companyId'
-      fullPath: '/catalog/companies/$companyId/'
-      preLoaderRoute: typeof AuthenticatedCatalogCompaniesCompanyIdIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/catalog/domains/$domainId/patents': {
@@ -614,12 +574,10 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedTasksIndexRoute: typeof AuthenticatedTasksIndexRoute
   AuthenticatedUsersIndexRoute: typeof AuthenticatedUsersIndexRoute
   AuthenticatedCatalogCandidatesCandidateIdRoute: typeof AuthenticatedCatalogCandidatesCandidateIdRoute
-  AuthenticatedCatalogPatentsPatentIdRoute: typeof AuthenticatedCatalogPatentsPatentIdRoute
   AuthenticatedCatalogCompaniesIndexRoute: typeof AuthenticatedCatalogCompaniesIndexRoute
   AuthenticatedCatalogCompaniesCompanyIdPatentsRoute: typeof AuthenticatedCatalogCompaniesCompanyIdPatentsRoute
   AuthenticatedCatalogDomainsDomainIdCompaniesRoute: typeof AuthenticatedCatalogDomainsDomainIdCompaniesRoute
   AuthenticatedCatalogDomainsDomainIdPatentsRoute: typeof AuthenticatedCatalogDomainsDomainIdPatentsRoute
-  AuthenticatedCatalogCompaniesCompanyIdIndexRoute: typeof AuthenticatedCatalogCompaniesCompanyIdIndexRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
@@ -634,8 +592,6 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedUsersIndexRoute: AuthenticatedUsersIndexRoute,
   AuthenticatedCatalogCandidatesCandidateIdRoute:
     AuthenticatedCatalogCandidatesCandidateIdRoute,
-  AuthenticatedCatalogPatentsPatentIdRoute:
-    AuthenticatedCatalogPatentsPatentIdRoute,
   AuthenticatedCatalogCompaniesIndexRoute:
     AuthenticatedCatalogCompaniesIndexRoute,
   AuthenticatedCatalogCompaniesCompanyIdPatentsRoute:
@@ -644,8 +600,6 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
     AuthenticatedCatalogDomainsDomainIdCompaniesRoute,
   AuthenticatedCatalogDomainsDomainIdPatentsRoute:
     AuthenticatedCatalogDomainsDomainIdPatentsRoute,
-  AuthenticatedCatalogCompaniesCompanyIdIndexRoute:
-    AuthenticatedCatalogCompaniesCompanyIdIndexRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =

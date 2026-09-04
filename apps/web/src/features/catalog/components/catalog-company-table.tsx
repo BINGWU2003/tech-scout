@@ -1,4 +1,3 @@
-import { Link } from '@tanstack/react-router'
 import {
   flexRender,
   getCoreRowModel,
@@ -12,7 +11,7 @@ import {
   type CatalogCompanySummary,
 } from '@tech-scout/contracts'
 import { X } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { DataTablePagination } from '@/components/data-table'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -34,72 +33,83 @@ import {
 } from '@/components/ui/table'
 import { useDebouncedCallback } from '@/hooks/use-debounced-callback'
 import { cn } from '@/lib/utils'
+import {
+  CatalogCompanyDetailDialog,
+  type CatalogCompanyReference,
+} from './catalog-company-detail-dialog'
 import { CatalogTableTooltip } from './catalog-table-tooltip'
 
-const columns: ColumnDef<CatalogCompanySummary>[] = [
-  {
-    accessorKey: 'preferredName',
-    header: '公司',
-    meta: { className: 'w-[34%] max-w-0' },
-    cell: ({ row }) => {
-      const secondaryName = row.original.legalName ?? row.original.companyId
+function createColumns(
+  onOpen: (company: CatalogCompanyReference, trigger: HTMLButtonElement) => void
+): ColumnDef<CatalogCompanySummary>[] {
+  return [
+    {
+      accessorKey: 'preferredName',
+      header: '公司',
+      meta: { className: 'w-[34%] max-w-0' },
+      cell: ({ row }) => {
+        const secondaryName = row.original.legalName ?? row.original.companyId
 
-      return (
-        <div className='flex min-w-0 flex-col items-start'>
-          <CatalogTableTooltip content={row.original.preferredName}>
-            <Link
-              className='inline-block max-w-full truncate align-bottom font-medium text-primary hover:underline'
-              to='/catalog/companies/$companyId'
-              params={{ companyId: row.original.companyId }}
-            >
-              {row.original.preferredName}
-            </Link>
-          </CatalogTableTooltip>
-          <CatalogTableTooltip content={secondaryName}>
-            <span
-              className='mt-1 inline-block max-w-full truncate align-bottom text-xs text-muted-foreground'
-              tabIndex={0}
-            >
-              {secondaryName}
-            </span>
-          </CatalogTableTooltip>
-        </div>
-      )
+        return (
+          <div className='flex min-w-0 flex-col items-start'>
+            <CatalogTableTooltip content={row.original.preferredName}>
+              <Button
+                className='h-auto max-w-full justify-start truncate p-0 align-bottom'
+                type='button'
+                variant='link'
+                onClick={(event) => onOpen(row.original, event.currentTarget)}
+              >
+                {row.original.preferredName}
+              </Button>
+            </CatalogTableTooltip>
+            <CatalogTableTooltip content={secondaryName}>
+              <span
+                className='mt-1 inline-block max-w-full truncate align-bottom text-xs text-muted-foreground'
+                tabIndex={0}
+              >
+                {secondaryName}
+              </span>
+            </CatalogTableTooltip>
+          </div>
+        )
+      },
     },
-  },
-  {
-    accessorKey: 'country',
-    header: '国家/地区',
-    meta: { className: 'w-[13%]' },
-    cell: ({ row }) => row.original.country ?? '未知',
-  },
-  {
-    accessorKey: 'provider',
-    header: '身份来源',
-    meta: { className: 'w-[14%]' },
-    cell: ({ row }) => <Badge variant='outline'>{row.original.provider}</Badge>,
-  },
-  {
-    accessorKey: 'patentCount',
-    header: '相关专利',
-    meta: { className: 'w-[12%]' },
-    cell: ({ row }) => (
-      <span className='tabular-nums'>{row.original.patentCount}</span>
-    ),
-  },
-  {
-    accessorKey: 'latestPatentDate',
-    header: '最近授权',
-    meta: { className: 'w-[15%]' },
-    cell: ({ row }) => row.original.latestPatentDate ?? '未知',
-  },
-  {
-    accessorKey: 'entityStatus',
-    header: '主体状态',
-    meta: { className: 'w-[12%]' },
-    cell: ({ row }) => row.original.entityStatus ?? '未知',
-  },
-]
+    {
+      accessorKey: 'country',
+      header: '国家/地区',
+      meta: { className: 'w-[13%]' },
+      cell: ({ row }) => row.original.country ?? '未知',
+    },
+    {
+      accessorKey: 'provider',
+      header: '身份来源',
+      meta: { className: 'w-[14%]' },
+      cell: ({ row }) => (
+        <Badge variant='outline'>{row.original.provider}</Badge>
+      ),
+    },
+    {
+      accessorKey: 'patentCount',
+      header: '相关专利',
+      meta: { className: 'w-[12%]' },
+      cell: ({ row }) => (
+        <span className='tabular-nums'>{row.original.patentCount}</span>
+      ),
+    },
+    {
+      accessorKey: 'latestPatentDate',
+      header: '最近授权',
+      meta: { className: 'w-[15%]' },
+      cell: ({ row }) => row.original.latestPatentDate ?? '未知',
+    },
+    {
+      accessorKey: 'entityStatus',
+      header: '主体状态',
+      meta: { className: 'w-[12%]' },
+      cell: ({ row }) => row.original.entityStatus ?? '未知',
+    },
+  ]
+}
 
 type CatalogCompanyTableProps = {
   result: CatalogCompanyList
@@ -114,6 +124,19 @@ export function CatalogCompanyTable({
 }: CatalogCompanyTableProps) {
   const [search, setSearch] = useState(query.query ?? '')
   const [country, setCountry] = useState(query.country ?? '')
+  const [companyHistory, setCompanyHistory] = useState<
+    CatalogCompanyReference[]
+  >([])
+  const companyTriggerRef = useRef<HTMLButtonElement>(null)
+  const activeCompany = companyHistory[companyHistory.length - 1] ?? null
+  const columns = useMemo(
+    () =>
+      createColumns((company, trigger) => {
+        companyTriggerRef.current = trigger
+        setCompanyHistory([company])
+      }),
+    []
+  )
   const hasFilters = search.trim() !== '' || country.trim() !== ''
   const { cancel: cancelSearchQuery, run: runSearchQuery } =
     useDebouncedCallback(
@@ -297,6 +320,18 @@ export function CatalogCompanyTable({
         </Table>
       </div>
       <DataTablePagination table={table} className='mt-auto' />
+      <CatalogCompanyDetailDialog
+        company={activeCompany}
+        canGoBack={companyHistory.length > 1}
+        onBack={() => setCompanyHistory((history) => history.slice(0, -1))}
+        onOpenChange={(open) => {
+          if (!open) setCompanyHistory([])
+        }}
+        onRelatedCompanyOpen={(company) =>
+          setCompanyHistory((history) => [...history, company])
+        }
+        returnFocusRef={companyTriggerRef}
+      />
     </div>
   )
 }

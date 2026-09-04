@@ -91,9 +91,10 @@ describe('CatalogCandidateDetail 候选项详情', () => {
     await expect
       .element(screen.getByText('个人申请人，不纳入公司目录'))
       .toBeInTheDocument()
+    await expect.element(screen.getByText('Acme AI')).toBeInTheDocument()
     await expect
       .element(screen.getByRole('link', { name: 'Acme AI' }))
-      .toHaveAttribute('href', '/catalog/companies/company-1')
+      .not.toBeInTheDocument()
     await expect
       .element(screen.getByRole('link', { name: '查看证据' }))
       .toHaveAttribute('href', 'https://example.com/evidence/2')

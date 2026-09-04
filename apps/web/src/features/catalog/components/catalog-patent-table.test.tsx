@@ -1,5 +1,6 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { userEvent } from 'vitest/browser'
+import { catalogApi } from '@/lib/catalog-api'
 import { CatalogPatentTable } from './catalog-patent-table'
 import { renderWithCatalogRouter } from './catalog-test-router'
 
@@ -34,9 +35,40 @@ const result = {
   totalPages: 3,
 }
 
+const detailResponse = {
+  release: result.release,
+  patent: {
+    patentId: 'patent-1',
+    title: 'Edge neural accelerator',
+    patentDate: '2025-01-03',
+    grantYear: 2025,
+    patentType: 'utility',
+    wipoKind: 'B2',
+    numClaims: 20,
+    withdrawn: false,
+    classifications: [],
+    parties: [],
+    domainMatches: [],
+    source: {
+      locator: 'patent-source',
+      dataset: 'patents',
+      relativePath: 'patents/g_patent.tsv',
+      sourceRowNumber: 10,
+      sha256: 'a'.repeat(64),
+      sourceRelease: 'patents-v1',
+      url: null,
+    },
+  },
+}
+
+afterEach(() => vi.restoreAllMocks())
+
 describe('CatalogPatentTable 专利表格', () => {
-  it('渲染专利链接并请求指定页码', async () => {
+  it('在当前页面的 Dialog 中加载专利详情并请求指定页码', async () => {
     const onQueryChange = vi.fn()
+    const patentRequest = vi
+      .spyOn(catalogApi, 'patent')
+      .mockResolvedValue(detailResponse)
     const screen = await renderWithCatalogRouter(
       <CatalogPatentTable
         result={result}
@@ -45,17 +77,25 @@ describe('CatalogPatentTable 专利表格', () => {
       />
     )
 
-    const patentLink = screen.getByRole('link', {
+    const patentButton = screen.getByRole('button', {
       name: 'Edge neural accelerator',
     })
     await expect
-      .element(patentLink)
-      .toHaveAttribute('href', '/catalog/patents/patent-1')
-    await expect.element(patentLink).toHaveClass('inline-block')
-    await userEvent.hover(patentLink)
+      .element(screen.getByRole('link', { name: 'Edge neural accelerator' }))
+      .not.toBeInTheDocument()
+    await userEvent.hover(patentButton)
     await expect
       .element(screen.getByRole('tooltip'))
       .toHaveTextContent('Edge neural accelerator')
+    const initialHref = screen.router.state.location.href
+    await userEvent.click(patentButton)
+    await expect.element(screen.getByRole('dialog')).toBeInTheDocument()
+    await expect.element(screen.getByText('专利信息')).toBeInTheDocument()
+    expect(patentRequest).toHaveBeenCalledWith('patent-1')
+    expect(screen.router.state.location.href).toBe(initialHref)
+    await userEvent.keyboard('{Escape}')
+    await expect.element(screen.getByRole('dialog')).not.toBeInTheDocument()
+    await expect.element(patentButton).toHaveFocus()
     await expect
       .element(screen.getByRole('group', { name: '专利搜索条件' }))
       .toBeInTheDocument()
@@ -73,6 +113,29 @@ describe('CatalogPatentTable 专利表格', () => {
       .not.toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: '前往第 2 页' }))
     expect(onQueryChange).toHaveBeenCalledWith({ page: 2 })
+  })
+
+  it('在 Dialog 内显示加载错误并允许重试', async () => {
+    const patentRequest = vi
+      .spyOn(catalogApi, 'patent')
+      .mockRejectedValueOnce(new Error('详情请求失败'))
+      .mockResolvedValue(detailResponse)
+    const screen = await renderWithCatalogRouter(
+      <CatalogPatentTable
+        result={result}
+        query={{ page: 1, pageSize: 20, sort: 'score', order: 'desc' }}
+        onQueryChange={vi.fn()}
+      />
+    )
+
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Edge neural accelerator' })
+    )
+    await expect.element(screen.getByText('详情请求失败')).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: '重试' }))
+    await expect.element(screen.getByText('专利信息')).toBeInTheDocument()
+    expect(patentRequest).toHaveBeenCalledTimes(2)
   })
 
   it('仅在存在搜索条件时显示重置按钮', async () => {

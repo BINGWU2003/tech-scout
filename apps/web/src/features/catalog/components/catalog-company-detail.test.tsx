@@ -100,9 +100,10 @@ describe('CatalogCompanyDetail 公司详情', () => {
         screen.getByRole('link', { name: /AI chips and edge inference/ })
       )
       .toHaveAttribute('href', '/catalog/companies/company-1/patents')
+    await expect.element(screen.getByText('Acme Holdings')).toBeInTheDocument()
     await expect
       .element(screen.getByRole('link', { name: 'Acme Holdings' }))
-      .toHaveAttribute('href', '/catalog/companies/company-2')
+      .not.toBeInTheDocument()
     await expect
       .element(screen.getByRole('link', { name: 'ACME AI INC' }))
       .toHaveAttribute('href', '/catalog/candidates/candidate-1')
@@ -122,5 +123,55 @@ describe('CatalogCompanyDetail 公司详情', () => {
       .click()
 
     expect(onDomainPatentsOpen).toHaveBeenCalledWith('ai_chips_edge_inference')
+  })
+
+  it('通过回调打开关联公司', async () => {
+    const onRelatedCompanyOpen = vi.fn()
+    const screen = await renderWithCatalogRouter(
+      <CatalogCompanyDetail
+        company={company}
+        onRelatedCompanyOpen={onRelatedCompanyOpen}
+      />
+    )
+
+    await screen.getByRole('button', { name: 'Acme Holdings' }).click()
+
+    expect(onRelatedCompanyOpen).toHaveBeenCalledWith({
+      companyId: 'company-2',
+      preferredName: 'Acme Holdings',
+      country: 'US',
+    })
+  })
+
+  it('为较长的别名和外部标识列表启用卡内滚动', async () => {
+    const screen = await renderWithCatalogRouter(
+      <CatalogCompanyDetail
+        company={{
+          ...company,
+          aliases: Array.from({ length: 5 }, (_, index) => ({
+            ...company.aliases[0],
+            aliasId: `alias-${index}`,
+            name: `Acme alias ${index + 1}`,
+          })),
+          externalIdentifiers: Array.from({ length: 5 }, (_, index) => ({
+            ...company.externalIdentifiers[0],
+            identifierId: `identifier-${index}`,
+            value: `TESTLEI${index + 1}`,
+          })),
+        }}
+      />
+    )
+
+    await expect
+      .element(screen.getByRole('region', { name: '公司别名列表' }))
+      .toHaveClass('h-80')
+    await expect
+      .element(screen.getByRole('region', { name: '公司别名列表' }))
+      .not.toHaveClass('xl:h-full')
+    await expect
+      .element(screen.getByRole('region', { name: '公司外部标识列表' }))
+      .toHaveClass('h-80')
+    await expect.element(screen.getByText('Acme alias 5')).toBeInTheDocument()
+    await expect.element(screen.getByText('TESTLEI5')).toBeInTheDocument()
   })
 })
