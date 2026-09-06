@@ -1,6 +1,6 @@
 # TechScout Intelligence Service
 
-> 状态：阶段 2 后端主链已实现，已接入 FastAPI、LangGraph、PostgreSQL checkpoint 和 DeepSeek 适配器；真实模型验收需本地配置密钥。
+> 状态：阶段 2 后端主链已实现，已接入 FastAPI、LangGraph、PostgreSQL checkpoint 和 DeepSeek 适配器；真实模型主链已跑通，内容质量待修项见[验收记录](../../docs/phase-2-acceptance-2026-09-06.md)。
 
 该目录是独立的 Python Intelligence Service 项目，负责研究计划、只读 Catalog 工具、身份确认、候选长名单、模型调用、预算和恢复。浏览器通过 NestJS 产品 API 操作，不直连 Python。完整启动步骤、API 示例和验收边界见[阶段 2 使用指南](../../docs/phase-2-runbook.md)。
 

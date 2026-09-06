@@ -173,7 +173,7 @@ packages/contracts
 | structlog                     | 25.5       | 结构化 JSON 日志                 | `Installed` |
 | pytest/pytest-asyncio/RESPX   | 9.x/1.x    | 工作流、异步代码和 HTTP 测试     | `Installed` |
 
-阶段 2 已实现 FastAPI 内部 API、LangGraph 主链、DeepSeek 适配器、Catalog 只读快照、运行预算、租约与检查点，并通过隔离数据库和本地模型桩验证。真实模型验收需配置本地密钥，详见[阶段 2 使用指南](./phase-2-runbook.md)。本节旧版本表描述依赖初始化时的版本，实际安装以 uv.lock 为准。
+阶段 2 已实现 FastAPI 内部 API、LangGraph 主链、DeepSeek 适配器、Catalog 只读快照、运行预算、租约与检查点，并通过隔离数据库和本地模型桩验证。真实模型主链已跑通，内容质量仍有待修项，详见[阶段 2 使用指南](./phase-2-runbook.md)。本节旧版本表描述依赖初始化时的版本，实际安装以 uv.lock 为准。
 
 默认使用 `deepseek-v4-flash`，通过 OpenAI SDK Chat Completions 接口显式关闭 thinking，SDK 自动重试次数为 0。JSON 输出经 Pydantic 校验；不将 DeepSeek JSON Output 等同于 OpenAI JSON Schema Structured Outputs。模型失败立即返回错误，停止后续节点。
 
@@ -270,7 +270,7 @@ OpenTelemetry、Prometheus、集中日志和 Sentry 均为 `Deferred`。出现�
 4. ~~用共享 Zod 定义第一批领域、公司、专利和来源响应。~~ 已完成。
 5. ~~实现 React → NestJS → Catalog 的分页查询闭环。~~ 已完成。
 6. ~~实现 Python FastAPI 健康检查和 NestJS 内部客户端。~~ 已实现，内部契约和客户端具有漂移检查。
-7. ~~增加 LangGraph 最小研究工作流、`agent_runtime` checkpoint 和 SSE。~~ 后端已实现；真实 DeepSeek 验收待完成。
+7. ~~增加 LangGraph 最小研究工作流、`agent_runtime` checkpoint 和 SSE。~~ 后端已实现；真实 DeepSeek 主链已跑通，内容质量待修正。
 8. 在出现真实瓶颈后再评估队列、向量检索、对象存储和容器化。
 
 依赖已安装不代表对应阶段已经完成。每一步仍需 migration、权限、契约、测试和文档共同验收。

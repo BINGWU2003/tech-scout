@@ -1,6 +1,6 @@
 # 阶段 2：研究主链使用与验收
 
-> 2026-09-06：阶段 2 后端主链已实现。自动化测试使用隔离 PostgreSQL 和本地模型响应；真实 DeepSeek 验收需本地配置密钥，不能用模拟结果替代。
+> 2026-09-06：阶段 2 后端主链已实现，并完成一次真实 DeepSeek 后端验收。技术链路通过，企业类型与研究相关性质量仍需修正，详见[真实验收记录](./phase-2-acceptance-2026-09-06.md)。自动化测试的模型桩结果与真实验收分别记录。
 
 ## 1. 本阶段交付
 
@@ -184,6 +184,6 @@ uv run --project services/intelligence uvicorn mock_deepseek:app --app-dir servi
 
 此时只给测试 Python 进程设置 `DEEPSEEK_BASE_URL=http://127.0.0.1:18002` 和任意测试 key，不修改正式服务配置。随后运行 `pnpm --filter @tech-scout/api test:e2e`。未设置环境变量的集成测试会明确跳过，不能把跳过当作通过。
 
-自动化覆盖正常与零结果主链、身份跳过和证据校验、模型失败不续跑、版本变化、快照恢复、预算、租约、幂等、CSRF、跨用户隔离和事件恢复。真实 DeepSeek 验收应再用一个现有领域的问题完成确认到名单，检查实际引用与相关性；本地模型桩只证明系统协议和状态链路。
+自动化覆盖正常与零结果主链、身份跳过和证据校验、模型失败不续跑、版本变化、快照恢复、预算、租约、幂等、CSRF、跨用户隔离和事件恢复。真实 DeepSeek 已完成一次现有领域问题从确认到名单的验收，引用检查通过但内容质量存在待修项，见本文开头的验收记录；本地模型桩只证明系统协议和状态链路。
 
 来源：[DeepSeek 接口](https://api-docs.deepseek.com/)、[JSON 输出](https://api-docs.deepseek.com/guides/json_mode)、[价格](https://api-docs.deepseek.com/zh-cn/quick_start/pricing)。模型别名及价格会变化，运行记录保存配置模型、响应模型和 usage，调价后应同步环境费率。

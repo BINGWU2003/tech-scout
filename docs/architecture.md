@@ -36,14 +36,14 @@ TechScout 是本地优先、证据可追溯的技术侦察工具。架构需要�
 
 ### 3.1 已实现组件
 
-| 组件                | 状态          | 当前能力                                                                                   |
-| ------------------- | ------------- | ------------------------------------------------------------------------------------------ |
-| React Web           | `Implemented` | 真实登录、公开注册、Session 恢复、路由守卫、密码修改和管理员用户管理                       |
-| NestJS API          | `Implemented` | 自建认证、数据库 Session、CSRF、账号管理，以及鉴权后的只读 Catalog REST API                |
-| Data Foundation     | `Implemented` | Raw、Manifest、Bronze、Silver、公司审核、Catalog 发布和固定报告                            |
-| PostgreSQL Catalog  | `Implemented` | Catalog `2026-09-v6` 已发布；2,863 件专利，公司候选活动队列为 0                            |
-| Python Intelligence | `Implemented` | FastAPI、LangGraph 主链、只读快照、DeepSeek 适配器、确认、预算和检查点；真实模型验收待完成 |
-| App schema          | `Implemented` | 账户与 Session；新增研究项目、运行、事件和命令 migration，已在隔离测试库验证               |
+| 组件                | 状态          | 当前能力                                                                                                   |
+| ------------------- | ------------- | ---------------------------------------------------------------------------------------------------------- |
+| React Web           | `Implemented` | 真实登录、公开注册、Session 恢复、路由守卫、密码修改和管理员用户管理                                       |
+| NestJS API          | `Implemented` | 自建认证、数据库 Session、CSRF、账号管理，以及鉴权后的只读 Catalog REST API                                |
+| Data Foundation     | `Implemented` | Raw、Manifest、Bronze、Silver、公司审核、Catalog 发布和固定报告                                            |
+| PostgreSQL Catalog  | `Implemented` | Catalog `2026-09-v6` 已发布；2,863 件专利，公司候选活动队列为 0                                            |
+| Python Intelligence | `Implemented` | FastAPI、LangGraph 主链、只读快照、DeepSeek 适配器、确认、预算和检查点；真实模型主链已跑通，内容质量待修正 |
+| App schema          | `Implemented` | 账户与 Session；新增研究项目、运行、事件和命令 migration，已在隔离测试库验证                               |
 
 Redis、Celery、MinIO、pgvector、Docker Compose 和在线外部检索当前都不存在。
 
@@ -165,7 +165,7 @@ tech-scout/
 
 ### 6.3 Python Intelligence
 
-状态：阶段 2 后端 `Implemented`；真实 DeepSeek 验收待完成，报告 Agent 为 `Planned`。
+状态：阶段 2 后端 `Implemented`；真实 DeepSeek 主链已跑通，内容质量待修正，报告 Agent 为 `Planned`。
 
 负责：
 
@@ -321,14 +321,14 @@ NestJS 是对外状态真相。Python 可以拥有内部 checkpoint，但不能�
 
 ## 12. 演进路线
 
-| 阶段                 | 状态          | 交付物                                                     |
-| -------------------- | ------------- | ---------------------------------------------------------- |
-| 数据底座与 Data Gate | `Implemented` | Source/Bronze/Silver/Catalog、公司审核、引用报告           |
-| 账户与用户管理       | `Implemented` | 注册、登录、Session、改密、禁用、角色和管理员重置          |
-| 产品查询层           | `Implemented` | NestJS Catalog repository、REST、分页、校验和集成测试      |
-| Web 业务页面         | `Planned`     | 领域、公司、专利、证据和报告界面                           |
-| Python Intelligence  | `Implemented` | 单服务主链、快照、checkpoint、内部 API；真实模型验收待完成 |
-| 异步与语义扩展       | `Deferred`    | Redis/Celery、MinIO、pgvector、Live 来源                   |
+| 阶段                 | 状态          | 交付物                                                                     |
+| -------------------- | ------------- | -------------------------------------------------------------------------- |
+| 数据底座与 Data Gate | `Implemented` | Source/Bronze/Silver/Catalog、公司审核、引用报告                           |
+| 账户与用户管理       | `Implemented` | 注册、登录、Session、改密、禁用、角色和管理员重置                          |
+| 产品查询层           | `Implemented` | NestJS Catalog repository、REST、分页、校验和集成测试                      |
+| Web 业务页面         | `Planned`     | 领域、公司、专利、证据和报告界面                                           |
+| Python Intelligence  | `Implemented` | 单服务主链、快照、checkpoint、内部 API；真实模型主链已跑通，内容质量待修正 |
+| 异步与语义扩展       | `Deferred`    | Redis/Celery、MinIO、pgvector、Live 来源                                   |
 
 每个阶段只在前一阶段边界和测试稳定后进入下一阶段。
 
