@@ -37,6 +37,7 @@ import {
   CatalogCompanyDetailDialog,
   type CatalogCompanyReference,
 } from './catalog-company-detail-dialog'
+import { formatAuditStatus } from './catalog-copy'
 import { CatalogTableTooltip } from './catalog-table-tooltip'
 
 function createColumns(
@@ -54,12 +55,14 @@ function createColumns(
           <div className='flex min-w-0 flex-col items-start'>
             <CatalogTableTooltip content={row.original.preferredName}>
               <Button
-                className='h-auto max-w-full justify-start truncate p-0 align-bottom'
+                className='h-auto max-w-full min-w-0 justify-start overflow-hidden p-0 align-bottom'
                 type='button'
                 variant='link'
                 onClick={(event) => onOpen(row.original, event.currentTarget)}
               >
-                {row.original.preferredName}
+                <span className='block max-w-full min-w-0 truncate'>
+                  {row.original.preferredName}
+                </span>
               </Button>
             </CatalogTableTooltip>
             <CatalogTableTooltip content={secondaryName}>
@@ -82,7 +85,7 @@ function createColumns(
     },
     {
       accessorKey: 'provider',
-      header: '身份来源',
+      header: '数据来源',
       meta: { className: 'w-[14%]' },
       cell: ({ row }) => (
         <Badge variant='outline'>{row.original.provider}</Badge>
@@ -98,7 +101,7 @@ function createColumns(
     },
     {
       accessorKey: 'latestPatentDate',
-      header: '最近授权',
+      header: '最近授权日',
       meta: { className: 'w-[15%]' },
       cell: ({ row }) => row.original.latestPatentDate ?? '未知',
     },
@@ -106,7 +109,7 @@ function createColumns(
       accessorKey: 'entityStatus',
       header: '主体状态',
       meta: { className: 'w-[12%]' },
-      cell: ({ row }) => row.original.entityStatus ?? '未知',
+      cell: ({ row }) => formatAuditStatus(row.original.entityStatus),
     },
   ]
 }
@@ -196,12 +199,12 @@ export function CatalogCompanyTable({
         <div
           className='flex flex-1 flex-wrap items-center gap-2'
           role='group'
-          aria-label='公司搜索条件'
+          aria-label='公司筛选条件'
         >
           <Input
             className='h-8 w-48 lg:w-72'
-            aria-label='搜索公司'
-            placeholder='名称、别名或外部 ID'
+            aria-label='按名称、别名或外部标识筛选公司'
+            placeholder='搜索公司名称、别名或外部标识'
             value={search}
             onChange={(event) => {
               const value = event.target.value
@@ -210,9 +213,9 @@ export function CatalogCompanyTable({
             }}
           />
           <Input
-            className='h-8 w-28'
-            aria-label='国家或地区代码'
-            placeholder='国家代码'
+            className='h-8 w-30'
+            aria-label='按国家或地区代码筛选公司'
+            placeholder='国家/地区代码（如 CN）'
             value={country}
             onChange={(event) => {
               const value = event.target.value
@@ -227,20 +230,24 @@ export function CatalogCompanyTable({
             </Button>
           ) : null}
         </div>
-        <div className='flex shrink-0 gap-2' role='group' aria-label='公司排序'>
+        <div
+          className='flex shrink-0 gap-2'
+          role='group'
+          aria-label='公司排序方式'
+        >
           <Select
             value={query.sort}
             onValueChange={(sort: CatalogCompanyListQuery['sort']) =>
               onQueryChange({ page: 1, sort })
             }
           >
-            <SelectTrigger className='h-8 w-36' aria-label='公司排序字段'>
+            <SelectTrigger className='h-8 w-36' aria-label='选择公司排序字段'>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value='patentCount'>相关专利</SelectItem>
               <SelectItem value='name'>公司名称</SelectItem>
-              <SelectItem value='latestPatentDate'>最近授权</SelectItem>
+              <SelectItem value='latestPatentDate'>最近授权日</SelectItem>
             </SelectContent>
           </Select>
           <Select
@@ -249,7 +256,7 @@ export function CatalogCompanyTable({
               onQueryChange({ page: 1, order })
             }
           >
-            <SelectTrigger className='h-8 w-24' aria-label='公司排序方向'>
+            <SelectTrigger className='h-8 w-24' aria-label='选择公司排序方向'>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -312,7 +319,9 @@ export function CatalogCompanyTable({
                   colSpan={columns.length}
                   className='h-24 text-center'
                 >
-                  没有符合条件的公司。
+                  {hasFilters
+                    ? '未找到符合当前筛选条件的公司，请调整条件后重试。'
+                    : '当前数据版本中暂无可展示的公司。'}
                 </TableCell>
               </TableRow>
             )}

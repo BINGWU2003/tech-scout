@@ -41,7 +41,8 @@ import { CatalogTableTooltip } from './catalog-table-tooltip'
 import { YearRangePicker } from './year-range-picker'
 
 function createColumns(
-  onOpen: (patent: CatalogPatentReference, trigger: HTMLButtonElement) => void
+  onOpen: (patent: CatalogPatentReference, trigger: HTMLButtonElement) => void,
+  scoreLabel: string
 ): ColumnDef<CatalogPatentSummary>[] {
   return [
     {
@@ -52,12 +53,14 @@ function createColumns(
         <div className='flex min-w-0 flex-col items-start'>
           <CatalogTableTooltip content={row.original.title}>
             <Button
-              className='h-auto max-w-full justify-start truncate p-0 align-bottom'
+              className='h-auto max-w-full min-w-0 justify-start overflow-hidden p-0 align-bottom'
               type='button'
               variant='link'
               onClick={(event) => onOpen(row.original, event.currentTarget)}
             >
-              {row.original.title}
+              <span className='block max-w-full min-w-0 truncate'>
+                {row.original.title}
+              </span>
             </Button>
           </CatalogTableTooltip>
           <CatalogTableTooltip content={row.original.patentId}>
@@ -73,7 +76,7 @@ function createColumns(
     },
     {
       accessorKey: 'patentDate',
-      header: '授权日期',
+      header: '授权日',
       meta: { className: 'w-[14%]' },
       cell: ({ row }) => row.original.patentDate,
     },
@@ -98,7 +101,7 @@ function createColumns(
     },
     {
       id: 'cpcGroups',
-      header: 'CPC',
+      header: 'CPC 分类',
       meta: { className: 'w-[19%] max-w-0' },
       cell: ({ row }) => {
         const cpcGroups = row.original.cpcGroups
@@ -129,7 +132,7 @@ function createColumns(
     },
     {
       accessorKey: 'totalScore',
-      header: '入域分',
+      header: scoreLabel,
       meta: { className: 'w-[8%]' },
       cell: ({ row }) => (
         <span className='tabular-nums'>{row.original.totalScore}</span>
@@ -142,12 +145,14 @@ type CatalogPatentTableProps = {
   result: CatalogPatentList
   query: CatalogPatentListQuery
   onQueryChange: (patch: Partial<CatalogPatentListQuery>) => void
+  scoreLabel?: string
 }
 
 export function CatalogPatentTable({
   result,
   query,
   onQueryChange,
+  scoreLabel = '领域规则分',
 }: CatalogPatentTableProps) {
   const [title, setTitle] = useState(query.title ?? '')
   const [cpcPrefix, setCpcPrefix] = useState(query.cpcPrefix ?? '')
@@ -162,8 +167,8 @@ export function CatalogPatentTable({
       createColumns((patent, trigger) => {
         patentTriggerRef.current = trigger
         setSelectedPatent(patent)
-      }),
-    []
+      }, scoreLabel),
+    [scoreLabel]
   )
   const hasFilters =
     title.trim() !== '' ||
@@ -249,12 +254,12 @@ export function CatalogPatentTable({
         <div
           className='flex flex-1 flex-wrap items-center gap-2'
           role='group'
-          aria-label='专利搜索条件'
+          aria-label='专利筛选条件'
         >
           <Input
             className='h-8 w-56'
-            aria-label='专利标题'
-            placeholder='标题关键词'
+            aria-label='按标题关键词筛选专利'
+            placeholder='搜索专利标题'
             value={title}
             onChange={(event) => {
               const value = event.target.value
@@ -264,8 +269,8 @@ export function CatalogPatentTable({
           />
           <Input
             className='h-8 w-36'
-            aria-label='CPC 前缀'
-            placeholder='CPC 前缀'
+            aria-label='按 CPC 分类前缀筛选专利'
+            placeholder='筛选 CPC 前缀'
             value={cpcPrefix}
             onChange={(event) => {
               const value = event.target.value
@@ -275,8 +280,8 @@ export function CatalogPatentTable({
           />
           <Input
             className='h-8 w-48'
-            aria-label='受让人'
-            placeholder='受让人'
+            aria-label='按受让人名称筛选专利'
+            placeholder='搜索受让人名称'
             value={partyName}
             onChange={(event) => {
               const value = event.target.value
@@ -300,19 +305,23 @@ export function CatalogPatentTable({
             </Button>
           ) : null}
         </div>
-        <div className='flex shrink-0 gap-2' role='group' aria-label='专利排序'>
+        <div
+          className='flex shrink-0 gap-2'
+          role='group'
+          aria-label='专利排序方式'
+        >
           <Select
             value={query.sort}
             onValueChange={(sort: CatalogPatentListQuery['sort']) =>
               onQueryChange({ page: 1, sort })
             }
           >
-            <SelectTrigger className='h-8 w-36' aria-label='专利排序字段'>
+            <SelectTrigger className='h-8 w-36' aria-label='选择专利排序字段'>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value='score'>入域分</SelectItem>
-              <SelectItem value='patentDate'>授权日期</SelectItem>
+              <SelectItem value='score'>{scoreLabel}</SelectItem>
+              <SelectItem value='patentDate'>授权日</SelectItem>
               <SelectItem value='title'>标题</SelectItem>
             </SelectContent>
           </Select>
@@ -322,7 +331,7 @@ export function CatalogPatentTable({
               onQueryChange({ page: 1, order })
             }
           >
-            <SelectTrigger className='h-8 w-24' aria-label='专利排序方向'>
+            <SelectTrigger className='h-8 w-24' aria-label='选择专利排序方向'>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -385,7 +394,9 @@ export function CatalogPatentTable({
                   colSpan={columns.length}
                   className='h-24 text-center'
                 >
-                  没有符合条件的专利。
+                  {hasFilters
+                    ? '未找到符合当前筛选条件的专利，请调整条件后重试。'
+                    : '当前数据版本中暂无可展示的专利。'}
                 </TableCell>
               </TableRow>
             )}

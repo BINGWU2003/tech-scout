@@ -16,7 +16,7 @@ describe('Catalog 查询状态', () => {
       .element(screen.getByText(/abstract、claims/))
       .toBeInTheDocument()
     await expect
-      .element(screen.getByText(/不代表相关事实不存在/))
+      .element(screen.getByText(/并不代表事实不存在/))
       .toBeInTheDocument()
   })
 
@@ -34,8 +34,13 @@ describe('Catalog 查询状态', () => {
     )
 
     await expect
-      .element(screen.getByText('技术目录暂时不可用'))
+      .element(screen.getByText('技术目录暂时无法访问'))
       .toBeInTheDocument()
-    await expect.element(screen.getByText(/Catalog 数据库/)).toBeInTheDocument()
+    await expect
+      .element(screen.getByText(/请稍后重试.*其他功能不受影响/))
+      .toBeInTheDocument()
+    await expect
+      .element(screen.getByText('Catalog 查询暂时不可用'))
+      .not.toBeInTheDocument()
   })
 })

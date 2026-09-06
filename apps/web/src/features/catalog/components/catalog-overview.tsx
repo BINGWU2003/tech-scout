@@ -12,14 +12,13 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { catalogApi } from '@/lib/catalog-api'
 import {
+  formatCatalogDomainName,
+  getCatalogDomainLocalizedName,
+} from './catalog-copy'
+import {
   CatalogLoadError,
   CatalogUnavailableFields,
 } from './catalog-query-state'
-
-const catalogDomainNames: Record<string, string> = {
-  ai_chips_edge_inference: 'AI 芯片与边缘推理',
-  industrial_vision_quality_inspection: '工业视觉与 AI 质量检测',
-}
 
 export function CatalogOverview() {
   return (
@@ -49,17 +48,18 @@ export function CatalogOverviewContent() {
         <div className='min-w-0'>
           <h2 className='text-2xl font-bold tracking-tight'>技术目录</h2>
           <p className='text-muted-foreground'>
-            浏览当前已发布数据中的技术领域、公司和专利证据。
+            按技术领域浏览相关专利与已确认的公司主体。
           </p>
           {query.data ? (
             <p className='mt-1 text-xs text-muted-foreground'>
-              数据版本 {query.data.release.releaseId} · 数据截至{' '}
-              {query.data.release.periodToYear} 年
+              数据版本：{query.data.release.releaseId} · 覆盖年份：
+              {query.data.release.periodFromYear}–
+              {query.data.release.periodToYear}
             </p>
           ) : null}
         </div>
         <Button className='shrink-0' asChild variant='outline'>
-          <Link to='/catalog/companies'>浏览全部公司</Link>
+          <Link to='/catalog/companies'>查看全部公司</Link>
         </Button>
       </div>
 
@@ -73,14 +73,20 @@ export function CatalogOverviewContent() {
               <Skeleton key={item} className='h-48 rounded-xl' />
             ))
           : query.data?.items.map((domain) => {
-              const localizedName = catalogDomainNames[domain.domainId]
+              const displayName = formatCatalogDomainName(
+                domain.domainId,
+                domain.name
+              )
+              const localizedName = getCatalogDomainLocalizedName(
+                domain.domainId
+              )
 
               return (
                 <Link
                   key={domain.domainId}
                   to='/catalog/domains/$domainId/companies'
                   params={{ domainId: domain.domainId }}
-                  aria-label={`${localizedName ?? domain.name}${localizedName ? `（${domain.name}）` : ''} 公司`}
+                  aria-label={`${displayName}：查看相关公司`}
                   className='rounded-xl focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none'
                 >
                   <Card className='h-full transition-colors hover:border-primary/50 hover:bg-muted/20'>
@@ -99,7 +105,7 @@ export function CatalogOverviewContent() {
                         ) : null}
                       </CardTitle>
                       <p className='text-sm text-muted-foreground'>
-                        规则版本 {domain.ruleVersion}
+                        领域规则版本：{domain.ruleVersion}
                       </p>
                     </CardHeader>
                     <CardContent className='grid grid-cols-2 gap-4'>
@@ -109,7 +115,7 @@ export function CatalogOverviewContent() {
                           {domain.patentCount.toLocaleString()}
                         </div>
                         <div className='text-xs text-muted-foreground'>
-                          专利
+                          相关专利
                         </div>
                       </div>
                       <div className='rounded-lg border p-3'>

@@ -22,6 +22,13 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { cn } from '@/lib/utils'
+import {
+  formatCandidateDecision,
+  formatMatchMethod,
+  formatOrganizationType,
+  formatReviewMethod,
+  formatSourceType,
+} from './catalog-copy'
 import { CatalogTableTooltip } from './catalog-table-tooltip'
 
 type CatalogEvidence = CatalogEvidenceList['items'][number]
@@ -29,7 +36,7 @@ type CatalogEvidence = CatalogEvidenceList['items'][number]
 const evidenceColumns: ColumnDef<CatalogEvidence>[] = [
   {
     accessorKey: 'publisher',
-    header: '发布方',
+    header: '发布机构',
     meta: { className: 'w-[15%] max-w-0' },
     cell: ({ row }) => (
       <div className='flex min-w-0 flex-col items-start'>
@@ -41,12 +48,14 @@ const evidenceColumns: ColumnDef<CatalogEvidence>[] = [
             {row.original.publisher}
           </span>
         </CatalogTableTooltip>
-        <CatalogTableTooltip content={row.original.sourceType}>
+        <CatalogTableTooltip
+          content={formatSourceType(row.original.sourceType)}
+        >
           <span
             className='inline-block max-w-full truncate align-bottom text-xs text-muted-foreground'
             tabIndex={0}
           >
-            {row.original.sourceType}
+            {formatSourceType(row.original.sourceType)}
           </span>
         </CatalogTableTooltip>
       </div>
@@ -54,7 +63,7 @@ const evidenceColumns: ColumnDef<CatalogEvidence>[] = [
   },
   {
     accessorKey: 'legalName',
-    header: '主体信息',
+    header: '受让人信息',
     meta: { className: 'w-[32%] max-w-0' },
     cell: ({ row }) => {
       const legalName = row.original.legalName ?? '未提供法定名称'
@@ -91,7 +100,7 @@ const evidenceColumns: ColumnDef<CatalogEvidence>[] = [
   },
   {
     accessorKey: 'observedAt',
-    header: '采集时间',
+    header: '证据采集时间',
     meta: { className: 'w-[20%] max-w-0' },
     cell: ({ row }) => {
       const observedAt = new Date(row.original.observedAt).toLocaleString(
@@ -112,9 +121,9 @@ const evidenceColumns: ColumnDef<CatalogEvidence>[] = [
   },
   {
     accessorKey: 'preserved',
-    header: '已留存',
+    header: '留存状态',
     meta: { className: 'w-[8%]' },
-    cell: ({ row }) => (row.original.preserved ? '是' : '否'),
+    cell: ({ row }) => (row.original.preserved ? '已留存' : '未留存'),
   },
   {
     id: 'source',
@@ -131,7 +140,7 @@ const evidenceColumns: ColumnDef<CatalogEvidence>[] = [
             target='_blank'
             rel='noreferrer'
           >
-            查看证据
+            打开证据
             <ExternalLink className='size-3.5' />
           </a>
           <CatalogTableTooltip content={sourceLocation}>
@@ -179,12 +188,12 @@ export function CatalogCandidateDetail({
     <div className='grid gap-4 xl:grid-cols-3'>
       <Card>
         <CardHeader>
-          <CardTitle>候选概览</CardTitle>
+          <CardTitle>受让人候选概览</CardTitle>
         </CardHeader>
         <CardContent>
           <dl className='grid grid-cols-2 gap-3 text-sm'>
             <div className='col-span-2'>
-              <dt className='text-muted-foreground'>候选 ID</dt>
+              <dt className='text-muted-foreground'>候选记录 ID</dt>
               <dd className='font-mono break-all'>{candidate.candidateId}</dd>
             </div>
             <div>
@@ -196,7 +205,7 @@ export function CatalogCandidateDetail({
               <dd>{candidate.patentCount}</dd>
             </div>
             <div>
-              <dt className='text-muted-foreground'>参与方记录</dt>
+              <dt className='text-muted-foreground'>受让人记录数</dt>
               <dd>{candidate.partyRowCount}</dd>
             </div>
             <div>
@@ -215,14 +224,16 @@ export function CatalogCandidateDetail({
           {candidate.decision ? (
             <dl className='grid gap-3 text-sm'>
               <div className='flex flex-wrap gap-2'>
-                <Badge>{candidate.decision.value}</Badge>
+                <Badge>
+                  {formatCandidateDecision(candidate.decision.value)}
+                </Badge>
                 <Badge variant='outline'>
-                  {candidate.decision.organizationType}
+                  {formatOrganizationType(candidate.decision.organizationType)}
                 </Badge>
               </div>
               <div>
                 <dt className='text-muted-foreground'>审核方式</dt>
-                <dd>{candidate.decision.reviewMethod}</dd>
+                <dd>{formatReviewMethod(candidate.decision.reviewMethod)}</dd>
               </div>
               <div>
                 <dt className='text-muted-foreground'>说明</dt>
@@ -230,14 +241,16 @@ export function CatalogCandidateDetail({
               </div>
             </dl>
           ) : (
-            <p className='text-sm text-muted-foreground'>尚无终态审核决策。</p>
+            <p className='text-sm text-muted-foreground'>
+              该受让人候选尚无终态审核决策。
+            </p>
           )}
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader>
-          <CardTitle>匹配建议</CardTitle>
+          <CardTitle>公司匹配建议</CardTitle>
         </CardHeader>
         <CardContent className='space-y-3'>
           {candidate.suggestions.length ? (
@@ -249,20 +262,24 @@ export function CatalogCandidateDetail({
                 {suggestion.suggestedCompanyId && suggestion.suggestedName ? (
                   <div className='font-medium'>{suggestion.suggestedName}</div>
                 ) : (
-                  <div className='font-medium'>未关联公司</div>
+                  <div className='font-medium'>未找到可关联公司</div>
                 )}
                 <div className='mt-1 text-xs text-muted-foreground'>
-                  {suggestion.matchMethod}
+                  {formatMatchMethod(suggestion.matchMethod)}
                   {suggestion.similarityScore === null
                     ? ''
-                    : ` · ${(suggestion.similarityScore * 100).toFixed(0)}%`}
+                    : ` · 名称相似度：${(
+                        suggestion.similarityScore * 100
+                      ).toFixed(0)}%`}
                   {' · '}
                   {suggestion.decisionReason}
                 </div>
               </div>
             ))
           ) : (
-            <p className='text-sm text-muted-foreground'>暂无匹配建议。</p>
+            <p className='text-sm text-muted-foreground'>
+              该受让人候选暂无公司匹配建议。
+            </p>
           )}
         </CardContent>
       </Card>
@@ -324,7 +341,7 @@ export function CatalogCandidateDetail({
                       colSpan={evidenceColumns.length}
                       className='h-20 text-center'
                     >
-                      暂无支持证据。
+                      该受让人候选暂无支持证据。
                     </TableCell>
                   </TableRow>
                 )}

@@ -10,16 +10,16 @@ export function CatalogSourceReference({
   return (
     <dl className='grid gap-3 text-sm'>
       <div>
-        <dt className='text-muted-foreground'>数据集 / release</dt>
+        <dt className='text-muted-foreground'>数据集 / 来源数据版本</dt>
         <dd className='flex flex-wrap gap-2'>
           <Badge variant='outline'>{source.dataset}</Badge>
           <span>{source.sourceRelease}</span>
         </dd>
       </div>
       <div>
-        <dt className='text-muted-foreground'>逻辑路径 / 行号</dt>
+        <dt className='text-muted-foreground'>来源文件 / 记录行号</dt>
         <dd className='font-mono text-xs break-all'>
-          {source.relativePath ?? '未提供'} · {source.sourceRowNumber}
+          {source.relativePath ?? '未提供来源文件'} · {source.sourceRowNumber}
         </dd>
       </div>
       <div>
@@ -34,7 +34,7 @@ export function CatalogSourceReference({
             target='_blank'
             rel='noreferrer'
           >
-            查看原始来源
+            打开原始来源
             <ExternalLink className='size-3.5' />
           </a>
         </div>

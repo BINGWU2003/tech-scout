@@ -12,6 +12,12 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import {
+  formatAliasType,
+  formatAuditStatus,
+  formatCatalogDomainName,
+  formatMatchMethod,
+} from './catalog-copy'
 
 function valueOrUnknown(value: null | string) {
   return value || '未知'
@@ -63,7 +69,7 @@ export function CatalogCompanyDetail({
         <div className='grid content-start gap-4 xl:grid-rows-[auto_1fr]'>
           <Card>
             <CardHeader>
-              <CardTitle>公司身份</CardTitle>
+              <CardTitle>公司主体信息</CardTitle>
             </CardHeader>
             <CardContent>
               <dl className='grid gap-3 text-sm'>
@@ -80,17 +86,17 @@ export function CatalogCompanyDetail({
                   </div>
                   <div>
                     <dt className='text-muted-foreground'>主体状态</dt>
-                    <dd>{valueOrUnknown(company.entityStatus)}</dd>
+                    <dd>{formatAuditStatus(company.entityStatus)}</dd>
                   </div>
                 </div>
                 <div>
-                  <dt className='text-muted-foreground'>身份来源</dt>
+                  <dt className='text-muted-foreground'>主体数据来源</dt>
                   <dd>
                     <Badge variant='outline'>{company.provider}</Badge>
                   </dd>
                 </div>
                 <div>
-                  <dt className='text-muted-foreground'>来源记录</dt>
+                  <dt className='text-muted-foreground'>主体来源记录</dt>
                   <dd className='font-mono text-xs break-all'>
                     {company.source.relativePath ?? company.source.dataset}:
                     {company.source.sourceRowNumber}
@@ -112,7 +118,7 @@ export function CatalogCompanyDetail({
             <CardContent>
               <DetailList
                 count={company.externalIdentifiers.length}
-                emptyMessage='暂无外部标识。'
+                emptyMessage='该公司暂无外部标识。'
                 label='公司外部标识列表'
               >
                 {company.externalIdentifiers.map((identifier) => (
@@ -124,7 +130,7 @@ export function CatalogCompanyDetail({
                       {identifier.value}
                     </div>
                     <div className='text-xs text-muted-foreground'>
-                      {identifier.type} · {identifier.provider}
+                      {identifier.type} · 数据来源：{identifier.provider}
                     </div>
                   </div>
                 ))}
@@ -145,7 +151,7 @@ export function CatalogCompanyDetail({
           <CardContent className='min-h-0 flex-1'>
             <DetailList
               count={company.aliases.length}
-              emptyMessage='暂无别名。'
+              emptyMessage='该公司暂无别名。'
               label='公司别名列表'
             >
               {company.aliases.map((alias) => (
@@ -155,7 +161,7 @@ export function CatalogCompanyDetail({
                 >
                   <div className='font-medium'>{alias.name}</div>
                   <div className='text-xs text-muted-foreground'>
-                    {alias.type} · {alias.provider}
+                    {formatAliasType(alias.type)} · 数据来源：{alias.provider}
                   </div>
                 </div>
               ))}
@@ -167,7 +173,7 @@ export function CatalogCompanyDetail({
       <Card>
         <CardHeader>
           <div className='flex flex-wrap items-center justify-between gap-2'>
-            <CardTitle>领域专利</CardTitle>
+            <CardTitle>相关领域专利</CardTitle>
             <Link
               className='text-sm font-medium text-primary hover:underline'
               to='/catalog/companies/$companyId/patents'
@@ -184,7 +190,7 @@ export function CatalogCompanyDetail({
                 <TableRow>
                   <TableHead>领域</TableHead>
                   <TableHead>专利数</TableHead>
-                  <TableHead>最近授权</TableHead>
+                  <TableHead>最近授权日</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -211,7 +217,10 @@ export function CatalogCompanyDetail({
                             onDomainPatentsOpen(domain.domainId)
                           }}
                         >
-                          {domain.domainName}
+                          {formatCatalogDomainName(
+                            domain.domainId,
+                            domain.domainName
+                          )}
                         </Link>
                       </TableCell>
                       <TableCell>{domain.patentCount}</TableCell>
@@ -223,7 +232,7 @@ export function CatalogCompanyDetail({
                 ) : (
                   <TableRow>
                     <TableCell colSpan={3} className='h-20 text-center'>
-                      暂无领域专利。
+                      该公司当前暂无归入技术领域的相关专利。
                     </TableCell>
                   </TableRow>
                 )}
@@ -269,19 +278,21 @@ export function CatalogCompanyDetail({
                     </div>
                   </div>
                   <Badge variant='secondary'>
-                    {valueOrUnknown(relationship.relationshipStatus)}
+                    {formatAuditStatus(relationship.relationshipStatus)}
                   </Badge>
                 </div>
               ))
             ) : (
-              <p className='text-sm text-muted-foreground'>暂无公司关系。</p>
+              <p className='text-sm text-muted-foreground'>
+                该公司暂无已收录的公司关系。
+              </p>
             )}
           </CardContent>
         </Card>
 
         <Card className='h-full'>
           <CardHeader>
-            <CardTitle>已接受匹配</CardTitle>
+            <CardTitle>已确认的受让人匹配</CardTitle>
           </CardHeader>
           <CardContent className='space-y-3'>
             {company.acceptedMatches.length ? (
@@ -298,12 +309,15 @@ export function CatalogCompanyDetail({
                     {match.representativeName}
                   </Link>
                   <div className='text-xs text-muted-foreground'>
-                    {match.matchMethod} · {match.decisionReason}
+                    {formatMatchMethod(match.matchMethod)} ·{' '}
+                    {match.decisionReason}
                   </div>
                 </div>
               ))
             ) : (
-              <p className='text-sm text-muted-foreground'>暂无已接受匹配。</p>
+              <p className='text-sm text-muted-foreground'>
+                该公司暂无已确认的受让人匹配。
+              </p>
             )}
           </CardContent>
         </Card>

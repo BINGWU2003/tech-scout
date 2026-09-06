@@ -94,16 +94,16 @@ describe('CatalogOverview 目录概览', () => {
       .element(screen.getByRole('heading', { name: '技术目录' }))
       .toBeInTheDocument()
     await expect
-      .element(screen.getByText('数据版本 2026-09-v6 · 数据截至 2025 年'))
+      .element(screen.getByText('数据版本：2026-09-v6 · 覆盖年份：2019–2025'))
       .toBeInTheDocument()
-    await expect.element(screen.getByText('数据覆盖说明')).toBeInTheDocument()
+    await expect.element(screen.getByText('数据范围说明')).toBeInTheDocument()
     await expect
-      .element(screen.getByRole('link', { name: '浏览全部公司' }))
+      .element(screen.getByRole('link', { name: '查看全部公司' }))
       .toHaveAttribute('href', '/catalog/companies')
     await expect
       .element(
         screen.getByRole('link', {
-          name: 'AI 芯片与边缘推理（AI chips and edge inference） 公司',
+          name: 'AI 芯片与边缘推理（AI chips and edge inference）：查看相关公司',
         })
       )
       .toHaveAttribute(
@@ -140,7 +140,7 @@ describe('CatalogOverview 目录概览', () => {
       { once: true }
     )
 
-    await userEvent.click(screen.getByRole('link', { name: '浏览全部公司' }))
+    await userEvent.click(screen.getByRole('link', { name: '查看全部公司' }))
 
     expect(routerHandledClick).toBe(true)
     await expect
@@ -164,7 +164,11 @@ describe('CatalogOverview 目录概览', () => {
     )
 
     await expect
-      .element(screen.getByRole('link', { name: 'Quantum sensing 公司' }))
+      .element(
+        screen.getByRole('link', {
+          name: 'Quantum sensing：查看相关公司',
+        })
+      )
       .toBeInTheDocument()
     await expect
       .element(screen.getByText('Quantum sensing'))

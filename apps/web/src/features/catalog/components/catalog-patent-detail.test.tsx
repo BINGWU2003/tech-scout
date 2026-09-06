@@ -63,11 +63,16 @@ describe('CatalogPatentDetail 专利详情', () => {
       .element(screen.getByText('G06N3/063').first())
       .toBeInTheDocument()
     await expect.element(screen.getByText('Acme AI, Inc.')).toBeInTheDocument()
+    await expect.element(screen.getByText('实用专利')).toBeInTheDocument()
+    await expect
+      .element(screen.getByRole('cell', { name: '受让人' }))
+      .toBeInTheDocument()
+    await expect.element(screen.getByText('规则评分：8')).toBeInTheDocument()
     await expect
       .element(screen.getByText('neural accelerator'))
       .toBeInTheDocument()
     await expect
-      .element(screen.getByRole('link', { name: '查看原始来源' }))
+      .element(screen.getByRole('link', { name: '打开原始来源' }))
       .toHaveAttribute('href', 'https://example.com/patents/patent-1')
     await expect
       .element(screen.getByText(/patents\/g_patent\.tsv.*10/))

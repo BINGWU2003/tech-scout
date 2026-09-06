@@ -40,7 +40,7 @@ export function CatalogShell({
               to={backHref}
             >
               <ArrowLeft className='size-4' />
-              返回
+              返回上一级
             </Link>
             <h2 className='text-2xl font-bold tracking-tight'>{title}</h2>
             {description ? (
@@ -50,7 +50,7 @@ export function CatalogShell({
           {releaseId ? (
             <Badge variant='outline' className='gap-1'>
               <Database className='size-3.5' />
-              {releaseId}
+              数据版本：{releaseId}
             </Badge>
           ) : null}
         </div>
@@ -70,7 +70,7 @@ export function CatalogDomainTabs({
   return (
     <nav
       className='flex w-fit gap-1 rounded-lg bg-muted p-1'
-      aria-label='领域目录'
+      aria-label='技术领域内容'
     >
       {(['companies', 'patents'] as const).map((item) => (
         <Link

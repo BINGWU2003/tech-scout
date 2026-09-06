@@ -79,7 +79,7 @@ describe('CatalogCompaniesPage 公司目录页面', () => {
       .element(screen.getByRole('heading', { name: '公司目录' }))
       .toBeInTheDocument()
     await expect
-      .element(screen.getByText('数据覆盖说明'))
+      .element(screen.getByText('数据范围说明'))
       .not.toBeInTheDocument()
   })
 })

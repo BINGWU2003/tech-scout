@@ -29,7 +29,7 @@ export function CatalogCompaniesPage() {
   return (
     <CatalogShell
       title='公司目录'
-      description='浏览当前发布中已确认的公司主体，并按名称、别名或外部标识检索。'
+      description='查找已确认的公司主体，支持按名称、别名、外部标识和国家/地区筛选。'
       releaseId={companies.data?.release.releaseId}
     >
       {companies.isError ? (
@@ -65,22 +65,23 @@ export function CatalogCompanyPatentsPage() {
 
   return (
     <CatalogShell
-      title={`${company.data?.company.preferredName ?? '公司'}的专利`}
+      title={`${company.data?.company.preferredName ?? '公司'}：相关专利`}
       description={
         query.domainId
-          ? `已限定领域：${query.domainId}`
-          : '当前发布中与该公司已接受匹配关联的全部专利。'
+          ? '已按所选技术领域筛选相关专利。'
+          : '查看已确认关联到该公司的专利；跨领域专利按最高规则评分展示。'
       }
       releaseId={patents.data?.release.releaseId}
       backHref='/catalog/companies'
     >
       {error ? (
-        <CatalogLoadError error={error} title='公司专利加载失败' />
+        <CatalogLoadError error={error} title='公司相关专利加载失败' />
       ) : patents.data ? (
         <CatalogPatentTable
           result={patents.data}
           query={query}
           onQueryChange={updateQuery}
+          scoreLabel='最高领域规则分'
         />
       ) : (
         <Skeleton className='h-96 rounded-xl' />

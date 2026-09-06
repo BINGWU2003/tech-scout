@@ -30,7 +30,7 @@ function getRangeLabel(fromYear?: number, toYear?: number) {
   if (fromYear && toYear) return `${fromYear} – ${toYear}`
   if (fromYear) return `${fromYear} 年起`
   if (toYear) return `截至 ${toYear} 年`
-  return '授权年份'
+  return '授权年份范围'
 }
 
 export function YearRangePicker({
@@ -74,8 +74,8 @@ export function YearRangePicker({
           variant='outline'
           aria-label={
             fromYear === undefined && toYear === undefined
-              ? '授权年份'
-              : `授权年份：${label}`
+              ? '选择授权年份范围'
+              : `授权年份范围：${label}`
           }
         >
           <CalendarRange className='size-4' />
@@ -90,7 +90,7 @@ export function YearRangePicker({
               type='button'
               variant='ghost'
               className='size-8'
-              aria-label='上一组年份'
+              aria-label='查看上一组授权年份'
               disabled={pageStart <= MIN_YEAR}
               onClick={() =>
                 setPageStart((current) => current - YEARS_PER_PAGE)
@@ -106,7 +106,7 @@ export function YearRangePicker({
               type='button'
               variant='ghost'
               className='size-8'
-              aria-label='下一组年份'
+              aria-label='查看下一组授权年份'
               disabled={pageEnd >= MAX_YEAR}
               onClick={() =>
                 setPageStart((current) => current + YEARS_PER_PAGE)
@@ -118,7 +118,7 @@ export function YearRangePicker({
           <div
             className='grid grid-cols-3 gap-1'
             role='group'
-            aria-label='选择年份范围'
+            aria-label='选择授权年份范围'
           >
             {years.map((year) => {
               const isEndpoint = year === fromYear || year === toYear
@@ -148,10 +148,10 @@ export function YearRangePicker({
           </div>
           <div className='text-center text-xs text-muted-foreground'>
             {fromYear === undefined
-              ? '请选择起始年份'
+              ? '先选择起始年份'
               : toYear === undefined
-                ? '请选择结束年份'
-                : `${fromYear} 至 ${toYear}`}
+                ? '再选择结束年份'
+                : `已选择 ${fromYear} 至 ${toYear} 年`}
           </div>
           <Button
             className='w-full'
@@ -162,7 +162,7 @@ export function YearRangePicker({
             onClick={() => onChange({})}
           >
             <X className='size-4' />
-            清除年份
+            清除年份范围
           </Button>
         </div>
       </PopoverContent>

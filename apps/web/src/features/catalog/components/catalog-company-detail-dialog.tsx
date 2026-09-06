@@ -45,7 +45,7 @@ function CompanyDialogBody({
       <div className='space-y-3'>
         <CatalogLoadError error={query.error} title='公司详情加载失败' />
         <Button type='button' variant='outline' onClick={() => query.refetch()}>
-          重试
+          重新加载公司详情
         </Button>
       </div>
     )
@@ -93,7 +93,7 @@ export function CatalogCompanyDetailDialog({
           ) : null}
           <DialogTitle>{company?.preferredName ?? '公司详情'}</DialogTitle>
           <DialogDescription>
-            公司身份、领域专利、关系和已接受的实体匹配。
+            查看公司主体信息、相关专利、公司关系和已确认的受让人匹配。
           </DialogDescription>
         </DialogHeader>
         {company ? (

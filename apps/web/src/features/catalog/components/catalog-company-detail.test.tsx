@@ -83,7 +83,7 @@ const company = {
 }
 
 describe('CatalogCompanyDetail 公司详情', () => {
-  it('将公司身份与专利、关联关系和匹配证据联系起来', async () => {
+  it('将公司主体与专利、关联关系和匹配证据联系起来', async () => {
     const screen = await renderWithCatalogRouter(
       <CatalogCompanyDetail company={company} />
     )
@@ -101,6 +101,15 @@ describe('CatalogCompanyDetail 公司详情', () => {
       )
       .toHaveAttribute('href', '/catalog/companies/company-1/patents')
     await expect.element(screen.getByText('Acme Holdings')).toBeInTheDocument()
+    await expect
+      .element(screen.getByText('有效（ACTIVE）').first())
+      .toBeInTheDocument()
+    await expect
+      .element(screen.getByText('法定名称 · 数据来源：GLEIF', { exact: true }))
+      .toBeInTheDocument()
+    await expect
+      .element(screen.getByText('别名精确匹配 · 官方名称一致', { exact: true }))
+      .toBeInTheDocument()
     await expect
       .element(screen.getByRole('link', { name: 'Acme Holdings' }))
       .not.toBeInTheDocument()

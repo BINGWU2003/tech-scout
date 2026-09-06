@@ -87,7 +87,15 @@ describe('CatalogCandidateDetail 候选项详情', () => {
       />
     )
 
-    await expect.element(screen.getByText('rejected')).toBeInTheDocument()
+    await expect
+      .element(screen.getByText('已排除当前匹配建议'))
+      .toBeInTheDocument()
+    await expect
+      .element(screen.getByText('个人', { exact: true }))
+      .toBeInTheDocument()
+    await expect.element(screen.getByText('人工审核')).toBeInTheDocument()
+    await expect.element(screen.getByText('官方记录')).toBeInTheDocument()
+    await expect.element(screen.getByText('已留存')).toBeInTheDocument()
     await expect
       .element(screen.getByText('个人申请人，不纳入公司目录'))
       .toBeInTheDocument()
@@ -96,7 +104,7 @@ describe('CatalogCandidateDetail 候选项详情', () => {
       .element(screen.getByRole('link', { name: 'Acme AI' }))
       .not.toBeInTheDocument()
     await expect
-      .element(screen.getByRole('link', { name: '查看证据' }))
+      .element(screen.getByRole('link', { name: '打开证据' }))
       .toHaveAttribute('href', 'https://example.com/evidence/2')
     const legalName = screen.getByText('Jane Doe')
     await expect.element(legalName).toHaveClass('inline-block')

@@ -28,12 +28,12 @@ export function CatalogCandidatePage() {
 
   return (
     <CatalogShell
-      title={candidate.data?.candidate.representativeName ?? '候选详情'}
-      description='实体解析的终态决策、匹配建议和支持证据。'
+      title={candidate.data?.candidate.representativeName ?? '受让人候选'}
+      description='查看该受让人候选的核验结论、公司匹配建议与支持证据。'
       releaseId={evidence.data?.release.releaseId}
     >
       {error ? (
-        <CatalogLoadError error={error} title='候选证据加载失败' />
+        <CatalogLoadError error={error} title='受让人候选加载失败' />
       ) : candidate.data && evidence.data ? (
         <CatalogCandidateDetail
           candidate={candidate.data.candidate}

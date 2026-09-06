@@ -80,6 +80,10 @@ describe('CatalogPatentTable 专利表格', () => {
     const patentButton = screen.getByRole('button', {
       name: 'Edge neural accelerator',
     })
+    await expect.element(patentButton).toHaveClass('overflow-hidden')
+    await expect
+      .element(screen.getByText('Edge neural accelerator', { exact: true }))
+      .toHaveClass('truncate')
     await expect
       .element(screen.getByRole('link', { name: 'Edge neural accelerator' }))
       .not.toBeInTheDocument()
@@ -90,17 +94,19 @@ describe('CatalogPatentTable 专利表格', () => {
     const initialHref = screen.router.state.location.href
     await userEvent.click(patentButton)
     await expect.element(screen.getByRole('dialog')).toBeInTheDocument()
-    await expect.element(screen.getByText('专利信息')).toBeInTheDocument()
+    await expect
+      .element(screen.getByText('专利基本信息', { exact: true }))
+      .toBeInTheDocument()
     expect(patentRequest).toHaveBeenCalledWith('patent-1')
     expect(screen.router.state.location.href).toBe(initialHref)
     await userEvent.keyboard('{Escape}')
     await expect.element(screen.getByRole('dialog')).not.toBeInTheDocument()
     await expect.element(patentButton).toHaveFocus()
     await expect
-      .element(screen.getByRole('group', { name: '专利搜索条件' }))
+      .element(screen.getByRole('group', { name: '专利筛选条件' }))
       .toBeInTheDocument()
     await expect
-      .element(screen.getByRole('group', { name: '专利排序' }))
+      .element(screen.getByRole('group', { name: '专利排序方式' }))
       .toBeInTheDocument()
     await expect
       .element(screen.getByRole('button', { name: '重置' }))
@@ -131,10 +137,19 @@ describe('CatalogPatentTable 专利表格', () => {
     await userEvent.click(
       screen.getByRole('button', { name: 'Edge neural accelerator' })
     )
-    await expect.element(screen.getByText('详情请求失败')).toBeInTheDocument()
+    await expect
+      .element(screen.getByText('数据加载未完成，请稍后重试。'))
+      .toBeInTheDocument()
+    await expect
+      .element(screen.getByText('详情请求失败'))
+      .not.toBeInTheDocument()
 
-    await userEvent.click(screen.getByRole('button', { name: '重试' }))
-    await expect.element(screen.getByText('专利信息')).toBeInTheDocument()
+    await userEvent.click(
+      screen.getByRole('button', { name: '重新加载专利详情' })
+    )
+    await expect
+      .element(screen.getByText('专利基本信息', { exact: true }))
+      .toBeInTheDocument()
     expect(patentRequest).toHaveBeenCalledTimes(2)
   })
 
@@ -148,7 +163,10 @@ describe('CatalogPatentTable 专利表格', () => {
       />
     )
 
-    await userEvent.fill(screen.getByLabelText('专利标题'), 'accelerator')
+    await userEvent.fill(
+      screen.getByLabelText('按标题关键词筛选专利'),
+      'accelerator'
+    )
     expect(onQueryChange).not.toHaveBeenCalled()
     await expect
       .poll(() => onQueryChange.mock.lastCall?.[0])
@@ -159,7 +177,9 @@ describe('CatalogPatentTable 专利表格', () => {
 
     await userEvent.click(screen.getByRole('button', { name: '重置' }))
 
-    await expect.element(screen.getByLabelText('专利标题')).toHaveValue('')
+    await expect
+      .element(screen.getByLabelText('按标题关键词筛选专利'))
+      .toHaveValue('')
     await expect
       .element(screen.getByRole('button', { name: '重置' }))
       .not.toBeInTheDocument()
@@ -205,17 +225,27 @@ describe('CatalogPatentTable 专利表格', () => {
       />
     )
 
-    await userEvent.fill(screen.getByLabelText('专利标题'), 'accelerator')
-    await userEvent.fill(screen.getByLabelText('CPC 前缀'), 'g06n3')
-    await userEvent.fill(screen.getByLabelText('受让人'), 'Acme')
-    await userEvent.click(screen.getByRole('button', { name: '授权年份' }))
+    await userEvent.fill(
+      screen.getByLabelText('按标题关键词筛选专利'),
+      'accelerator'
+    )
+    await userEvent.fill(
+      screen.getByLabelText('按 CPC 分类前缀筛选专利'),
+      'g06n3'
+    )
+    await userEvent.fill(screen.getByLabelText('按受让人名称筛选专利'), 'Acme')
+    await userEvent.click(
+      screen.getByRole('button', { name: '选择授权年份范围' })
+    )
     await userEvent.click(screen.getByRole('button', { name: '选择 2025 年' }))
     await expect
-      .element(screen.getByRole('button', { name: '授权年份：2025 年起' }))
+      .element(screen.getByRole('button', { name: '授权年份范围：2025 年起' }))
       .toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: '选择 2029 年' }))
     await expect
-      .element(screen.getByRole('button', { name: '授权年份：2025 – 2029' }))
+      .element(
+        screen.getByRole('button', { name: '授权年份范围：2025 – 2029' })
+      )
       .toBeInTheDocument()
     await expect
       .poll(() =>
@@ -276,11 +306,11 @@ describe('CatalogPatentTable 专利表格', () => {
     )
 
     await userEvent.click(
-      screen.getByRole('button', { name: '授权年份：2020 – 2025' })
+      screen.getByRole('button', { name: '授权年份范围：2020 – 2025' })
     )
-    await userEvent.click(screen.getByRole('button', { name: '清除年份' }))
+    await userEvent.click(screen.getByRole('button', { name: '清除年份范围' }))
     await expect
-      .element(screen.getByRole('button', { name: '授权年份' }))
+      .element(screen.getByRole('button', { name: '选择授权年份范围' }))
       .toBeInTheDocument()
 
     expect(onQueryChange).toHaveBeenLastCalledWith({

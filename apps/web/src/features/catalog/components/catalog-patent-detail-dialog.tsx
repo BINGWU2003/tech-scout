@@ -35,7 +35,7 @@ function PatentDialogBody({ patentId }: { patentId: string }) {
       <div className='space-y-3'>
         <CatalogLoadError error={query.error} title='专利详情加载失败' />
         <Button type='button' variant='outline' onClick={() => query.refetch()}>
-          重试
+          重新加载专利详情
         </Button>
       </div>
     )
@@ -63,7 +63,7 @@ export function CatalogPatentDetailDialog({
         <DialogHeader className='pr-8'>
           <DialogTitle>{patent?.title ?? '专利详情'}</DialogTitle>
           <DialogDescription>
-            专利书目、分类、参与方、领域匹配原因和来源追溯。
+            查看专利基本信息、CPC 分类、受让人、领域归属依据和来源记录。
           </DialogDescription>
         </DialogHeader>
         {patent ? <PatentDialogBody patentId={patent.patentId} /> : null}

@@ -115,6 +115,10 @@ describe('CatalogCompanyTable 公司表格', () => {
     )
 
     const companyButton = screen.getByRole('button', { name: 'Acme AI' })
+    await expect.element(companyButton).toHaveClass('overflow-hidden')
+    await expect
+      .element(screen.getByText('Acme AI', { exact: true }))
+      .toHaveClass('truncate')
     await expect
       .element(screen.getByRole('link', { name: 'Acme AI' }))
       .not.toBeInTheDocument()
@@ -126,7 +130,7 @@ describe('CatalogCompanyTable 公司表格', () => {
     await userEvent.click(companyButton)
     await expect.element(screen.getByRole('dialog')).toBeInTheDocument()
     await expect
-      .element(screen.getByText('公司身份', { exact: true }))
+      .element(screen.getByText('公司主体信息', { exact: true }))
       .toBeInTheDocument()
     expect(companyRequest).toHaveBeenCalledWith('company-1')
     expect(screen.router.state.location.href).toBe(initialHref)
@@ -140,10 +144,10 @@ describe('CatalogCompanyTable 公司表格', () => {
       .element(screen.getByRole('button', { name: '重置' }))
       .not.toBeInTheDocument()
     await expect
-      .element(screen.getByRole('group', { name: '公司搜索条件' }))
+      .element(screen.getByRole('group', { name: '公司筛选条件' }))
       .toBeInTheDocument()
     await expect
-      .element(screen.getByRole('group', { name: '公司排序' }))
+      .element(screen.getByRole('group', { name: '公司排序方式' }))
       .toBeInTheDocument()
     await expect
       .element(screen.getByText('共 22 家已确认公司'))
@@ -205,7 +209,10 @@ describe('CatalogCompanyTable 公司表格', () => {
       />
     )
 
-    await userEvent.fill(screen.getByLabelText('国家或地区代码'), 'CN')
+    await userEvent.fill(
+      screen.getByLabelText('按国家或地区代码筛选公司'),
+      'CN'
+    )
     expect(onQueryChange).not.toHaveBeenCalled()
     await expect
       .poll(() => onQueryChange.mock.lastCall?.[0])
@@ -217,7 +224,7 @@ describe('CatalogCompanyTable 公司表格', () => {
     await userEvent.click(screen.getByRole('button', { name: '重置' }))
 
     await expect
-      .element(screen.getByLabelText('国家或地区代码'))
+      .element(screen.getByLabelText('按国家或地区代码筛选公司'))
       .toHaveValue('')
     await expect
       .element(screen.getByRole('button', { name: '重置' }))

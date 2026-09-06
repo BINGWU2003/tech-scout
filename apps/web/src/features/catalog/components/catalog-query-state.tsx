@@ -15,13 +15,11 @@ export function CatalogLoadError({
 
   return (
     <Alert variant='destructive'>
-      <AlertTitle>{unavailable ? '技术目录暂时不可用' : title}</AlertTitle>
+      <AlertTitle>{unavailable ? '技术目录暂时无法访问' : title}</AlertTitle>
       <AlertDescription>
         {unavailable
-          ? '无法连接 Catalog 数据库，请稍后重试；其他账户功能不受影响。'
-          : error instanceof Error
-            ? error.message
-            : '请检查筛选条件或稍后重试。'}
+          ? '暂时无法读取技术目录数据，请稍后重试。其他功能不受影响。'
+          : '数据加载未完成，请稍后重试。'}
       </AlertDescription>
     </Alert>
   )
@@ -31,10 +29,11 @@ export function CatalogUnavailableFields({ fields }: { fields: string[] }) {
   return (
     <Alert>
       <Database className='size-4' />
-      <AlertTitle>数据覆盖说明</AlertTitle>
+      <AlertTitle>数据范围说明</AlertTitle>
       <AlertDescription>
-        当前发布缺少：{fields.join('、') || '未声明'}。空字段表示数据源未提供，
-        不代表相关事实不存在。
+        {fields.length
+          ? `当前数据版本未提供：${fields.join('、')}。相关字段为空时，表示来源数据未包含该信息，并不代表事实不存在。`
+          : '当前数据版本未声明缺失字段。'}
       </AlertDescription>
     </Alert>
   )

@@ -10,6 +10,11 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import {
+  formatCatalogDomainName,
+  formatPartyRole,
+  formatPatentType,
+} from './catalog-copy'
 import { CatalogSourceReference } from './catalog-source-reference'
 
 function optionalValue(value: boolean | null | number | string) {
@@ -46,7 +51,7 @@ export function CatalogPatentDetail({
     <div className='grid gap-4 xl:grid-cols-3'>
       <Card>
         <CardHeader>
-          <CardTitle>专利信息</CardTitle>
+          <CardTitle>专利基本信息</CardTitle>
         </CardHeader>
         <CardContent>
           <dl className='grid grid-cols-2 gap-3 text-sm'>
@@ -55,7 +60,7 @@ export function CatalogPatentDetail({
               <dd className='font-mono break-all'>{patent.patentId}</dd>
             </div>
             <div>
-              <dt className='text-muted-foreground'>授权日期</dt>
+              <dt className='text-muted-foreground'>授权日</dt>
               <dd>{patent.patentDate}</dd>
             </div>
             <div>
@@ -64,10 +69,14 @@ export function CatalogPatentDetail({
             </div>
             <div>
               <dt className='text-muted-foreground'>类型</dt>
-              <dd>{optionalValue(patent.patentType)}</dd>
+              <dd>
+                {patent.patentType
+                  ? formatPatentType(patent.patentType)
+                  : '未知'}
+              </dd>
             </div>
             <div>
-              <dt className='text-muted-foreground'>WIPO kind</dt>
+              <dt className='text-muted-foreground'>WIPO 文献种类代码</dt>
               <dd>{optionalValue(patent.wipoKind)}</dd>
             </div>
             <div>
@@ -84,7 +93,7 @@ export function CatalogPatentDetail({
 
       <Card className='xl:col-span-2'>
         <CardHeader>
-          <CardTitle>领域匹配</CardTitle>
+          <CardTitle>领域归属依据</CardTitle>
         </CardHeader>
         <CardContent className='space-y-4'>
           {patent.domainMatches.length ? (
@@ -96,11 +105,13 @@ export function CatalogPatentDetail({
                     to='/catalog/domains/$domainId/patents'
                     params={{ domainId: match.domainId }}
                   >
-                    {match.domainName}
+                    {formatCatalogDomainName(match.domainId, match.domainName)}
                   </Link>
                   <div className='flex gap-2'>
-                    <Badge>得分 {match.totalScore}</Badge>
-                    <Badge variant='outline'>{match.ruleVersion}</Badge>
+                    <Badge>规则评分：{match.totalScore}</Badge>
+                    <Badge variant='outline'>
+                      规则版本：{match.ruleVersion}
+                    </Badge>
                   </div>
                 </div>
                 <div className='grid gap-3 md:grid-cols-3'>
@@ -117,14 +128,16 @@ export function CatalogPatentDetail({
               </div>
             ))
           ) : (
-            <p className='text-sm text-muted-foreground'>暂无领域匹配。</p>
+            <p className='text-sm text-muted-foreground'>
+              该专利暂无技术领域归属记录。
+            </p>
           )}
         </CardContent>
       </Card>
 
       <Card className='xl:col-span-2'>
         <CardHeader>
-          <CardTitle>参与方</CardTitle>
+          <CardTitle>专利受让人</CardTitle>
         </CardHeader>
         <CardContent>
           <div className='overflow-hidden rounded-md border'>
@@ -144,7 +157,7 @@ export function CatalogPatentDetail({
                       <TableCell className='font-medium'>
                         {party.name}
                       </TableCell>
-                      <TableCell>{party.role}</TableCell>
+                      <TableCell>{formatPartyRole(party.role)}</TableCell>
                       <TableCell>
                         {[party.city, party.region, party.country]
                           .filter(Boolean)
@@ -158,7 +171,7 @@ export function CatalogPatentDetail({
                 ) : (
                   <TableRow>
                     <TableCell colSpan={4} className='h-20 text-center'>
-                      暂无参与方。
+                      该专利暂无受让人记录。
                     </TableCell>
                   </TableRow>
                 )}
@@ -170,7 +183,7 @@ export function CatalogPatentDetail({
 
       <Card>
         <CardHeader>
-          <CardTitle>来源追溯</CardTitle>
+          <CardTitle>来源记录</CardTitle>
         </CardHeader>
         <CardContent>
           <CatalogSourceReference source={patent.source} />
@@ -179,7 +192,7 @@ export function CatalogPatentDetail({
 
       <Card className='xl:col-span-3'>
         <CardHeader>
-          <CardTitle>分类</CardTitle>
+          <CardTitle>CPC 分类</CardTitle>
         </CardHeader>
         <CardContent className='flex flex-wrap gap-2'>
           {patent.classifications.length ? (
@@ -192,7 +205,9 @@ export function CatalogPatentDetail({
               </Badge>
             ))
           ) : (
-            <p className='text-sm text-muted-foreground'>暂无分类。</p>
+            <p className='text-sm text-muted-foreground'>
+              该专利暂无 CPC 分类记录。
+            </p>
           )}
         </CardContent>
       </Card>

@@ -7,6 +7,7 @@ import {
 import { Skeleton } from '@/components/ui/skeleton'
 import { catalogApi } from '@/lib/catalog-api'
 import { CatalogCompanyTable } from '../components/catalog-company-table'
+import { formatCatalogDomainName } from '../components/catalog-copy'
 import { CatalogPatentTable } from '../components/catalog-patent-table'
 import { CatalogLoadError } from '../components/catalog-query-state'
 import { CatalogDomainTabs, CatalogShell } from '../components/catalog-shell'
@@ -37,13 +38,17 @@ export function CatalogDomainCompaniesPage() {
 
   return (
     <CatalogShell
-      title={domain.data?.domain.name ?? '领域公司'}
-      description='仅展示已确认公司，默认按领域内去重专利数排序。'
+      title={
+        domain.data
+          ? formatCatalogDomainName(domainId, domain.data.domain.name)
+          : '领域公司'
+      }
+      description='查看归入该技术领域的已确认公司，默认按相关专利数量排序。'
       releaseId={companies.data?.release.releaseId}
     >
       <CatalogDomainTabs domainId={domainId} active='companies' />
       {error ? (
-        <CatalogLoadError error={error} title='公司目录加载失败' />
+        <CatalogLoadError error={error} title='领域公司加载失败' />
       ) : companies.data ? (
         <CatalogCompanyTable
           result={companies.data}
@@ -75,13 +80,17 @@ export function CatalogDomainPatentsPage() {
 
   return (
     <CatalogShell
-      title={domain.data?.domain.name ?? '领域专利'}
-      description='关键词仅检索标题；当前数据不包含摘要和权利要求正文。'
+      title={
+        domain.data
+          ? formatCatalogDomainName(domainId, domain.data.domain.name)
+          : '领域专利'
+      }
+      description='查看符合该领域规则的专利。关键词搜索仅匹配标题；本数据版本不含摘要和权利要求正文。'
       releaseId={patents.data?.release.releaseId}
     >
       <CatalogDomainTabs domainId={domainId} active='patents' />
       {error ? (
-        <CatalogLoadError error={error} title='专利目录加载失败' />
+        <CatalogLoadError error={error} title='领域专利加载失败' />
       ) : patents.data ? (
         <CatalogPatentTable
           result={patents.data}
