@@ -8,9 +8,16 @@ import { CatalogModule } from './catalog/catalog.module.js'
 import { OriginMiddleware } from './common/origin.middleware.js'
 import { ZodResponseInterceptor } from './common/zod-response.interceptor.js'
 import { DatabaseModule } from './database/database.module.js'
+import { ResearchModule } from './research/research.module.js'
 
 @Module({
-  imports: [DatabaseModule, AuthModule, AdminModule, CatalogModule],
+  imports: [
+    DatabaseModule,
+    AuthModule,
+    AdminModule,
+    CatalogModule,
+    ResearchModule,
+  ],
   controllers: [AppController],
   providers: [
     AppService,

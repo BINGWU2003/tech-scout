@@ -7,6 +7,8 @@
 > PostgreSQL 数据库：`tech-scout`
 > 数据根目录：`D:\files\project-data`
 
+> 2026-09-06 代码更新：新增阶段 2 研究业务 migration 与 Python runtime 显式迁移，已在隔离库验证。本文 Catalog 行数及本地库体积仍为 2026-09-03 快照，新增表不代表已对日常数据库重新实测。
+
 ## 1. 这份文档回答什么
 
 本文档面向产品和开发人员，回答以下问题：
@@ -265,14 +267,14 @@ Staging 表是 `UNLOGGED` 临时导入表，与 Silver 的 16 个产物一一对
 - `app.user_account`：用户名、未验证邮箱、Argon2id 密码哈希、`user/admin` 角色和账号状态。
 - `app.user_session`：数据库 Session、CSRF 哈希、闲置与绝对过期时间。
 
-以下产品业务表尚未实现：
+2026-09-06 新增的阶段 2 App migration：
 
-- 研究项目与研究任务。
-- Agent 运行记录。
-- 用户保存的报告和引用。
-- 收藏、标签和备注。
+- `app.research_project`：项目、用户所有权和创建幂等键。
+- `app.research_run`：运行、问题轮次、状态、预算及事实工作集 JSON 快照。
+- `app.research_event`：按运行和序号持久化的事件。
+- `app.research_command`：用户动作、幂等 ID、待发送/已发送/拒绝状态。
 
-这些属于产品业务数据，后续应通过新的 migration 创建，不能写入 `catalog`。
+Python 的运行调度记录、预算预留、事件、动作回执与 LangGraph checkpoint 保存在独立 `agent_runtime`，不写 App。用户报告、收藏、标签和备注仍未实现。新增迁移需要按[阶段 2 使用指南](./phase-2-runbook.md)显式执行，不能写入 `catalog`。
 
 ## 9. 公司候选治理结果
 

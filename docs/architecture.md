@@ -1,7 +1,7 @@
 # TechScout 产品与系统架构
 
 > 文档职责：描述当前实现、目标架构、组件边界和演进顺序
-> 更新日期：2026-09-03
+> 更新日期：2026-09-06
 > 产品范围见[产品需求](./product-requirements.md)
 > 具体技术选型见[技术选型](./technology-stack.md)
 > 数据现状见[数据底座参考](./database-and-data-status.md)
@@ -36,14 +36,14 @@ TechScout 是本地优先、证据可追溯的技术侦察工具。架构需要�
 
 ### 3.1 已实现组件
 
-| 组件                | 状态          | 当前能力                                                                        |
-| ------------------- | ------------- | ------------------------------------------------------------------------------- |
-| React Web           | `Implemented` | 真实登录、公开注册、Session 恢复、路由守卫、密码修改和管理员用户管理            |
-| NestJS API          | `Implemented` | 自建认证、数据库 Session、CSRF、账号管理，以及鉴权后的只读 Catalog REST API     |
-| Data Foundation     | `Implemented` | Raw、Manifest、Bronze、Silver、公司审核、Catalog 发布和固定报告                 |
-| PostgreSQL Catalog  | `Implemented` | Catalog `2026-09-v6` 已发布；2,863 件专利，公司候选活动队列为 0                 |
-| Python Intelligence | `Implemented` | 项目、依赖和锁文件已初始化；FastAPI、Agent、工作流和模型调用仍为 `Planned`      |
-| App schema          | `Implemented` | Prisma 管理 `user_account`、`user_session`，migration 已应用到本地 `tech-scout` |
+| 组件                | 状态          | 当前能力                                                                                   |
+| ------------------- | ------------- | ------------------------------------------------------------------------------------------ |
+| React Web           | `Implemented` | 真实登录、公开注册、Session 恢复、路由守卫、密码修改和管理员用户管理                       |
+| NestJS API          | `Implemented` | 自建认证、数据库 Session、CSRF、账号管理，以及鉴权后的只读 Catalog REST API                |
+| Data Foundation     | `Implemented` | Raw、Manifest、Bronze、Silver、公司审核、Catalog 发布和固定报告                            |
+| PostgreSQL Catalog  | `Implemented` | Catalog `2026-09-v6` 已发布；2,863 件专利，公司候选活动队列为 0                            |
+| Python Intelligence | `Implemented` | FastAPI、LangGraph 主链、只读快照、DeepSeek 适配器、确认、预算和检查点；真实模型验收待完成 |
+| App schema          | `Implemented` | 账户与 Session；新增研究项目、运行、事件和命令 migration，已在隔离测试库验证               |
 
 Redis、Celery、MinIO、pgvector、Docker Compose 和在线外部检索当前都不存在。
 
@@ -61,7 +61,7 @@ flowchart LR
     API -->|Kysely 只读| CATALOG
 ```
 
-账户与同步 Catalog 查询链已经完成；Python Agent 和产品研究任务链尚未实现。
+账户与同步 Catalog 查询链已经完成；阶段 2 另外实现 NestJS → Python → Catalog 快照 → 研究名单及持久化事件链，通过 API 验收，尚未接入研究页面。启动、测试与真实模型验证边界见[阶段 2 使用指南](./phase-2-runbook.md)。
 
 ## 4. 目标架构
 
@@ -102,7 +102,7 @@ tech-scout/
 
   services/
     intelligence/                Python Agent 服务
-      src/                       当前只有包边界，运行时尚未实现
+      src/                       内部 API、研究工作流、工具和运行时
       tests/
       pyproject.toml
       uv.lock
@@ -147,7 +147,7 @@ tech-scout/
 
 ### 6.2 NestJS Product API
 
-状态：认证、用户管理和 Catalog 业务查询层 `Implemented`。
+状态：认证、用户管理、Catalog 查询及阶段 2 研究 API `Implemented`；报告和页面闭环仍为 `Planned`。
 
 负责：
 
@@ -165,7 +165,7 @@ tech-scout/
 
 ### 6.3 Python Intelligence
 
-状态：`Planned`。
+状态：阶段 2 后端 `Implemented`；真实 DeepSeek 验收待完成，报告 Agent 为 `Planned`。
 
 负责：
 
@@ -224,12 +224,12 @@ Browser → PostgreSQL
 
 ## 8. PostgreSQL 所有权
 
-| Schema          | 当前状态    | 写入所有者               | 运行时访问                       |
-| --------------- | ----------- | ------------------------ | -------------------------------- |
-| `staging`       | 16 张临时表 | Data Foundation          | 产品禁止访问                     |
-| `catalog`       | 21 张正式表 | Data Foundation 发布器   | NestJS、Python Intelligence 只读 |
-| `app`           | 2 张业务表  | NestJS/Prisma            | NestJS 读写；Python 不直写       |
-| `agent_runtime` | 尚未创建    | 未来 Python Intelligence | Python checkpoint 读写           |
+| Schema          | 当前状态                                          | 写入所有者             | 运行时访问                       |
+| --------------- | ------------------------------------------------- | ---------------------- | -------------------------------- |
+| `staging`       | 16 张临时表                                       | Data Foundation        | 产品禁止访问                     |
+| `catalog`       | 21 张正式表                                       | Data Foundation 发布器 | NestJS、Python Intelligence 只读 |
+| `app`           | 6 张业务表的 migration                            | NestJS/Prisma          | NestJS 读写；Python 不直写       |
+| `agent_runtime` | 运行、事件、动作及 LangGraph checkpoint，显式迁移 | Python Intelligence    | Python 独占读写                  |
 
 现有 migration 已经发布，不修改历史 SQL。未来 Catalog 变化由 Data Foundation 新增 migration；未来 App 表由 NestJS 侧新增 migration。NestJS 使用独立 `CATALOG_DATABASE_URL`，连接强制只读事务、5 秒查询超时和 `catalog` search path；部署时还应使用仅具备 Catalog `SELECT` 权限的角色。
 
@@ -243,7 +243,7 @@ Browser → NestJS → catalog → NestJS → Browser
 
 已实现领域专利、技术公司、公司专利、实体证据和来源追溯等只读查询。所有列表使用页码分页、稳定排序并明确返回当前已发布 release；Catalog 连接惰性建立，即使其在启动时不可达也不阻断账户 API，具体查询统一返回 `503 CATALOG_UNAVAILABLE`。
 
-### 9.2 Agent 任务（Planned）
+### 9.2 Agent 任务（阶段 2 后端 Implemented）
 
 ```text
 Browser 创建任务
@@ -255,6 +255,8 @@ Browser 创建任务
 ```
 
 NestJS 是对外状态真相。Python 可以拥有内部 checkpoint，但不能绕开 NestJS 改写产品状态。
+
+当前通过 API 创建项目、确认计划、处理身份、主动重试和取消；浏览器研究界面留到阶段 3。模型失败立即终止，不自动降级。运行保存一致性 Catalog 快照；LangGraph checkpoint、租约/心跳、每次运行的 advisory lock 和幂等动作共同处理恢复与重复请求。内部 SSE 断连后通过持久化事件序号补偿。
 
 ### 9.3 运行模式
 
@@ -319,14 +321,14 @@ NestJS 是对外状态真相。Python 可以拥有内部 checkpoint，但不能�
 
 ## 12. 演进路线
 
-| 阶段                 | 状态          | 交付物                                                |
-| -------------------- | ------------- | ----------------------------------------------------- |
-| 数据底座与 Data Gate | `Implemented` | Source/Bronze/Silver/Catalog、公司审核、引用报告      |
-| 账户与用户管理       | `Implemented` | 注册、登录、Session、改密、禁用、角色和管理员重置     |
-| 产品查询层           | `Next`        | NestJS Catalog repository、REST、分页、校验和集成测试 |
-| Web 业务页面         | `Planned`     | 领域、公司、专利、证据和报告界面                      |
-| Python Intelligence  | `Planned`     | 单服务 Agent 工作流、工具、checkpoint 和内部 API      |
-| 异步与语义扩展       | `Deferred`    | Redis/Celery、MinIO、pgvector、Live 来源              |
+| 阶段                 | 状态          | 交付物                                                     |
+| -------------------- | ------------- | ---------------------------------------------------------- |
+| 数据底座与 Data Gate | `Implemented` | Source/Bronze/Silver/Catalog、公司审核、引用报告           |
+| 账户与用户管理       | `Implemented` | 注册、登录、Session、改密、禁用、角色和管理员重置          |
+| 产品查询层           | `Implemented` | NestJS Catalog repository、REST、分页、校验和集成测试      |
+| Web 业务页面         | `Planned`     | 领域、公司、专利、证据和报告界面                           |
+| Python Intelligence  | `Implemented` | 单服务主链、快照、checkpoint、内部 API；真实模型验收待完成 |
+| 异步与语义扩展       | `Deferred`    | Redis/Celery、MinIO、pgvector、Live 来源                   |
 
 每个阶段只在前一阶段边界和测试稳定后进入下一阶段。
 

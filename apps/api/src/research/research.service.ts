@@ -1,0 +1,383 @@
+import {
+  ConflictException,
+  HttpException,
+  Injectable,
+  Logger,
+  NotFoundException,
+  type OnModuleDestroy,
+  type OnModuleInit,
+} from '@nestjs/common'
+import {
+  type ResearchAction,
+  type ResearchCreate,
+  type ResearchEvent,
+  type ResearchState,
+} from '@tech-scout/contracts'
+import { PrismaService } from '../database/prisma.service.js'
+import { type Action } from '../generated/intelligence/types.gen.js'
+import { Prisma, type ResearchRun } from '../generated/prisma/client.js'
+import { IntelligenceClient } from './intelligence.client.js'
+
+const json = (value: unknown) =>
+  JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue
+
+@Injectable()
+export class ResearchService implements OnModuleInit, OnModuleDestroy {
+  private readonly logger = new Logger(ResearchService.name)
+  private timer?: ReturnType<typeof setInterval>
+  private readonly streams = new Map<string, AbortController>()
+  private readonly syncing = new Set<string>()
+  private stopped = false
+  private ticking = false
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly intelligence: IntelligenceClient
+  ) {}
+
+  onModuleInit() {
+    this.timer = setInterval(() => {
+      void this.tick()
+    }, 2000)
+    this.timer.unref()
+  }
+
+  onModuleDestroy() {
+    this.stopped = true
+    clearInterval(this.timer)
+    for (const stream of this.streams.values()) stream.abort()
+  }
+
+  async create(userId: string, input: ResearchCreate) {
+    const project = await this.prisma.researchProject
+      .upsert({
+        where: { userId_requestKey: { userId, requestKey: input.requestKey } },
+        update: {},
+        create: {
+          userId,
+          requestKey: input.requestKey,
+          question: input.question,
+          title: input.question.slice(0, 200),
+          runs: {
+            create: { question: input.question, requestKey: input.requestKey },
+          },
+        },
+        include: { runs: { orderBy: { createdAt: 'asc' } } },
+      })
+      .catch(async (error) => {
+        if (
+          !(error instanceof Prisma.PrismaClientKnownRequestError) ||
+          error.code !== 'P2002'
+        )
+          throw error
+        return this.prisma.researchProject.findUniqueOrThrow({
+          where: {
+            userId_requestKey: { userId, requestKey: input.requestKey },
+          },
+          include: { runs: { orderBy: { createdAt: 'asc' } } },
+        })
+      })
+    if (project.question !== input.question)
+      throw new ConflictException({
+        code: 'IDEMPOTENCY_CONFLICT',
+        message: '请求键已用于不同问题',
+      })
+    await this.sync(project.runs[0])
+    return this.project(userId, project.id)
+  }
+
+  async list(userId: string) {
+    const projects = await this.prisma.researchProject.findMany({
+      where: { userId },
+      orderBy: [{ createdAt: 'desc' }, { id: 'asc' }],
+      take: 100,
+      select: { id: true, title: true, question: true, createdAt: true },
+    })
+    return projects.map((p) => ({ ...p, createdAt: p.createdAt.toISOString() }))
+  }
+
+  async project(userId: string, projectId: string) {
+    const project = await this.prisma.researchProject.findFirst({
+      where: { id: projectId, userId },
+      include: {
+        runs: {
+          orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+          select: { id: true, status: true, sequence: true, createdAt: true },
+        },
+      },
+    })
+    if (!project) throw new NotFoundException('研究项目不存在')
+    return {
+      id: project.id,
+      title: project.title,
+      question: project.question,
+      createdAt: project.createdAt.toISOString(),
+      runs: project.runs.map((run) => ({
+        ...run,
+        createdAt: run.createdAt.toISOString(),
+      })),
+    }
+  }
+
+  async newRun(userId: string, projectId: string, input: ResearchCreate) {
+    await this.project(userId, projectId)
+    const run = await this.prisma.researchRun.upsert({
+      where: {
+        projectId_requestKey: { projectId, requestKey: input.requestKey },
+      },
+      update: {},
+      create: {
+        projectId,
+        requestKey: input.requestKey,
+        question: input.question,
+      },
+    })
+    if (run.question !== input.question)
+      throw new ConflictException({
+        code: 'IDEMPOTENCY_CONFLICT',
+        message: '请求键已用于不同问题',
+      })
+    await this.sync(run)
+    return this.run(userId, run.id)
+  }
+
+  async ownedRun(userId: string, runId: string) {
+    const run = await this.prisma.researchRun.findFirst({
+      where: { id: runId, project: { userId } },
+    })
+    if (!run) throw new NotFoundException('研究运行不存在')
+    return run
+  }
+
+  async run(userId: string, runId: string) {
+    const run = await this.ownedRun(userId, runId)
+    return {
+      id: run.id,
+      projectId: run.projectId,
+      question: run.question,
+      status: run.status,
+      sequence: run.sequence,
+      state: run.state,
+      createdAt: run.createdAt.toISOString(),
+      updatedAt: run.updatedAt.toISOString(),
+    }
+  }
+
+  async action(userId: string, runId: string, input: ResearchAction) {
+    await this.ownedRun(userId, runId)
+    const payload: Action = { ...input, actor_id: userId }
+    const command = await this.prisma.researchCommand.upsert({
+      where: { id: input.action_id },
+      update: {},
+      create: { id: input.action_id, runId, payload: json(payload) },
+    })
+    if (
+      command.runId !== runId ||
+      JSON.stringify(command.payload) !== JSON.stringify(json(payload))
+    ) {
+      // PostgreSQL jsonb key ordering is not a payload identity guarantee.
+      if (
+        command.runId !== runId ||
+        canonical(command.payload) !== canonical(payload)
+      ) {
+        throw new ConflictException({
+          code: 'IDEMPOTENCY_CONFLICT',
+          message: '动作 ID 已用于不同请求',
+        })
+      }
+    }
+    if (command.status === 'rejected')
+      throw new ConflictException(command.error ?? '动作已被拒绝')
+    if (command.status === 'pending')
+      await this.dispatch(command.id, runId, payload)
+    return this.run(userId, runId)
+  }
+
+  async events(userId: string, runId: string, after: number) {
+    await this.ownedRun(userId, runId)
+    const events = await this.prisma.researchEvent.findMany({
+      where: { runId, sequence: { gt: after } },
+      orderBy: { sequence: 'asc' },
+      take: 100,
+    })
+    return events.map((e) => ({ ...e, createdAt: e.createdAt.toISOString() }))
+  }
+
+  async receive(event: ResearchEvent) {
+    const state = event.data
+    if (event.sequence !== state.sequence)
+      throw new Error('Event sequence mismatch')
+    await this.prisma.$transaction(async (tx) => {
+      await tx.researchEvent.upsert({
+        where: {
+          runId_sequence: { runId: state.run_id, sequence: event.sequence },
+        },
+        update: {},
+        create: {
+          runId: state.run_id,
+          sequence: event.sequence,
+          kind: event.kind,
+          data: json(state),
+          createdAt: new Date(event.created_at),
+        },
+      })
+      await tx.researchRun.updateMany({
+        where: { id: state.run_id, sequence: { lt: state.sequence } },
+        data: {
+          status: state.status,
+          sequence: state.sequence,
+          state: json(state),
+        },
+      })
+    })
+  }
+
+  private async save(state: ResearchState) {
+    await this.prisma.researchRun.updateMany({
+      where: { id: state.run_id, sequence: { lte: state.sequence } },
+      data: {
+        status: state.status,
+        sequence: state.sequence,
+        state: json(state),
+      },
+    })
+  }
+
+  private async dispatch(id: string, runId: string, payload: Action) {
+    try {
+      const state = await this.intelligence.action(runId, payload)
+      await this.save(state)
+      await this.prisma.researchCommand.update({
+        where: { id },
+        data: { status: 'sent' },
+      })
+    } catch (error) {
+      if (error instanceof HttpException && error.getStatus() === 409) {
+        await this.prisma.researchCommand.update({
+          where: { id },
+          data: { status: 'rejected', error: json(error.getResponse()) },
+        })
+      }
+      throw error
+    }
+  }
+
+  async sync(run: ResearchRun) {
+    if (this.syncing.has(run.id)) return
+    this.syncing.add(run.id)
+    try {
+      await this.save(await this.intelligence.start(run.id, run.question))
+      const latest = await this.prisma.researchEvent.findFirst({
+        where: { runId: run.id },
+        orderBy: { sequence: 'desc' },
+      })
+      let after = latest?.sequence ?? 0
+      for (;;) {
+        const events = await this.intelligence.events(run.id, after)
+        for (const event of events) {
+          await this.receive(event)
+          after = event.sequence
+        }
+        if (events.length < 20) break
+      }
+      const lastEvent = await this.prisma.researchEvent.findFirst({
+        where: { runId: run.id },
+        orderBy: { sequence: 'desc' },
+      })
+      const current = await this.prisma.researchRun.findUniqueOrThrow({
+        where: { id: run.id },
+      })
+      if (
+        !(
+          lastEvent?.kind === 'execution_stopped' &&
+          lastEvent.sequence === current.sequence
+        ) &&
+        current.status !== 'cancelled'
+      )
+        this.listen(run.id, after)
+    } finally {
+      this.syncing.delete(run.id)
+    }
+  }
+
+  private listen(runId: string, after: number) {
+    if (this.stopped || this.streams.has(runId)) return
+    const controller = new AbortController()
+    this.streams.set(runId, controller)
+    void (async () => {
+      try {
+        for await (const event of this.intelligence.stream(
+          runId,
+          after,
+          controller.signal
+        )) {
+          if (event.data.run_id !== runId) throw new Error('Cross-run event')
+          await this.receive(event)
+          if (
+            event.kind === 'execution_stopped' ||
+            event.data.status === 'cancelled'
+          )
+            break
+        }
+      } catch {
+        if (!this.stopped)
+          this.logger.warn({ code: 'INTELLIGENCE_STREAM_INTERRUPTED', runId })
+      } finally {
+        controller.abort()
+        this.streams.delete(runId)
+      }
+    })()
+  }
+
+  private async tick() {
+    if (this.stopped || this.ticking || !this.intelligence.configured) return
+    this.ticking = true
+    try {
+      const commands = await this.prisma.researchCommand.findMany({
+        where: { status: 'pending' },
+        orderBy: { createdAt: 'asc' },
+        take: 20,
+      })
+      for (const command of commands) {
+        try {
+          await this.dispatch(
+            command.id,
+            command.runId,
+            command.payload as unknown as Action
+          )
+        } catch {
+          this.logger.warn({
+            code: 'RESEARCH_COMMAND_PENDING',
+            commandId: command.id,
+          })
+        }
+      }
+      const runs = await this.prisma.researchRun.findMany({
+        orderBy: { updatedAt: 'asc' },
+        take: 20,
+      })
+      for (const run of runs)
+        if (!this.streams.has(run.id)) {
+          try {
+            await this.sync(run)
+          } catch {
+            this.logger.warn({ code: 'RESEARCH_SYNC_PENDING', runId: run.id })
+          }
+        }
+    } catch {
+      this.logger.warn({ code: 'RESEARCH_RECONCILIATION_FAILED' })
+    } finally {
+      this.ticking = false
+    }
+  }
+}
+
+function canonical(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`
+  if (value && typeof value === 'object')
+    return `{${Object.entries(value)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([k, v]) => `${JSON.stringify(k)}:${canonical(v)}`)
+      .join(',')}}`
+  return JSON.stringify(value)
+}

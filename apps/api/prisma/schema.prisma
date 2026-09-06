@@ -23,17 +23,18 @@ enum UserStatus {
 }
 
 model UserAccount {
-  id              String        @id @default(uuid()) @db.Uuid
-  username        String        @unique(map: "user_account_username_key") @db.VarChar(32)
-  email           String        @db.VarChar(254)
-  normalizedEmail String        @unique(map: "user_account_normalized_email_key") @map("normalized_email") @db.VarChar(254)
-  passwordHash    String        @map("password_hash") @db.VarChar(255)
-  role            UserRole      @default(user)
-  status          UserStatus    @default(active)
-  createdAt       DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt       DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
-  lastLoginAt     DateTime?     @map("last_login_at") @db.Timestamptz(3)
-  sessions        UserSession[]
+  id               String            @id @default(uuid()) @db.Uuid
+  username         String            @unique(map: "user_account_username_key") @db.VarChar(32)
+  email            String            @db.VarChar(254)
+  normalizedEmail  String            @unique(map: "user_account_normalized_email_key") @map("normalized_email") @db.VarChar(254)
+  passwordHash     String            @map("password_hash") @db.VarChar(255)
+  role             UserRole          @default(user)
+  status           UserStatus        @default(active)
+  createdAt        DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime          @updatedAt @map("updated_at") @db.Timestamptz(3)
+  lastLoginAt      DateTime?         @map("last_login_at") @db.Timestamptz(3)
+  sessions         UserSession[]
+  researchProjects ResearchProject[]
 
   @@map("user_account")
   @@schema("app")
@@ -54,5 +55,68 @@ model UserSession {
   @@index([idleExpiresAt], map: "user_session_idle_expiry_idx")
   @@index([absoluteExpiresAt], map: "user_session_absolute_expiry_idx")
   @@map("user_session")
+  @@schema("app")
+}
+
+model ResearchProject {
+  id         String        @id @default(uuid()) @db.Uuid
+  userId     String        @map("user_id") @db.Uuid
+  title      String        @db.VarChar(200)
+  question   String
+  requestKey String        @map("request_key") @db.Uuid
+  createdAt  DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  user       UserAccount   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  runs       ResearchRun[]
+
+  @@unique([userId, requestKey])
+  @@index([userId, createdAt])
+  @@map("research_project")
+  @@schema("app")
+}
+
+model ResearchRun {
+  id         String            @id @default(uuid()) @db.Uuid
+  projectId  String            @map("project_id") @db.Uuid
+  requestKey String            @map("request_key") @db.Uuid
+  question   String
+  status     String            @default("queued") @db.VarChar(40)
+  sequence   Int               @default(0)
+  state      Json              @default("{}")
+  createdAt  DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt  DateTime          @updatedAt @map("updated_at") @db.Timestamptz(3)
+  project    ResearchProject   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  events     ResearchEvent[]
+  commands   ResearchCommand[]
+
+  @@unique([projectId, requestKey])
+  @@index([status, updatedAt])
+  @@map("research_run")
+  @@schema("app")
+}
+
+model ResearchEvent {
+  runId     String      @map("run_id") @db.Uuid
+  sequence  Int
+  kind      String      @db.VarChar(60)
+  data      Json
+  createdAt DateTime    @map("created_at") @db.Timestamptz(3)
+  run       ResearchRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@id([runId, sequence])
+  @@map("research_event")
+  @@schema("app")
+}
+
+model ResearchCommand {
+  id        String      @id @db.Uuid
+  runId     String      @map("run_id") @db.Uuid
+  payload   Json
+  status    String      @default("pending") @db.VarChar(20)
+  error     Json?
+  createdAt DateTime    @default(now()) @map("created_at") @db.Timestamptz(3)
+  run       ResearchRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@index([status, createdAt])
+  @@map("research_command")
   @@schema("app")
 }

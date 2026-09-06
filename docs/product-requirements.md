@@ -685,6 +685,8 @@ draft
 
 阶段状态和依赖以[产品与系统架构](./architecture.md)为准。
 
+阶段 2–4 如何读取现有表、形成研究工作集并生成报告，见[后续研究流程与数据表使用](./research-data-flow.md)。
+
 ### 阶段 0：数据底座与 Data Gate（已完成）
 
 - Source、Bronze、Silver、公司审核和 Catalog 已完成。
@@ -698,13 +700,16 @@ draft
 - 提供分页、稳定排序、输入校验、release 边界和集成测试。
 - 将 React 模板接入第一批真实查询；本阶段不要求 Python Agent。
 
-### 阶段 2：Agent 主链（规划）
+### 阶段 2：Agent 主链（后端已实现，真实模型验收待完成）
 
-- 初始化独立 Python Intelligence 项目和内部 API。
-- 实现 Planner、Patent、Company、Entity 和 Evidence 节点。
-- 接入检查点、暂停、恢复和人工确认。
-- 实现任务预算、超时、软降级和幂等。
-- 形成候选企业长名单与可解释排序。
+- 已实现独立 Python Intelligence 内部 API，以及 NestJS 研究项目、运行、动作和事件 API。
+- 已实现 Planner、Patent、Company、Entity、Evidence 节点和可解释候选长名单。
+- 已接入 PostgreSQL 检查点、暂停、主动恢复、人工确认与一致性事实快照。
+- 默认执行上限 5 分钟、6 次模型请求、估算 ¥1，人工等待不计时；重试累计原运行预算。
+- 按阶段 2 已确认范围，模型失败直接反馈错误并停止，不自动重试或软降级；零结果不自动放宽条件。
+- 阶段 2 通过 API 验收，不开发阶段 3 的页面和报告。自动化链路使用本地模型桩；真实 DeepSeek 验证单独进行。
+
+运行方式和接口示例见[阶段 2 使用与验收](./phase-2-runbook.md)。
 
 ### 阶段 3：产品闭环（规划）
 
