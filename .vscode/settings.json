@@ -1,4 +1,5 @@
 {
+  "python.defaultInterpreterPath": "${workspaceFolder}/services/intelligence/.venv/Scripts/python.exe",
   "editor.formatOnSave": true,
   "editor.defaultFormatter": "oxc.oxc-vscode",
   "tailwindCSS.experimental.classRegex": [

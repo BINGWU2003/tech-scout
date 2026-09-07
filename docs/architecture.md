@@ -61,7 +61,7 @@ flowchart LR
     API -->|Kysely 只读| CATALOG
 ```
 
-账户与同步 Catalog 查询链已经完成；阶段 2 另外实现 NestJS → Python → Catalog 快照 → 研究名单及持久化事件链，通过 API 验收，尚未接入研究页面。启动、测试与真实模型验证边界见[阶段 2 使用指南](./phase-2-runbook.md)。
+账户与同步 Catalog 查询链已经完成；阶段 2 另外实现 NestJS → Python → Catalog 快照 → 研究名单及持久化事件链，通过 API 验收，并已接入阶段 2 研究列表、确认与快照结果页面；浏览器验收由用户完成，见[前端指南](./phase-2-frontend.md)。启动、测试与真实模型验证边界见[阶段 2 使用指南](./phase-2-runbook.md)。
 
 ## 4. 目标架构
 
@@ -147,7 +147,7 @@ tech-scout/
 
 ### 6.2 NestJS Product API
 
-状态：认证、用户管理、Catalog 查询及阶段 2 研究 API `Implemented`；报告和页面闭环仍为 `Planned`。
+状态：认证、用户管理、Catalog 查询及阶段 2 研究 API `Implemented`；阶段 2 研究页面已接入、待用户浏览器验收；报告与完整阶段 3 闭环仍为 `Planned`。
 
 负责：
 

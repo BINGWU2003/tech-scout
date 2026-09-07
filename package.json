@@ -5,6 +5,8 @@
   "license": "MIT",
   "scripts": {
     "dev": "turbo run dev",
+    "dev:intelligence": "uv run --project services/intelligence start",
+    "migrate:intelligence": "uv run --project services/intelligence python -m tech_scout_intelligence.migrate",
     "build": "turbo run build",
     "lint": "oxlint apps packages",
     "format": "oxfmt --ignore-path .gitignore --ignore-path .oxfmtignore .",

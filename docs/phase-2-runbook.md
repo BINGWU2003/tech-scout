@@ -4,6 +4,8 @@
 
 ## 1. 本阶段交付
 
+阶段 2 前端现已接入研究列表、分步骤详情、计划编辑、实体审核及快照结果。启动和用户浏览器验收步骤见[阶段 2 前端指南](./phase-2-frontend.md)；浏览器验收尚待用户完成。
+
 通过 NestJS API 创建研究项目，Python 执行 `context → planner → plan_gate → snapshot → patent → company → entity → evidence → finish`。最终结果为最多 10 家候选企业及其专利依据、模型归纳、身份来源和缺失项。阶段 3 的页面、报告生成、上传和追问尚未实现。
 
 - Python 使用 LangGraph、FastAPI、独立 PostgreSQL checkpoint 和持久化事件；NestJS 独占 app 业务写入，接收结构化结果和 SSE，再持久化并向用户提供查询。

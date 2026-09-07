@@ -12,6 +12,7 @@ import {
   Command,
   GalleryVerticalEnd,
   LibraryBig,
+  Telescope,
 } from 'lucide-react'
 import { type SidebarData } from '../types'
 
@@ -51,6 +52,11 @@ export const sidebarData: SidebarData = {
           title: '技术目录',
           url: '/catalog',
           icon: LibraryBig,
+        },
+        {
+          title: '技术研究',
+          url: '/research',
+          icon: Telescope,
         },
         {
           title: 'Tasks',
