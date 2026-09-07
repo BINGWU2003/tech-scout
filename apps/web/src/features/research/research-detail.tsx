@@ -105,7 +105,9 @@ function ResultPanel({ run }: { run: ResearchSummaryView }) {
                 ))}
               </div>
               <p className='text-xs text-muted-foreground'>
-                授权年份统计：
+                {run.sourceMode === 'browser'
+                  ? '公开年份统计：'
+                  : '授权年份统计：'}
                 {Object.entries(c.trend)
                   .sort(([a], [b]) => a.localeCompare(b))
                   .map(([y, n]) => `${y} 年 ${n} 件`)
@@ -244,7 +246,9 @@ function RunWorkspace({ id }: { id: string }) {
                 {statusLabels[run.status]}
               </Badge>
               <span className='text-sm text-muted-foreground'>
-                数据版本：{run.releaseId ?? '待读取'}
+                数据版本：
+                {run.releaseId ??
+                  (run.sourceMode === 'browser' ? '采集完成后生成' : '待读取')}
               </span>
               <Button
                 variant='ghost'
@@ -271,6 +275,29 @@ function RunWorkspace({ id }: { id: string }) {
                 </li>
               ))}
             </ol>
+            {run.acquisition && (
+              <div role='status' className='rounded-lg border p-4 text-sm'>
+                <p className='font-medium'>
+                  数据采集：
+                  {(
+                    {
+                      search: '检索专利',
+                      patents: '读取专利详情',
+                      companies: '补全企业信息',
+                      snapshot: '保存研究快照',
+                    } as Record<string, string>
+                  )[run.acquisition.stage ?? ''] ?? '等待采集'}
+                </p>
+                {run.acquisition.total != null && (
+                  <p>
+                    {run.acquisition.completed ?? 0} / {run.acquisition.total}
+                  </p>
+                )}
+                <p className='mt-1 text-muted-foreground'>
+                  已完成的数据会保存，中断后可重试继续。
+                </p>
+              </div>
+            )}
             {run.budget && (
               <p className='text-xs text-muted-foreground'>
                 累计执行 {run.budget.elapsed_seconds.toFixed(1)} /{' '}
@@ -307,6 +334,21 @@ function RunWorkspace({ id }: { id: string }) {
               </p>
             )}
             <div className='flex flex-wrap gap-2'>
+              {isExecuting(run.status) && (
+                <Button
+                  variant='outline'
+                  disabled={mutation.isPending}
+                  onClick={() =>
+                    void submit({
+                      action_id: createRequestId(),
+                      kind: 'pause',
+                      decisions: [],
+                    }).catch(() => undefined)
+                  }
+                >
+                  暂停本轮研究
+                </Button>
+              )}
               {['failed', 'recoverable'].includes(run.status) && (
                 <Button
                   disabled={mutation.isPending}

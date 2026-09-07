@@ -55,7 +55,7 @@ class IdentityDecision(Model):
 
 class Action(Model):
     action_id: UUID
-    kind: Literal["confirm_plan", "resolve_entities", "retry", "cancel"]
+    kind: Literal["confirm_plan", "resolve_entities", "retry", "cancel", "pause"]
     actor_id: UUID
     plan: Plan | None = None
     decisions: list[IdentityDecision] = Field(default_factory=list, max_length=1000)

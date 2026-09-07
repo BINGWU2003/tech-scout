@@ -19,7 +19,8 @@ export function CatalogSourceReference({
       <div>
         <dt className='text-muted-foreground'>来源文件 / 记录行号</dt>
         <dd className='font-mono text-xs break-all'>
-          {source.relativePath ?? '未提供来源文件'} · {source.sourceRowNumber}
+          {source.relativePath ?? '未提供来源文件'}
+          {source.sourceRowNumber != null ? ` · ${source.sourceRowNumber}` : ''}
         </dd>
       </div>
       <div>

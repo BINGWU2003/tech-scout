@@ -53,6 +53,22 @@ export function ErrorNotice({
 export function SourceReference({ source }: { source: ResearchSourceView }) {
   return (
     <dl className='mt-2 grid gap-1 text-xs break-all text-muted-foreground'>
+      {source.url && (
+        <div>
+          <dt className='inline'>来源网页：</dt>
+          <dd className='inline'>
+            <a
+              href={source.url}
+              target='_blank'
+              rel='noreferrer'
+              className='underline'
+            >
+              打开原始资料
+            </a>
+          </dd>
+        </div>
+      )}
+
       <div>
         <dt className='inline font-medium'>快照来源：</dt>
         <dd className='inline'>

@@ -22,6 +22,7 @@ describeWithDatabase('Catalog 查询（端到端）', () => {
   let prisma: PrismaService
 
   beforeAll(async () => {
+    process.env.RESEARCH_SOURCE_MODE = 'catalog'
     process.env.DATABASE_URL = process.env.TEST_DATABASE_URL
     process.env.CATALOG_DATABASE_URL = process.env.TEST_CATALOG_DATABASE_URL
     process.env.WEB_ORIGIN = 'http://localhost:5173'
@@ -416,6 +417,7 @@ describeWithDatabase('Catalog 查询（端到端）', () => {
 
 describeWithDatabase('Catalog 启动降级（端到端）', () => {
   it('在启动时无法连接 Catalog 的情况下保持账户 API 可用', async () => {
+    process.env.RESEARCH_SOURCE_MODE = 'catalog'
     process.env.DATABASE_URL = process.env.TEST_DATABASE_URL
     const unavailableUrl = new URL(process.env.TEST_CATALOG_DATABASE_URL!)
     unavailableUrl.hostname = '127.0.0.1'

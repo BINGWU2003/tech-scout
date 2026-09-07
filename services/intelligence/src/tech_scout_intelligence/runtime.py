@@ -73,17 +73,32 @@ class Runtime:
         config = {"configurable": {"thread_id": str(run_id), "lease": lease}}
         last_tick = time.monotonic()
         started = last_tick
+        budget_expired = False
+        collecting = False
         executor = asyncio.current_task()
         assert executor is not None
 
         async def pulse():
-            nonlocal last_tick
+            nonlocal last_tick, collecting, budget_expired
             try:
                 while True:
                     await asyncio.sleep(2)
                     now = time.monotonic()
-                    await self.store.heartbeat(run_id, lease, now - last_tick)
+                    current = await self.store.get(run_id)
+                    collecting = (
+                        getattr(self.config, "research_source_mode", "catalog")
+                        == "browser"
+                        and current.node == "snapshot"
+                    )
+                    await self.store.heartbeat(
+                        run_id, lease, 0 if collecting else now - last_tick
+                    )
                     last_tick = now
+                    usage = await self.store.get(run_id)
+                    if usage.budget.elapsed_seconds >= usage.budget.max_seconds:
+                        budget_expired = True
+                        executor.cancel()
+                        return
             except Exception:
                 log.warning("research_heartbeat_failed", run_id=str(run_id))
                 executor.cancel()
@@ -93,7 +108,13 @@ class Runtime:
             remaining = row["budget"]["max_seconds"] - row["budget"]["elapsed_seconds"]
             if remaining <= 0:
                 raise ResearchError("TIME_BUDGET_EXCEEDED", "执行时间预算已用完")
-            async with asyncio.timeout(remaining):
+            # Browser collection has a separate overall time bound.
+            acquisition_allowance = (
+                21600
+                if getattr(self.config, "research_source_mode", "catalog") == "browser"
+                else 0
+            )
+            async with asyncio.timeout(remaining + acquisition_allowance):
                 saved = await self.graph.aget_state(config)
                 command = row["command"] or {}
                 value = None if saved.values else {"question": row["question"]}
@@ -153,7 +174,7 @@ class Runtime:
                 )
         except asyncio.CancelledError:
             current = await self.store.get(run_id)
-            if current.status != "cancelled":
+            if current.status not in {"cancelled", "recoverable"}:
                 with suppress(Exception):
                     await self.store.publish(
                         run_id,
@@ -161,8 +182,12 @@ class Runtime:
                         status="recoverable",
                         kind="interrupted",
                         error={
-                            "code": "WORKER_INTERRUPTED",
-                            "message": "执行中断，可主动恢复",
+                            "code": "TIME_BUDGET_EXCEEDED"
+                            if budget_expired
+                            else "WORKER_INTERRUPTED",
+                            "message": "执行时间预算已用完"
+                            if budget_expired
+                            else "执行中断，可主动恢复",
                         },
                     )
         except Exception as exc:
@@ -191,7 +216,9 @@ class Runtime:
             with suppress(asyncio.CancelledError, Exception):
                 await heartbeat
             with suppress(Exception):
-                await self.store.heartbeat(run_id, lease, time.monotonic() - last_tick)
+                await self.store.heartbeat(
+                    run_id, lease, 0 if collecting else time.monotonic() - last_tick
+                )
                 # Publish final usage so NestJS never stores an earlier time counter.
                 current = await self.store.get(run_id)
                 await self.store.publish(

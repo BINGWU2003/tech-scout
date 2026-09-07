@@ -11,6 +11,7 @@ from psycopg import AsyncConnection
 from psycopg.rows import DictRow, dict_row
 from psycopg_pool import AsyncConnectionPool
 
+from .acquisition import Acquisition
 from .catalog import Catalog
 from .config import settings
 from .llm import DeepSeek
@@ -41,6 +42,9 @@ async def lifespan(app):
             DeepSeek(config, store),
             store,
             saver,
+            acquisition=Acquisition(config)
+            if config.research_source_mode == "browser"
+            else None,
         )
         runtime = Runtime(graph, store, config)
         app.state.store = store
@@ -95,7 +99,7 @@ async def get_run(run_id: UUID, request: Request):
 @app.post("/runs/{run_id}/actions", response_model=RunView, operation_id="act_on_run")
 async def act_on_run(run_id: UUID, body: Action, request: Request):
     view = await request.app.state.store.action(run_id, body)
-    if body.kind == "cancel":
+    if body.kind in {"cancel", "pause"}:
         await request.app.state.runtime.cancel(run_id)
     return view
 

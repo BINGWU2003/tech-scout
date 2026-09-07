@@ -154,6 +154,7 @@ class Store:
                 "confirm_plan": {"awaiting_plan", "failed"},
                 "resolve_entities": {"awaiting_entities"},
                 "retry": {"failed", "recoverable"},
+                "pause": {"queued", "running"},
                 "cancel": {
                     "queued",
                     "running",
@@ -176,7 +177,13 @@ class Store:
                 (run_id, action.action_id, Jsonb(payload)),
             )
             changes = {
-                "status": "cancelled" if action.kind == "cancel" else "queued",
+                "status": (
+                    "cancelled"
+                    if action.kind == "cancel"
+                    else "recoverable"
+                    if action.kind == "pause"
+                    else "queued"
+                ),
                 "lease": None,
                 "command": payload,
                 "error": None,
@@ -253,7 +260,13 @@ class Store:
             for row in await cursor.fetchall():
                 # Charge time since heartbeat on crash; never reset a run's budget.
                 elapsed = (datetime.now(UTC) - row["heartbeat"]).total_seconds()
-                row["budget"]["elapsed_seconds"] += min(elapsed, 20)
+                collecting = (
+                    row["node"] == "snapshot"
+                    and row["artifacts"].get("context", {}).get("source_mode")
+                    == "browser"
+                )
+                if not collecting:
+                    row["budget"]["elapsed_seconds"] += min(elapsed, 20)
                 await self.update(
                     conn,
                     row,
@@ -286,6 +299,13 @@ class Store:
 
 
 def validate_plan(plan, context):
+    if context.get("source_mode") == "browser":
+        if plan.to_year > context["period_to_year"]:
+            raise ResearchError("PLAN_OUT_OF_SCOPE", "结束年份不能晚于当前年份")
+        ids = [d.domain_id for d in plan.directions]
+        if len(ids) != len(set(ids)):
+            raise ResearchError("PLAN_OUT_OF_SCOPE", "检索方向标识不能重复")
+        return
     release = context["release"]
     if (
         plan.from_year < release["period_from_year"]

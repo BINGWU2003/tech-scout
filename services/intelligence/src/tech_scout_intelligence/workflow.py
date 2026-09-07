@@ -21,6 +21,7 @@ class State(TypedDict, total=False):
     analysis: dict
     evidence_findings: dict
     result: dict
+    acquisition: dict
 
 
 def patent_workset(snapshot, plan):
@@ -32,9 +33,19 @@ def patent_workset(snapshot, plan):
         matches.setdefault(row["patent_id"], []).append(row)
     found = []
     for patent in snapshot["patents"]:
-        if not plan.from_year <= patent["grant_year"] <= plan.to_year:
+        year = (
+            patent.get("publication_year")
+            if snapshot.get("source_mode") == "browser"
+            else patent.get("grant_year")
+        )
+        if year is None or not plan.from_year <= year <= plan.to_year:
             continue
         title = patent["patent_title"].casefold()
+        if snapshot.get("source_mode") == "browser":
+            title += " " + " ".join(
+                str(patent.get(field) or "").casefold()
+                for field in ("abstract", "claims", "description")
+            )
         cpcs = classifications.get(patent["patent_id"], [])
         reasons = []
         for direction in plan.directions:
@@ -204,7 +215,7 @@ def rank(companies, patents):
             continue
         trend: dict[str, int] = {}
         for row in rows:
-            year = str(row["grant_year"])
+            year = str(row.get("publication_year") or row.get("grant_year"))
             trend[year] = trend.get(year, 0) + 1
         result.append(
             {
@@ -213,7 +224,9 @@ def rank(companies, patents):
                 "patent_count": len(rows),
                 "grant_year_trend": trend,
                 "rule_score": max(m["total_score"] for p in rows for m in p["matches"]),
-                "latest_grant_year": max(p["grant_year"] for p in rows),
+                "latest_grant_year": max(
+                    p.get("publication_year") or p.get("grant_year") or 0 for p in rows
+                ),
             }
         )
     return sorted(
@@ -282,16 +295,31 @@ def evidence_findings(snapshot, unverified):
     }
 
 
-def build_graph(catalog, llm, store, checkpointer):
+def build_graph(catalog, llm, store, checkpointer, acquisition=None):
+    def browser_mode(state):
+        return state.get("context", {}).get("source_mode") == "browser"
+
     async def context(state, config):
-        return {"context": await catalog.read()}
+        return {
+            "context": await acquisition.context()
+            if acquisition
+            else await catalog.read()
+        }
 
     async def planner(state, config):
         run_id, lease = identity(config)
         plan = await llm.generate(
             run_id,
             lease,
-            "将研究问题拆成已有领域内的 1–3 个可检索方向。关键词组内 OR，"
+            (
+                "将技术方向拆成 1–3 个 Google Patents 可检索方向。"
+                "为每个方向生成唯一 domain_id。"
+                "无需已有数据库领域。年份表示公开年份，不能晚于当前年份。"
+                "只生成检索方案，不生成公司或专利事实。"
+                if browser_mode(state)
+                else "将研究问题拆成已有领域内的 1–3 个可检索方向。"
+            )
+            + "关键词组内 OR，"
             "关键词与 CPC 条件 AND，方向间 OR。使用来源语言的标题词；"
             "避免同时设置过窄条件。年份不能超出数据范围。",
             {"question": state["question"], "context": state["context"]},
@@ -310,6 +338,29 @@ def build_graph(catalog, llm, store, checkpointer):
         return {"confirmed_plan": plan.model_dump()}
 
     async def snapshot(state, config):
+        if browser_mode(state):
+            if acquisition is None:
+                raise ResearchError(
+                    "SOURCE_MODE_CHANGED", "请恢复网页采集配置后继续此任务"
+                )
+            run_id, lease = identity(config)
+
+            async def progress(value):
+                current = await store.get(run_id)
+                await store.publish(
+                    run_id,
+                    lease=lease,
+                    kind="acquisition_progress",
+                    artifacts={**current.artifacts, "acquisition": value},
+                )
+
+            data = await acquisition.collect(run_id, state["confirmed_plan"], progress)
+            return {
+                "snapshot": scoped_snapshot(
+                    data, Plan.model_validate(state["confirmed_plan"])
+                ),
+                "acquisition": {"status": "completed", "stage": "snapshot"},
+            }
         data = await catalog.read(state["context"]["release"]["release_id"])
         return {
             "snapshot": scoped_snapshot(
@@ -392,6 +443,7 @@ def build_graph(catalog, llm, store, checkpointer):
                         {
                             "patent_id": pid,
                             "title": samples[pid]["patent_title"],
+                            "abstract": samples[pid].get("abstract"),
                             "cpcs": samples[pid]["cpcs"],
                             "matches": samples[pid]["matches"],
                         }
@@ -405,7 +457,8 @@ def build_graph(catalog, llm, store, checkpointer):
             run_id,
             lease,
             "逐家解释技术相关性，不修改公司集合或程序排序。每家解释引用所提供专利 ID。"
-            "明确这只是标题/CPC 相关性推断，不声称产品、客户、市场份额或投资价值。",
+            "依据给出的标题、摘要（如果有）与 CPC 解释相关性，不声称产品、客户、"
+            "市场份额或投资价值。",
             payload,
             Analysis,
         )
@@ -429,7 +482,9 @@ def build_graph(catalog, llm, store, checkpointer):
         for item in ranked:
             item["inference"] = explanations.get(item["company_id"])
             item["ranking_reason"] = (
-                "规则相关性、去重授权专利数量、最近授权年份；同值按公司 ID"
+                "规则相关性、去重公开记录数量、最近公开年份；同值按公司 ID"
+                if browser_mode(state)
+                else "规则相关性、去重授权专利数量、最近授权年份；同值按公司 ID"
             )
         return {
             "result": {
@@ -439,19 +494,25 @@ def build_graph(catalog, llm, store, checkpointer):
                 ],
                 "patent_count": len(state["patents"]),
                 "release_id": state["snapshot"]["release"]["release_id"],
-                "missing": [
-                    "专利摘要",
-                    "权利要求正文",
-                    "专利族",
-                    "完整法律状态",
-                    "产品与客户",
-                    "新闻与论文",
-                ],
+                "missing": (
+                    ["完整法律状态", "产品与客户", "新闻与论文"]
+                    if browser_mode(state)
+                    else [
+                        "专利摘要",
+                        "权利要求正文",
+                        "专利族",
+                        "完整法律状态",
+                        "产品与客户",
+                        "新闻与论文",
+                    ]
+                ),
                 "empty_reason": "没有符合条件的专利或已核验公司；可修改并确认新计划"
                 if not ranked
                 else None,
-                "workflow_version": "phase2-v1",
-                "prompt_version": "phase2-v1",
+                "workflow_version": "browser-v1"
+                if browser_mode(state)
+                else "phase2-v1",
+                "prompt_version": "browser-v1" if browser_mode(state) else "phase2-v1",
                 "evidence_quality": state["evidence_findings"]["identity_evidence"],
                 "conflicts": state["evidence_findings"]["conflicts"],
             }

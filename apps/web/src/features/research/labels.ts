@@ -32,6 +32,7 @@ export const decisionLabels: Record<string, string> = {
   unresolved: '待处理',
 }
 export const eventLabels: Record<string, string> = {
+  acquisition_progress: '采集进度已更新',
   started: '开始执行',
   node_started: '步骤开始',
   node_completed: '状态已保存',
@@ -47,6 +48,7 @@ export const eventLabels: Record<string, string> = {
   failed: '执行失败',
   recoverable: '等待恢复',
   retry: '收到手动重试',
+  pause: '收到暂停请求',
   cancel: '收到取消请求',
   cancelled: '研究已取消',
 }

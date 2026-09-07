@@ -1,6 +1,8 @@
 # Tech Scout
 
-Tech Scout 是一个本地优先、证据可追溯的技术侦察项目。仓库包含 React 管理端、NestJS 产品 API、已初始化的 Python Agent 项目，以及独立的离线数据管道。
+Tech Scout 是一个本地优先、证据可追溯的技术侦察项目。默认在用户确认技术检索计划后，通过 Python 浏览器采集 Google Patents 和风鸟，并在同一个研究任务中完成入库、身份核验和分析。空数据库可以直接开始研究。
+
+新数据源的启动、登录、恢复与回退说明见 [按需网页采集](docs/browser-acquisition.md)。
 
 ## 项目结构
 
@@ -10,7 +12,8 @@ tech-scout/
 │  ├─ web/    # React 19 + Vite 8
 │  └─ api/    # NestJS 12
 ├─ services/
-│  └─ intelligence/         # Python Agent 项目，运行时尚未实现
+│  ├─ intelligence/         # 研究规划、确认、核验和分析
+│  └─ acquisition/          # 本机浏览器采集与增量入库
 ├─ pipelines/
 │  └─ data-foundation/      # Raw/Bronze/Silver/Catalog/固定报告
 ├─ packages/

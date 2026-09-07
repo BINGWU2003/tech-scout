@@ -13,6 +13,7 @@ export const researchViewQuerySchema = z.object({
   pending: z.enum(['true', 'false']).default('false'),
 })
 export const researchSourceViewSchema = z.object({
+  url: z.string().nullable().optional(),
   path: z.string().nullable(),
   sha256: z.string().nullable(),
   row: z.string().nullable(),
@@ -30,6 +31,16 @@ export const researchSummaryViewSchema = z.object({
   error: researchStateSchema.shape.error,
   budget: researchStateSchema.shape.budget.nullable(),
   releaseId: z.string().nullable(),
+  sourceMode: z.enum(['browser', 'catalog']).default('catalog'),
+  acquisition: z
+    .object({
+      status: z.string(),
+      stage: z.string().nullable().default(null),
+      completed: z.number().nullable().default(null),
+      total: z.number().nullable().default(null),
+    })
+    .nullable()
+    .default(null),
   fromYear: z.number().nullable(),
   toYear: z.number().nullable(),
   domains: z.array(z.object({ id: z.string(), name: z.string() })),
@@ -72,6 +83,13 @@ export const researchPatentViewSchema = z.object({
   id: z.string(),
   title: z.string(),
   year: z.number().nullable(),
+  dateKind: z.enum(['publication', 'grant']).default('grant'),
+  abstract: z.string().nullable().optional(),
+  claims: z.string().nullable().optional(),
+  description: z.string().nullable().optional(),
+  parties: z
+    .array(z.object({ name: z.string(), roles: z.array(z.string()) }))
+    .default([]),
   cpcs: z.array(z.string()),
   domains: z.array(z.string()),
   source: researchSourceViewSchema,
@@ -116,6 +134,7 @@ export const researchCompanyDetailViewSchema = z.object({
   name: z.string(),
   legalName: z.string().nullable(),
   country: z.string().nullable(),
+  businessInfo: z.record(z.string(), z.string()).default({}),
   aliases: z.array(z.string()),
   identifiers: z.array(z.object({ type: z.string(), value: z.string() })),
   relations: z.array(

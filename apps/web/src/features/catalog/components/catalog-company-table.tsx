@@ -101,7 +101,7 @@ function createColumns(
     },
     {
       accessorKey: 'latestPatentDate',
-      header: '最近授权日',
+      header: '最近文献日期',
       meta: { className: 'w-[15%]' },
       cell: ({ row }) => row.original.latestPatentDate ?? '未知',
     },
@@ -247,7 +247,7 @@ export function CatalogCompanyTable({
             <SelectContent>
               <SelectItem value='patentCount'>相关专利</SelectItem>
               <SelectItem value='name'>公司名称</SelectItem>
-              <SelectItem value='latestPatentDate'>最近授权日</SelectItem>
+              <SelectItem value='latestPatentDate'>最近文献日期</SelectItem>
             </SelectContent>
           </Select>
           <Select

@@ -15,7 +15,7 @@ export type Action = {
     /**
      * Kind
      */
-    kind: 'confirm_plan' | 'resolve_entities' | 'retry' | 'cancel';
+    kind: 'confirm_plan' | 'resolve_entities' | 'retry' | 'cancel' | 'pause';
     /**
      * Actor Id
      */

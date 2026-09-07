@@ -19,6 +19,13 @@ const num = (v: unknown) => (typeof v === 'number' ? v : null)
 const strings = (v: unknown) =>
   Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []
 export const sourceView = (v: Record<string, unknown>) => ({
+  url:
+    typeof v.source_url === 'string' &&
+    /^https:\/\/(patents\.google\.com|(?:www\.)?riskbird\.com)\//.test(
+      v.source_url
+    )
+      ? v.source_url
+      : null,
   path: str(v.source_path),
   sha256: str(v.source_sha256),
   row: v.source_row_number == null ? null : String(v.source_row_number),
@@ -89,6 +96,8 @@ export class ResearchViewService {
       SELECT r.id, r.project_id AS "projectId", r.question, r.status, r.sequence,
         r.created_at AS "createdAt", r.updated_at AS "updatedAt", r.state - 'artifacts' AS state,
         r.state #> '{artifacts,context}' AS context,
+        r.state #> '{artifacts,acquisition}' AS acquisition,
+        r.state #>> '{artifacts,snapshot,release,release_id}' AS "snapshotReleaseId",
         r.state #> '{artifacts,plan}' AS plan, r.state #> '{artifacts,confirmed_plan}' AS confirmed,
         COALESCE(jsonb_array_length(r.state #> '{artifacts,unverified}'), 0) AS "candidateCount",
         r.state #> '{artifacts,result}' IS NOT NULL AS "hasResult",
@@ -114,9 +123,11 @@ export class ResearchViewService {
       node: str(s.node),
       error: s.error ?? null,
       budget: s.budget ?? null,
-      releaseId: str(release.release_id),
-      fromYear: num(release.period_from_year),
-      toYear: num(release.period_to_year),
+      releaseId: str(r.snapshotReleaseId) ?? str(release.release_id),
+      sourceMode: context.source_mode === 'browser' ? 'browser' : 'catalog',
+      acquisition: r.acquisition ?? null,
+      fromYear: num(context.period_from_year) ?? num(release.period_from_year),
+      toYear: num(context.period_to_year) ?? num(release.period_to_year),
       domains: rows(context.domains).map((d) => ({
         id: String(d.domain_id),
         name: String(d.name),
@@ -204,7 +215,20 @@ export class ResearchViewService {
       patents.map((p) => ({
         id: String(p.patent_id),
         title: String(p.patent_title),
-        year: num(p.grant_year),
+        year: num(p.publication_year) ?? num(p.grant_year),
+        dateKind:
+          object(a.snapshot).source_mode === 'browser'
+            ? 'publication'
+            : 'grant',
+        abstract: str(p.abstract),
+        claims: q.patentId ? str(p.claims) : null,
+        description: q.patentId ? str(p.description) : null,
+        parties: rows(object(a.snapshot)['patent-parties'])
+          .filter((x) => x.patent_id === p.patent_id)
+          .map((x) => ({
+            name: String(x.party_name),
+            roles: strings(x.source_roles),
+          })),
         cpcs: strings(p.cpcs),
         domains: [...new Set(rows(p.matches).map((m) => String(m.domain_id)))],
         source: sourceView(p),
@@ -277,6 +301,11 @@ export class ResearchViewService {
       legalName: str(c.legal_name),
       country: str(c.country),
       source: sourceView(c),
+      businessInfo: Object.fromEntries(
+        Object.entries(object(c.business_info)).filter(
+          (entry): entry is [string, string] => typeof entry[1] === 'string'
+        )
+      ),
       aliases: rows(s['company-aliases'])
         .filter((x) => x.company_id === companyId)
         .map((x) => String(x.alias_name ?? x.alias ?? '')),

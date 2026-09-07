@@ -65,6 +65,20 @@ export function CatalogCompanyDetail({
 }) {
   return (
     <div className='grid gap-4'>
+      {company.businessInfo && (
+        <Card>
+          <CardHeader>
+            <CardTitle>工商信息</CardTitle>
+          </CardHeader>
+          <CardContent className='space-y-2 text-sm'>
+            {Object.entries(company.businessInfo).map(([key, value]) => (
+              <p key={key}>
+                {key}：{value}
+              </p>
+            ))}
+          </CardContent>
+        </Card>
+      )}
       <div className='grid gap-4 xl:grid-cols-3'>
         <div className='grid content-start gap-4 xl:grid-rows-[auto_1fr]'>
           <Card>
@@ -190,7 +204,7 @@ export function CatalogCompanyDetail({
                 <TableRow>
                   <TableHead>领域</TableHead>
                   <TableHead>专利数</TableHead>
-                  <TableHead>最近授权日</TableHead>
+                  <TableHead>最近文献日期</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>

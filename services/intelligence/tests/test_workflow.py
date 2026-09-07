@@ -311,3 +311,32 @@ async def test_no_result_does_not_broaden_or_call_analysis():
     assert result["patent_count"] == 0
     assert result["empty_reason"]
     assert llm.calls == ["Plan"]
+
+
+@pytest.mark.asyncio
+async def test_empty_database_waits_for_confirmation_before_collection():
+    catalog, acquisition, llm = AsyncMock(), AsyncMock(), FakeLLM()
+    acquisition.context.return_value = {
+        "source_mode": "browser",
+        "domains": [],
+        "release": {},
+        "period_from_year": 1800,
+        "period_to_year": 2026,
+    }
+    snapshot = sample()
+    snapshot["source_mode"] = "browser"
+    snapshot["patents"][0]["publication_year"] = 2025
+    acquisition.collect.return_value = snapshot
+    graph = build_graph(catalog, llm, AsyncMock(), InMemorySaver(), acquisition)
+    config = {"configurable": {"thread_id": str(uuid4()), "lease": uuid4()}}
+    await graph.ainvoke({"question": "工业视觉"}, config)
+    assert (await graph.aget_state(config)).next == ("plan_gate",)
+    acquisition.collect.assert_not_called()
+    catalog.read.assert_not_called()
+    await graph.ainvoke(Command(resume={"plan": plan().model_dump()}), config)
+    acquisition.collect.assert_awaited_once()
+    assert (
+        str(acquisition.collect.call_args.args[0])
+        == config["configurable"]["thread_id"]
+    )
+    catalog.read.assert_not_called()

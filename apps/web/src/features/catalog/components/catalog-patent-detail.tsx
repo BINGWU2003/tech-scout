@@ -49,6 +49,29 @@ export function CatalogPatentDetail({
 }) {
   return (
     <div className='grid gap-4 xl:grid-cols-3'>
+      {patent.abstract && (
+        <Card className='xl:col-span-3'>
+          <CardHeader>
+            <CardTitle>摘要与正文</CardTitle>
+          </CardHeader>
+          <CardContent className='space-y-3 text-sm'>
+            <p>{patent.abstract}</p>
+            {patent.claims && (
+              <details>
+                <summary>权利要求</summary>
+                <p className='whitespace-pre-wrap'>{patent.claims}</p>
+              </details>
+            )}
+            {patent.description && (
+              <details>
+                <summary>说明书</summary>
+                <p className='whitespace-pre-wrap'>{patent.description}</p>
+              </details>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       <Card>
         <CardHeader>
           <CardTitle>专利基本信息</CardTitle>
@@ -60,12 +83,15 @@ export function CatalogPatentDetail({
               <dd className='font-mono break-all'>{patent.patentId}</dd>
             </div>
             <div>
-              <dt className='text-muted-foreground'>授权日</dt>
-              <dd>{patent.patentDate}</dd>
+              <dt className='text-muted-foreground'>文献日期</dt>
+              <dd>
+                {patent.patentDate ?? '未知'}（
+                {patent.publicationYear !== undefined ? '公开' : '授权'}）
+              </dd>
             </div>
             <div>
-              <dt className='text-muted-foreground'>授权年份</dt>
-              <dd>{patent.grantYear}</dd>
+              <dt className='text-muted-foreground'>文献年份</dt>
+              <dd>{patent.publicationYear ?? patent.grantYear ?? '未知'}</dd>
             </div>
             <div>
               <dt className='text-muted-foreground'>类型</dt>

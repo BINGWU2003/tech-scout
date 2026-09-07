@@ -43,14 +43,46 @@ export function PatentSnapshot({
         {patent && (
           <div className='space-y-3 text-sm'>
             <h3 className='font-semibold'>{patent.title}</h3>
-            <p>授权年份：{patent.year ?? '缺失'}</p>
+            <p>
+              {patent.dateKind === 'publication' ? '公开年份' : '授权年份'}：
+              {patent.year ?? '缺失'}
+            </p>
             <p className='break-words'>
               CPC：{patent.cpcs.join('、') || '缺失'}
             </p>
             <SourceReference source={patent.source} />
-            <p className='text-muted-foreground'>
-              未提供专利摘要、权利要求正文或产品能力证明。
+            <p className='whitespace-pre-wrap'>
+              {patent.abstract ?? '该快照未提供摘要'}
             </p>
+            {patent.parties.map((party, index) => (
+              <p key={index}>
+                {party.name} ·{' '}
+                {party.roles
+                  .map(
+                    (role) =>
+                      (
+                        ({
+                          search_listing: '检索列表名称',
+                          current_assignee: '当前权利人',
+                          original_assignee: '原始申请人',
+                        }) as Record<string, string>
+                      )[role] ?? role
+                  )
+                  .join('、')}
+              </p>
+            ))}
+            {patent.claims && (
+              <details>
+                <summary>权利要求</summary>
+                <p className='whitespace-pre-wrap'>{patent.claims}</p>
+              </details>
+            )}
+            {patent.description && (
+              <details>
+                <summary>说明书</summary>
+                <p className='whitespace-pre-wrap'>{patent.description}</p>
+              </details>
+            )}
           </div>
         )}
       </DialogContent>
@@ -83,12 +115,15 @@ export function PatentList({
             {citations.includes(p.id) ? ' · 模型引用' : ''}
           </summary>
           <div className='mt-3 space-y-2 text-sm'>
-            <p>授权年份：{p.year ?? '缺失'}</p>
+            <p>
+              {p.dateKind === 'publication' ? '公开年份' : '授权年份'}：
+              {p.year ?? '缺失'}
+            </p>
             <p className='break-words'>CPC：{p.cpcs.join('、') || '缺失'}</p>
             <p>本次领域：{p.domains.join('、')}</p>
             <SourceReference source={p.source} />
             <p className='text-xs text-muted-foreground'>
-              当前快照不含摘要和权利要求正文。
+              {p.abstract ?? '该快照未提供摘要'}
             </p>
           </div>
         </details>
@@ -147,6 +182,11 @@ export function CompanySnapshot({
                   .map((i) => `${i.type}: ${i.value}`)
                   .join('；') || '无'}
               </p>
+              {Object.entries(query.data.businessInfo).map(([label, value]) => (
+                <p key={label}>
+                  {label}：{value}
+                </p>
+              ))}
               <SourceReference source={query.data.source} />
               <Button asChild variant='outline' size='sm'>
                 <Link

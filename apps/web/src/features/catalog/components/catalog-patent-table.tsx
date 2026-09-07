@@ -76,7 +76,7 @@ function createColumns(
     },
     {
       accessorKey: 'patentDate',
-      header: '授权日',
+      header: '文献日期',
       meta: { className: 'w-[14%]' },
       cell: ({ row }) => row.original.patentDate,
     },
@@ -321,7 +321,7 @@ export function CatalogPatentTable({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value='score'>{scoreLabel}</SelectItem>
-              <SelectItem value='patentDate'>授权日</SelectItem>
+              <SelectItem value='patentDate'>文献日期</SelectItem>
               <SelectItem value='title'>标题</SelectItem>
             </SelectContent>
           </Select>

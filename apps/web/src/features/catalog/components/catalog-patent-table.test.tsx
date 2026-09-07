@@ -235,16 +235,16 @@ describe('CatalogPatentTable 专利表格', () => {
     )
     await userEvent.fill(screen.getByLabelText('按受让人名称筛选专利'), 'Acme')
     await userEvent.click(
-      screen.getByRole('button', { name: '选择授权年份范围' })
+      screen.getByRole('button', { name: '选择文献年份范围' })
     )
     await userEvent.click(screen.getByRole('button', { name: '选择 2025 年' }))
     await expect
-      .element(screen.getByRole('button', { name: '授权年份范围：2025 年起' }))
+      .element(screen.getByRole('button', { name: '文献年份范围：2025 年起' }))
       .toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: '选择 2029 年' }))
     await expect
       .element(
-        screen.getByRole('button', { name: '授权年份范围：2025 – 2029' })
+        screen.getByRole('button', { name: '文献年份范围：2025 – 2029' })
       )
       .toBeInTheDocument()
     await expect
@@ -288,7 +288,7 @@ describe('CatalogPatentTable 专利表格', () => {
     })
   })
 
-  it('清除已选的授权年份范围', async () => {
+  it('清除已选的文献年份范围', async () => {
     const onQueryChange = vi.fn()
     const screen = await renderWithCatalogRouter(
       <CatalogPatentTable
@@ -306,11 +306,11 @@ describe('CatalogPatentTable 专利表格', () => {
     )
 
     await userEvent.click(
-      screen.getByRole('button', { name: '授权年份范围：2020 – 2025' })
+      screen.getByRole('button', { name: '文献年份范围：2020 – 2025' })
     )
     await userEvent.click(screen.getByRole('button', { name: '清除年份范围' }))
     await expect
-      .element(screen.getByRole('button', { name: '选择授权年份范围' }))
+      .element(screen.getByRole('button', { name: '选择文献年份范围' }))
       .toBeInTheDocument()
 
     expect(onQueryChange).toHaveBeenLastCalledWith({

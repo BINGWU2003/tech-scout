@@ -29,7 +29,13 @@ export const researchCreateSchema = z
 export const researchActionSchema = z
   .object({
     action_id: z.uuid(),
-    kind: z.enum(['confirm_plan', 'resolve_entities', 'retry', 'cancel']),
+    kind: z.enum([
+      'confirm_plan',
+      'resolve_entities',
+      'retry',
+      'cancel',
+      'pause',
+    ]),
     plan: researchPlanSchema.nullable().optional(),
     decisions: z
       .array(

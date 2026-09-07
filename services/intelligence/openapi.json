@@ -349,7 +349,8 @@
               "confirm_plan",
               "resolve_entities",
               "retry",
-              "cancel"
+              "cancel",
+              "pause"
             ],
             "title": "Kind"
           },

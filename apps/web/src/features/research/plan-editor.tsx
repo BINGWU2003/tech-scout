@@ -22,16 +22,19 @@ export function PlanEditor({
   busy: boolean
   onSubmit: (a: ResearchAction) => Promise<void>
 }) {
+  const live = run.sourceMode === 'browser'
   const [plan, setPlan] = useState<Plan>(
     () =>
       run.plan ?? {
-        from_year: run.fromYear ?? 2019,
-        to_year: run.toYear ?? 2025,
+        from_year: live
+          ? new Date().getFullYear() - 10
+          : (run.fromYear ?? 2019),
+        to_year: run.toYear ?? new Date().getFullYear(),
         risks: [],
         directions: [
           {
-            domain_id: run.domains[0]?.id ?? '',
-            name: run.domains[0]?.name ?? '',
+            domain_id: run.domains[0]?.id ?? 'direction-1',
+            name: run.domains[0]?.name ?? run.question.slice(0, 200),
             keywords: [],
             excluded_keywords: [],
             cpc_prefixes: [],
@@ -68,9 +71,10 @@ export function PlanEditor({
     if (
       (run.fromYear != null && parsed.data.from_year < run.fromYear) ||
       (run.toYear != null && parsed.data.to_year > run.toYear) ||
-      parsed.data.directions.some(
-        (d) => !run.domains.some((domain) => domain.id === d.domain_id)
-      )
+      (!live &&
+        parsed.data.directions.some(
+          (d) => !run.domains.some((domain) => domain.id === d.domain_id)
+        ))
     ) {
       setError(new Error('请选择本次发布的领域，年份不能超出数据覆盖范围。'))
       return
@@ -96,14 +100,20 @@ export function PlanEditor({
           {run.status === 'failed' ? '手工填写研究计划' : '检查并确认研究计划'}
         </h2>
         <p className='mt-1 text-sm text-muted-foreground'>
-          方向之间取并集；关键词组内任选其一，关键词与 CPC
-          同时满足。留空表示不限制该项。确认后本轮计划锁定。
+          {live && '确认检索后才开始采集专利和公司信息，无需预先准备数据库。'}
+          方向之间取并集；关键词组内任选其一，关键词与 CPC 同时满足。
+          {live
+            ? '关键词留空时使用方向名称，CPC 留空表示不限。'
+            : '留空表示不限制该项。'}
+          确认后本轮计划锁定。
         </p>
       </div>
       <fieldset disabled={busy} className='space-y-5'>
         <div className='grid max-w-lg grid-cols-2 gap-4'>
           <div>
-            <Label htmlFor='from-year'>授权起始年份</Label>
+            <Label htmlFor='from-year'>
+              {live ? '公开起始年份' : '授权起始年份'}
+            </Label>
             <Input
               id='from-year'
               type='number'
@@ -116,7 +126,9 @@ export function PlanEditor({
             />
           </div>
           <div>
-            <Label htmlFor='to-year'>授权结束年份</Label>
+            <Label htmlFor='to-year'>
+              {live ? '公开结束年份' : '授权结束年份'}
+            </Label>
             <Input
               id='to-year'
               type='number'
@@ -133,21 +145,23 @@ export function PlanEditor({
           <fieldset key={i} className='space-y-3 rounded-lg border p-4'>
             <legend className='px-2 text-sm font-semibold'>方向 {i + 1}</legend>
             <div className='grid gap-3 md:grid-cols-2'>
-              <div>
-                <Label htmlFor={`domain-${i}`}>技术领域</Label>
-                <select
-                  id={`domain-${i}`}
-                  className='mt-1 h-9 w-full rounded-md border bg-background px-3 text-sm'
-                  value={d.domain_id}
-                  onChange={(e) => patch(i, { domain_id: e.target.value })}
-                >
-                  {run.domains.map((domain) => (
-                    <option key={domain.id} value={domain.id}>
-                      {domain.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              {!live && (
+                <div>
+                  <Label htmlFor={`domain-${i}`}>技术领域</Label>
+                  <select
+                    id={`domain-${i}`}
+                    className='mt-1 h-9 w-full rounded-md border bg-background px-3 text-sm'
+                    value={d.domain_id}
+                    onChange={(e) => patch(i, { domain_id: e.target.value })}
+                  >
+                    {run.domains.map((domain) => (
+                      <option key={domain.id} value={domain.id}>
+                        {domain.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
               <div>
                 <Label htmlFor={`name-${i}`}>方向名称</Label>
                 <Input
@@ -206,15 +220,19 @@ export function PlanEditor({
         <Button
           type='button'
           variant='outline'
-          disabled={plan.directions.length >= 3 || !run.domains.length}
+          disabled={
+            plan.directions.length >= 3 || (!live && !run.domains.length)
+          }
           onClick={() =>
             setPlan((p) => ({
               ...p,
               directions: [
                 ...p.directions,
                 {
-                  domain_id: run.domains[0].id,
-                  name: run.domains[0].name,
+                  domain_id: live
+                    ? `direction-${createRequestId()}`
+                    : run.domains[0].id,
+                  name: live ? '' : run.domains[0].name,
                   keywords: [],
                   excluded_keywords: [],
                   cpc_prefixes: [],
@@ -237,8 +255,12 @@ export function PlanEditor({
           </div>
         )}
         <ErrorNotice error={error} />
-        <Button disabled={!run.domains.length || busy}>
-          {busy ? '正在提交…' : '确认计划并开始筛选'}
+        <Button disabled={(!live && !run.domains.length) || busy}>
+          {busy
+            ? '正在提交…'
+            : live
+              ? '确认检索并开始采集'
+              : '确认计划并开始筛选'}
         </Button>
       </fieldset>
     </form>

@@ -30,7 +30,7 @@ function getRangeLabel(fromYear?: number, toYear?: number) {
   if (fromYear && toYear) return `${fromYear} – ${toYear}`
   if (fromYear) return `${fromYear} 年起`
   if (toYear) return `截至 ${toYear} 年`
-  return '授权年份范围'
+  return '文献年份范围'
 }
 
 export function YearRangePicker({
@@ -74,8 +74,8 @@ export function YearRangePicker({
           variant='outline'
           aria-label={
             fromYear === undefined && toYear === undefined
-              ? '选择授权年份范围'
-              : `授权年份范围：${label}`
+              ? '选择文献年份范围'
+              : `文献年份范围：${label}`
           }
         >
           <CalendarRange className='size-4' />
@@ -90,7 +90,7 @@ export function YearRangePicker({
               type='button'
               variant='ghost'
               className='size-8'
-              aria-label='查看上一组授权年份'
+              aria-label='查看上一组文献年份'
               disabled={pageStart <= MIN_YEAR}
               onClick={() =>
                 setPageStart((current) => current - YEARS_PER_PAGE)
@@ -106,7 +106,7 @@ export function YearRangePicker({
               type='button'
               variant='ghost'
               className='size-8'
-              aria-label='查看下一组授权年份'
+              aria-label='查看下一组文献年份'
               disabled={pageEnd >= MAX_YEAR}
               onClick={() =>
                 setPageStart((current) => current + YEARS_PER_PAGE)
@@ -118,7 +118,7 @@ export function YearRangePicker({
           <div
             className='grid grid-cols-3 gap-1'
             role='group'
-            aria-label='选择授权年份范围'
+            aria-label='选择文献年份范围'
           >
             {years.map((year) => {
               const isEndpoint = year === fromYear || year === toYear

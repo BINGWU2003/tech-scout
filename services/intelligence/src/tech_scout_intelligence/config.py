@@ -1,5 +1,6 @@
 from functools import lru_cache
 from pathlib import Path
+from typing import Literal
 
 from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -10,8 +11,11 @@ class Settings(BaseSettings):
         env_file=Path(__file__).resolve().parents[2] / ".env", extra="ignore"
     )
     intelligence_database_url: SecretStr
-    intelligence_catalog_database_url: SecretStr
+    intelligence_catalog_database_url: SecretStr = SecretStr("")
     intelligence_internal_token: SecretStr = Field(min_length=32)
+    research_source_mode: Literal["browser", "catalog"] = "browser"
+    acquisition_base_url: str = "http://127.0.0.1:8002"
+    acquisition_internal_token: SecretStr = SecretStr("")
     deepseek_api_key: SecretStr = SecretStr("")
     deepseek_base_url: str = "https://api.deepseek.com"
     deepseek_model: str = "deepseek-v4-flash"
@@ -33,8 +37,12 @@ class Settings(BaseSettings):
             "input_cny_per_million": self.research_input_cny_per_million,
             "output_cny_per_million": self.research_output_cny_per_million,
             "thinking": "disabled",
-            "workflow_version": "phase2-v1",
-            "prompt_version": "phase2-v1",
+            "workflow_version": "browser-v1"
+            if self.research_source_mode == "browser"
+            else "phase2-v1",
+            "prompt_version": "browser-v1"
+            if self.research_source_mode == "browser"
+            else "phase2-v1",
         }
 
 
