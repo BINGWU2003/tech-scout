@@ -74,6 +74,7 @@ class Runtime:
         last_tick = time.monotonic()
         started = last_tick
         executor = asyncio.current_task()
+        assert executor is not None
 
         async def pulse():
             nonlocal last_tick

@@ -4,14 +4,14 @@ import asyncio
 
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from psycopg import AsyncConnection
-from psycopg.rows import dict_row
+from psycopg.rows import DictRow, dict_row
 
 from .config import settings
 from .store import DDL
 
 
 async def migrate():
-    async with await AsyncConnection.connect(
+    async with await AsyncConnection[DictRow].connect(
         settings().intelligence_database_url.get_secret_value(),
         autocommit=True,
         prepare_threshold=0,

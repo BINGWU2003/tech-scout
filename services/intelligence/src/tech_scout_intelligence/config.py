@@ -40,4 +40,5 @@ class Settings(BaseSettings):
 
 @lru_cache
 def settings() -> Settings:
-    return Settings()
+    # Required values are supplied by BaseSettings from the service .env file.
+    return Settings()  # pyright: ignore[reportCallIssue]

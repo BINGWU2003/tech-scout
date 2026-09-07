@@ -7,7 +7,8 @@ from uuid import UUID
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
-from psycopg.rows import dict_row
+from psycopg import AsyncConnection
+from psycopg.rows import DictRow, dict_row
 from psycopg_pool import AsyncConnectionPool
 
 from .catalog import Catalog
@@ -22,7 +23,7 @@ from .workflow import build_graph
 @asynccontextmanager
 async def lifespan(app):
     config = settings()
-    async with AsyncConnectionPool(
+    async with AsyncConnectionPool[AsyncConnection[DictRow]](
         config.intelligence_database_url.get_secret_value(),
         open=False,
         kwargs={

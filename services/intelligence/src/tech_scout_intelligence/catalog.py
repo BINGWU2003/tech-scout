@@ -5,7 +5,7 @@ from pathlib import PureWindowsPath
 from typing import Any
 
 from psycopg import AsyncConnection, sql
-from psycopg.rows import dict_row
+from psycopg.rows import DictRow, dict_row
 
 from .models import ResearchError
 
@@ -57,7 +57,7 @@ class Catalog:
         self.url = url
 
     async def read(self, expected_release: str | None = None) -> dict:
-        async with await AsyncConnection.connect(
+        async with await AsyncConnection[DictRow].connect(
             self.url,
             row_factory=dict_row,
             options="-c default_transaction_read_only=on -c statement_timeout=15000",

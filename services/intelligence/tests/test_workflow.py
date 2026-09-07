@@ -3,6 +3,7 @@ from unittest.mock import AsyncMock
 from uuid import uuid4
 
 import pytest
+from langchain_core.runnables import RunnableConfig
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.types import Command
 
@@ -128,18 +129,20 @@ def test_evidence_findings_deduplicate_and_expose_identity_conflicts():
 
 
 def plan():
-    return Plan(
-        directions=[
-            {
-                "domain_id": "vision",
-                "name": "视觉",
-                "keywords": ["vision"],
-                "cpc_prefixes": ["G06N"],
-                "explanation": "标题和分类",
-            }
-        ],
-        from_year=2019,
-        to_year=2025,
+    return Plan.model_validate(
+        {
+            "directions": [
+                {
+                    "domain_id": "vision",
+                    "name": "视觉",
+                    "keywords": ["vision"],
+                    "cpc_prefixes": ["G06N"],
+                    "explanation": "标题和分类",
+                }
+            ],
+            "from_year": 2019,
+            "to_year": 2025,
+        }
     )
 
 
@@ -162,8 +165,8 @@ class FakeCatalog:
 
 class FakeLLM:
     def __init__(self):
-        self.calls = []
-        self.fail = None
+        self.calls: list[str] = []
+        self.fail: str | None = None
 
     async def generate(self, run_id, lease, instruction, payload, schema):
         self.calls.append(schema.__name__)
@@ -202,7 +205,9 @@ def test_dedup_filters_and_deterministic_ranking():
 async def test_confirmation_and_failed_node_retry_do_not_repeat_planner():
     catalog, llm, store = FakeCatalog(), FakeLLM(), AsyncMock()
     graph = build_graph(catalog, llm, store, InMemorySaver())
-    config = {"configurable": {"thread_id": str(uuid4()), "lease": uuid4()}}
+    config: RunnableConfig = {
+        "configurable": {"thread_id": str(uuid4()), "lease": uuid4()}
+    }
     await graph.ainvoke({"question": "工业视觉"}, config)
     assert (await graph.aget_state(config)).next == ("plan_gate",)
     assert catalog.reads == 1
@@ -231,7 +236,9 @@ async def test_confirmation_and_failed_node_retry_do_not_repeat_planner():
 async def test_release_changes_before_confirmation_stop_snapshot():
     catalog, llm = FakeCatalog(), FakeLLM()
     graph = build_graph(catalog, llm, AsyncMock(), InMemorySaver())
-    config = {"configurable": {"thread_id": str(uuid4()), "lease": uuid4()}}
+    config: RunnableConfig = {
+        "configurable": {"thread_id": str(uuid4()), "lease": uuid4()}
+    }
     await graph.ainvoke({"question": "视觉"}, config)
     catalog.data["release"]["release_id"] = "v2"
     with pytest.raises(ResearchError, match="数据版本改变"):
@@ -245,7 +252,9 @@ async def test_unverified_can_be_skipped_and_excluded_review_not_reopened():
     catalog, llm = FakeCatalog(), FakeLLM()
     catalog.data["company-patent-relations"] = []
     graph = build_graph(catalog, llm, AsyncMock(), InMemorySaver())
-    config = {"configurable": {"thread_id": str(uuid4()), "lease": uuid4()}}
+    config: RunnableConfig = {
+        "configurable": {"thread_id": str(uuid4()), "lease": uuid4()}
+    }
     await graph.ainvoke({"question": "视觉"}, config)
     await graph.ainvoke(Command(resume={"plan": plan().model_dump()}), config)
     assert (await graph.aget_state(config)).next == ("entity",)
@@ -291,7 +300,9 @@ def test_identity_evidence_must_support_selected_company():
 async def test_no_result_does_not_broaden_or_call_analysis():
     catalog, llm = FakeCatalog(), FakeLLM()
     graph = build_graph(catalog, llm, AsyncMock(), InMemorySaver())
-    config = {"configurable": {"thread_id": str(uuid4()), "lease": uuid4()}}
+    config: RunnableConfig = {
+        "configurable": {"thread_id": str(uuid4()), "lease": uuid4()}
+    }
     await graph.ainvoke({"question": "视觉"}, config)
     manual = plan()
     manual.directions[0].keywords = ["absent"]

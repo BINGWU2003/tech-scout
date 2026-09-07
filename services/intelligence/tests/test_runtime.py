@@ -6,7 +6,8 @@ from uuid import uuid4
 import pytest
 import pytest_asyncio
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
-from psycopg.rows import dict_row
+from psycopg import AsyncConnection
+from psycopg.rows import DictRow, dict_row
 from psycopg_pool import AsyncConnectionPool
 from test_workflow import FakeCatalog, FakeLLM, plan
 
@@ -24,13 +25,15 @@ pytestmark = pytest.mark.skipif(
 
 @pytest_asyncio.fixture
 async def setup_runtime():
+    if DSN is None:
+        pytest.skip("独立 TEST_INTELLIGENCE_DATABASE_URL 未配置")
     config = Settings(
-        _env_file=None,
+        _env_file=None,  # pyright: ignore[reportCallIssue]
         intelligence_database_url=DSN,
         intelligence_catalog_database_url=DSN,
         intelligence_internal_token="test-token-" * 4,
     )
-    async with AsyncConnectionPool(
+    async with AsyncConnectionPool[AsyncConnection[DictRow]](
         DSN,
         open=False,
         kwargs={
