@@ -108,9 +108,11 @@ class Browser:
                         raise AcquisitionBlocked(
                             "CAPTCHA_REQUIRED", "请在专用浏览器完成人工验证后继续"
                         ) from None
-                    dialogs = " ".join(await self.page.locator(
-                        '[role="dialog"]:visible'
-                    ).all_text_contents())
+                    dialogs = " ".join(
+                        await self.page.locator(
+                            '[role="dialog"]:visible'
+                        ).all_text_contents()
+                    )
                     login_button = self.page.get_by_role("button", name="登录试试")
                     if "riskbird" in url and (
                         "登录" in dialogs or await login_button.is_visible()
@@ -119,10 +121,16 @@ class Browser:
                             "LOGIN_REQUIRED",
                             "请先运行 acquisition login 完成风鸟登录，再继续任务",
                         ) from None
-                    if any(message in text for message in (
-                        "没有找到", "未找到相关企业", "No results",
-                        "did not match any documents", "0 条",
-                    )):
+                    if any(
+                        message in text
+                        for message in (
+                            "没有找到",
+                            "未找到相关企业",
+                            "No results",
+                            "did not match any documents",
+                            "0 条",
+                        )
+                    ):
                         return False
                     raise AcquisitionBlocked(
                         "PARSE_CHANGED",

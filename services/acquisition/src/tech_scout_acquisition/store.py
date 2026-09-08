@@ -3,6 +3,7 @@ from pathlib import Path
 from psycopg.types.json import Jsonb
 
 from .models import AcquisitionBlocked
+from .snapshot import build_snapshot
 
 
 class Store:
@@ -14,6 +15,14 @@ class Store:
             await conn.execute(
                 Path(__file__).with_name("schema.sql").read_text(encoding="utf-8")
             )
+            jobs = await (
+                await conn.execute(
+                    "SELECT run_id FROM ingestion.job WHERE run_id NOT IN "
+                    "(SELECT run_id FROM catalog_v2.run_projection)"
+                )
+            ).fetchall()
+            for job in jobs:
+                await self.refresh_projection(conn, job["run_id"])
 
     async def create(self, run_id, plan):
         async with self.pool.connection() as conn:
@@ -83,6 +92,7 @@ class Store:
                     "SET data=excluded.data,updated_at=now()",
                     (key, Jsonb(data)),
                 )
+                await self.save_source(conn, run_id, kind, key, data)
             if kind == "company":
                 for company in data.get("companies", []):
                     await conn.execute(
@@ -91,6 +101,46 @@ class Store:
                         "SET data=excluded.data,updated_at=now()",
                         (company["company_id"], company["credit_code"], Jsonb(company)),
                     )
+                    await self.save_source(
+                        conn, run_id, kind, company["company_id"], company
+                    )
+            if kind in {"patent", "company"}:
+                await self.refresh_projection(conn, run_id)
+
+    async def save_source(self, conn, run_id, kind, key, data):
+        source = {
+            k: data.get(k)
+            for k in ("source_url", "source_sha256", "observed_at", "domain_ids")
+        }
+        await conn.execute(
+            "INSERT INTO catalog_v2.record_source VALUES (%s,%s,%s,%s) "
+            "ON CONFLICT(kind,record_id,run_id) DO UPDATE SET data=excluded.data",
+            (kind, str(key), run_id, Jsonb(source)),
+        )
+
+    async def refresh_projection(self, conn, run_id):
+        job = await (
+            await conn.execute(
+                "SELECT plan FROM ingestion.job WHERE run_id=%s", (run_id,)
+            )
+        ).fetchone()
+        if not {"from_year", "to_year", "directions"} <= job["plan"].keys():
+            return
+        rows = await (
+            await conn.execute(
+                "SELECT kind,key,data FROM ingestion.item WHERE run_id=%s "
+                "AND kind IN ('patent','company')",
+                (run_id,),
+            )
+        ).fetchall()
+        patents = {r["key"]: r["data"] for r in rows if r["kind"] == "patent"}
+        companies = {r["key"]: r["data"] for r in rows if r["kind"] == "company"}
+        snapshot = build_snapshot(run_id, job["plan"], patents, companies)
+        await conn.execute(
+            "INSERT INTO catalog_v2.run_projection VALUES (%s,%s) ON "
+            "CONFLICT(run_id) DO UPDATE SET snapshot=excluded.snapshot",
+            (run_id, Jsonb(snapshot)),
+        )
 
     async def cached_company(self, query, days):
         async with self.pool.connection() as conn:

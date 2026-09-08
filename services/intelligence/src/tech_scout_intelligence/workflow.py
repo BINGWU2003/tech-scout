@@ -33,19 +33,14 @@ def patent_workset(snapshot, plan):
         matches.setdefault(row["patent_id"], []).append(row)
     found = []
     for patent in snapshot["patents"]:
-        year = (
-            patent.get("publication_year")
-            if snapshot.get("source_mode") == "browser"
-            else patent.get("grant_year")
-        )
+        year = patent.get("publication_year")
         if year is None or not plan.from_year <= year <= plan.to_year:
             continue
         title = patent["patent_title"].casefold()
-        if snapshot.get("source_mode") == "browser":
-            title += " " + " ".join(
-                str(patent.get(field) or "").casefold()
-                for field in ("abstract", "claims", "description")
-            )
+        title += " " + " ".join(
+            str(patent.get(field) or "").casefold()
+            for field in ("abstract", "claims", "description")
+        )
         cpcs = classifications.get(patent["patent_id"], [])
         reasons = []
         for direction in plan.directions:
@@ -138,7 +133,9 @@ def company_workset(snapshot, patents):
                 "catalog_decision": decision,
                 "terminal_exclusion": excluded,
                 "requires_confirmation": cid in conflicting or decision is None,
-                "status": "unverified",
+                "status": "not_found"
+                if candidate and candidate.get("lookup_status") == "not_found"
+                else "unverified",
                 "suggestions": [
                     m for m in snapshot["entity-matches"] if m["candidate_id"] == cid
                 ],
@@ -295,16 +292,9 @@ def evidence_findings(snapshot, unverified):
     }
 
 
-def build_graph(catalog, llm, store, checkpointer, acquisition=None):
-    def browser_mode(state):
-        return state.get("context", {}).get("source_mode") == "browser"
-
+def build_graph(llm, store, checkpointer, acquisition):
     async def context(state, config):
-        return {
-            "context": await acquisition.context()
-            if acquisition
-            else await catalog.read()
-        }
+        return {"context": await acquisition.context()}
 
     async def planner(state, config):
         run_id, lease = identity(config)
@@ -316,8 +306,6 @@ def build_graph(catalog, llm, store, checkpointer, acquisition=None):
                 "为每个方向生成唯一 domain_id。"
                 "无需已有数据库领域。年份表示公开年份，不能晚于当前年份。"
                 "只生成检索方案，不生成公司或专利事实。"
-                if browser_mode(state)
-                else "将研究问题拆成已有领域内的 1–3 个可检索方向。"
             )
             + "关键词组内 OR，"
             "关键词与 CPC 条件 AND，方向间 OR。使用来源语言的标题词；"
@@ -338,34 +326,23 @@ def build_graph(catalog, llm, store, checkpointer, acquisition=None):
         return {"confirmed_plan": plan.model_dump()}
 
     async def snapshot(state, config):
-        if browser_mode(state):
-            if acquisition is None:
-                raise ResearchError(
-                    "SOURCE_MODE_CHANGED", "请恢复网页采集配置后继续此任务"
-                )
-            run_id, lease = identity(config)
+        run_id, lease = identity(config)
 
-            async def progress(value):
-                current = await store.get(run_id)
-                await store.publish(
-                    run_id,
-                    lease=lease,
-                    kind="acquisition_progress",
-                    artifacts={**current.artifacts, "acquisition": value},
-                )
+        async def progress(value):
+            current = await store.get(run_id)
+            await store.publish(
+                run_id,
+                lease=lease,
+                kind="acquisition_progress",
+                artifacts={**current.artifacts, "acquisition": value},
+            )
 
-            data = await acquisition.collect(run_id, state["confirmed_plan"], progress)
-            return {
-                "snapshot": scoped_snapshot(
-                    data, Plan.model_validate(state["confirmed_plan"])
-                ),
-                "acquisition": {"status": "completed", "stage": "snapshot"},
-            }
-        data = await catalog.read(state["context"]["release"]["release_id"])
+        data = await acquisition.collect(run_id, state["confirmed_plan"], progress)
         return {
             "snapshot": scoped_snapshot(
                 data, Plan.model_validate(state["confirmed_plan"])
-            )
+            ),
+            "acquisition": {"status": "completed", "stage": "snapshot"},
         }
 
     async def patent(state, config):
@@ -483,8 +460,6 @@ def build_graph(catalog, llm, store, checkpointer, acquisition=None):
             item["inference"] = explanations.get(item["company_id"])
             item["ranking_reason"] = (
                 "规则相关性、去重公开记录数量、最近公开年份；同值按公司 ID"
-                if browser_mode(state)
-                else "规则相关性、去重授权专利数量、最近授权年份；同值按公司 ID"
             )
         return {
             "result": {
@@ -494,25 +469,12 @@ def build_graph(catalog, llm, store, checkpointer, acquisition=None):
                 ],
                 "patent_count": len(state["patents"]),
                 "release_id": state["snapshot"]["release"]["release_id"],
-                "missing": (
-                    ["完整法律状态", "产品与客户", "新闻与论文"]
-                    if browser_mode(state)
-                    else [
-                        "专利摘要",
-                        "权利要求正文",
-                        "专利族",
-                        "完整法律状态",
-                        "产品与客户",
-                        "新闻与论文",
-                    ]
-                ),
+                "missing": ["完整法律状态", "产品与客户", "新闻与论文"],
                 "empty_reason": "没有符合条件的专利或已核验公司；可修改并确认新计划"
                 if not ranked
                 else None,
-                "workflow_version": "browser-v1"
-                if browser_mode(state)
-                else "phase2-v1",
-                "prompt_version": "browser-v1" if browser_mode(state) else "phase2-v1",
+                "workflow_version": "browser-v1",
+                "prompt_version": "browser-v1",
                 "evidence_quality": state["evidence_findings"]["identity_evidence"],
                 "conflicts": state["evidence_findings"]["conflicts"],
             }

@@ -189,15 +189,12 @@ export function CompanySnapshot({
               ))}
               <SourceReference source={query.data.source} />
               <Button asChild variant='outline' size='sm'>
-                <Link
-                  to='/catalog/companies/$companyId/patents'
-                  params={{ companyId }}
-                >
-                  查看最新目录资料
+                <Link to='/companies' search={{ id: companyId }}>
+                  查看企业库资料
                 </Link>
               </Button>
               <p className='text-xs text-muted-foreground'>
-                最新目录可能与本次快照不同。
+                企业库会持续更新，本次研究快照保持不变。
               </p>
             </div>
             <section className='space-y-3'>

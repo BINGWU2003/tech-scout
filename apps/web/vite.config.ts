@@ -19,6 +19,7 @@ export default defineConfig({
       bundler: 'vite',
     }),
   ],
+  optimizeDeps: { include: ['@tanstack/react-query', 'vitest-browser-react'] },
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),

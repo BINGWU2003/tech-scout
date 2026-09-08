@@ -4,7 +4,6 @@ import { Test } from '@nestjs/testing'
 import request from 'supertest'
 import { AppModule } from '../src/app.module.js'
 import { configureApp } from '../src/app.setup.js'
-import { resetCatalogFixture } from './catalog-fixture.js'
 
 const enabled = Boolean(
   process.env.TEST_INTELLIGENCE_URL &&
@@ -24,7 +23,6 @@ describeChain(
         process.env.TEST_INTELLIGENCE_INTERNAL_TOKEN
       process.env.WEB_ORIGIN = 'http://localhost:5173'
       process.env.SESSION_COOKIE_SECURE = 'false'
-      await resetCatalogFixture(process.env.TEST_CATALOG_DATABASE_URL!)
       const module = await Test.createTestingModule({
         imports: [AppModule],
       }).compile()

@@ -38,11 +38,23 @@ export function ResearchList() {
   return (
     <ResearchShell>
       <div>
-        <h1 className='text-2xl font-bold'>研究项目</h1>
+        <h1 className='text-2xl font-bold'>研究工作台</h1>
         <p className='mt-1 text-muted-foreground'>
-          从技术问题出发，确认计划，查看候选主体与可追溯依据。
+          输入技术方向，确认检索后采集 Google 专利和风鸟企业信息。
         </p>
       </div>
+      <ol className='grid gap-3 text-sm sm:grid-cols-4' aria-label='研究流程'>
+        {[
+          '1 · 输入技术方向',
+          '2 · 确认检索计划',
+          '3 · 采集专利与企业',
+          '4 · 核对身份并分析',
+        ].map((step) => (
+          <li key={step} className='rounded-lg bg-muted/50 p-3'>
+            {step}
+          </li>
+        ))}
+      </ol>
       <form
         className='space-y-3 rounded-xl border bg-card p-5'
         onSubmit={(e) => {

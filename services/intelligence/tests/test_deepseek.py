@@ -16,7 +16,6 @@ def config(**overrides):
     return Settings(
         _env_file=None,  # pyright: ignore[reportCallIssue]
         intelligence_database_url="postgresql://unused",
-        intelligence_catalog_database_url="postgresql://unused",
         intelligence_internal_token="test-token-" * 4,
         deepseek_api_key="test-key",
         **overrides,

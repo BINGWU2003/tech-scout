@@ -1,129 +1,58 @@
 # Tech Scout
 
-Tech Scout 是一个本地优先、证据可追溯的技术侦察项目。默认在用户确认技术检索计划后，通过 Python 浏览器采集 Google Patents 和风鸟，并在同一个研究任务中完成入库、身份核验和分析。空数据库可以直接开始研究。
+按技术方向寻找专利与企业：用户确认检索后，Python 采集 Google Patents 网页，再通过风鸟补充企业工商信息。所有业务数据来自实际采集，空库即可开始研究。
 
-新数据源的启动、登录、恢复与回退说明见 [按需网页采集](docs/browser-acquisition.md)。
+## 使用流程
+
+1. 打开研究工作台，输入技术方向。
+2. 编辑模型建议的关键词、CPC 和公开年份，确认检索。
+3. 查看采集进度；登录过期或来源要求验证时暂停，处理后继续。
+4. 核对候选企业身份，查看有专利证据支持的研究结果。
+5. 在企业库、专利库查看历次采集的累计数据，可按研究来源筛选。
+
+确认前只保存任务与计划。专利按公开号去重，企业按统一社会信用代码去重。研究快照独立保存；浏览数据不会启动采集。
 
 ## 项目结构
 
-```text
-tech-scout/
-├─ apps/
-│  ├─ web/    # React 19 + Vite 8
-│  └─ api/    # NestJS 12
-├─ services/
-│  ├─ intelligence/         # 研究规划、确认、核验和分析
-│  └─ acquisition/          # 本机浏览器采集与增量入库
-├─ pipelines/
-│  └─ data-foundation/      # Raw/Bronze/Silver/Catalog/固定报告
-├─ packages/
-│  └─ contracts/            # React/NestJS 共享 Zod 契约
-├─ config/                  # 来源、领域和报告规则
-├─ docs/                    # 产品、架构、数据和运维文档
-├─ .oxfmtrc.json
-├─ .oxlintrc.json
-├─ package.json
-├─ pnpm-workspace.yaml
-└─ turbo.json
-```
+- `apps/web`：React 研究工作台、企业库、专利库、账号与用户管理。
+- `apps/api`：NestJS 认证、研究接口、累计数据查询。
+- `services/intelligence`：研究规划、确认门禁、主体核对和分析。
+- `services/acquisition`：Playwright 网页采集、断点恢复、事实入库。
+- `packages/contracts`：前后端 Zod 契约；`packages/shared`：公共工具。
 
-## 环境要求
+## 本地启动
 
-- Node.js 24
-- pnpm 10.34.4
-- Python 3.13
-- uv
+需要 Node.js 24、pnpm 10、Python 3.13、uv、PostgreSQL 和 Chrome。按各服务的 `.env.example` 配置数据库、内部服务令牌及模型服务。
 
-## 开始开发
-
-```bash
+```powershell
 pnpm install
-pnpm dev
-```
-
-`pnpm dev` 会同时启动：
-
-- Web：<http://localhost:5173>
-- API：<http://localhost:3000>
-
-Web 已通过同源 `/api` 开发代理接入 NestJS 的账户 API 和只读 Catalog API。登录后可从“技术目录”浏览当前已发布 release 的领域、公司、专利、实体匹配证据和安全来源信息；研究任务接口尚未实现。
-
-## 常用命令
-
-| 命令                        | 说明                                 |
-| --------------------------- | ------------------------------------ |
-| `pnpm dev`                  | 通过 Turborepo 并行启动 Web 和 API   |
-| `pnpm build`                | 通过 Turborepo 构建并缓存所有应用    |
-| `pnpm lint`                 | 使用 Oxlint 检查整个仓库             |
-| `pnpm format`               | 使用 Oxfmt 格式化整个仓库            |
-| `pnpm format:check`         | 检查仓库格式                         |
-| `pnpm test`                 | 通过 Turborepo 运行并缓存应用测试    |
-| `pnpm test:e2e`             | 通过 Turborepo 运行并缓存 API e2e    |
-| `pnpm test:browser:install` | 安装 Web 测试所需的 Chromium         |
-| `pnpm validate`             | 执行完整的格式、lint、测试和构建验证 |
-
-离线 Data Foundation 使用独立的 Python CLI，不经过根 `package.json`：
-
-```bash
-uv sync --project pipelines/data-foundation
-uv run --project pipelines/data-foundation data-foundation --help
-uv run --project pipelines/data-foundation pytest pipelines/data-foundation/tests
-```
-
-完整命令见 [Data Foundation README](./pipelines/data-foundation/README.md)。
-
-## 文档
-
-- [产品需求](./docs/product-requirements.md)
-- [产品与系统架构](./docs/architecture.md)
-- [技术选型](./docs/technology-stack.md)
-- [数据底座参考](./docs/database-and-data-status.md)
-- [数据获取与发布指南](./docs/data-acquisition-guide.md)
-
-## 环境变量
-
-Web 本地开发不需要环境文件。API 复制 `apps/api/.env.example` 为 `apps/api/.env`，并把示例密码替换为本地数据库密码。
-
-API 需要两个独立连接：`DATABASE_URL` 读写 `app` schema，`CATALOG_DATABASE_URL` 只读 `catalog` schema。首次运行先应用 Prisma migration：
-
-```bash
+uv sync --project services/intelligence
+uv sync --project services/acquisition
 pnpm --filter @tech-scout/api prisma:migrate
+pnpm migrate:intelligence
+pnpm migrate:acquisition
+pnpm login:acquisition
 ```
 
-首个管理员通过一次性 CLI 创建。先在 `apps/api/.env` 中填写 `ADMIN_BOOTSTRAP_USERNAME`、`ADMIN_BOOTSTRAP_EMAIL` 和 `ADMIN_BOOTSTRAP_PASSWORD`，其中密码至少需要 10 个字符：
+分别启动：
 
-```bash
-pnpm --filter @tech-scout/api admin:create
+```powershell
+pnpm dev
+pnpm dev:intelligence
+pnpm dev:acquisition
 ```
 
-创建成功后清除这三个一次性环境变量。公开注册只会创建普通用户，不会自动产生管理员。
+前端默认端口 5173，API 3000，研究服务 8001，采集服务 8002。前端使用同源 `/api` 代理；访问地址需与 API 的 `WEB_ORIGIN` 一致。
 
-Catalog 连接会额外设置 `search_path=catalog`、只读事务和 5 秒 statement timeout。生产或演示环境应使用最小权限角色，例如由数据库管理员执行（密码请通过安全渠道设置）：
+API 的 `CATALOG_DATABASE_URL` 现在仅表示累计数据库的只读连接，需要 `ingestion`、`catalog_v2` 的 USAGE/SELECT 权限。保留变量名便于现有本机配置使用，不再支持旧 Catalog 数据源模式。
 
-```sql
-CREATE ROLE tech_scout_catalog_reader LOGIN PASSWORD 'replace-me';
-GRANT CONNECT ON DATABASE "tech-scout" TO tech_scout_catalog_reader;
-GRANT USAGE ON SCHEMA catalog TO tech_scout_catalog_reader;
-GRANT SELECT ON ALL TABLES IN SCHEMA catalog TO tech_scout_catalog_reader;
-ALTER ROLE tech_scout_catalog_reader SET default_transaction_read_only = on;
-ALTER ROLE tech_scout_catalog_reader SET statement_timeout = '5s';
+## 验证
+
+```powershell
+pnpm validate
+uv run --project services/acquisition python services/acquisition/scripts/verify_architecture.py
 ```
 
-Catalog 发布账号创建新表时，还应由该表实际所有者配置 `ALTER DEFAULT PRIVILEGES ... GRANT SELECT ON TABLES TO tech_scout_catalog_reader`。该角色不得获得 `staging`、`app` 或 Catalog 写权限。
+第二条命令创建独立测试数据库，验证采集持久化、研究确认/恢复、清理保护和 API。测试数据库名称记录在被 Git 忽略的 `.local/architecture-test.json`，不会导入正式库。真实网页验收另见 [采集说明](docs/browser-acquisition.md)。
 
-Catalog schema 变化后重新生成并核对 Kysely 类型：
-
-```bash
-pnpm --filter @tech-scout/api catalog:types
-pnpm --filter @tech-scout/api catalog:types:check
-```
-
-API e2e 必须设置 `TEST_DATABASE_URL` 和 `TEST_CATALOG_DATABASE_URL`。两者可指向同一个专用、可丢弃的测试库（分别使用 `app` 与 `catalog` schema）；测试会清空账户表并重建 Catalog fixture，绝不能指向日常或生产数据库。
-
-## 部署
-
-根目录的 `netlify.toml` 仅配置 `apps/web` 的 Netlify 构建与 SPA 路由回退。API 的部署平台尚未指定。
-
-## License
-
-[MIT](./LICENSE)
+旧离线数据管道已移除。一次性清理使用 `services/acquisition/scripts/cleanup_legacy.py`，默认仅盘点；停服务后加 `--apply` 按来源清理旧研究及旧 schema，保留账号和新采集记录。

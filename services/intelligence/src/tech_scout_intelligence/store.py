@@ -299,22 +299,11 @@ class Store:
 
 
 def validate_plan(plan, context):
-    if context.get("source_mode") == "browser":
-        if plan.to_year > context["period_to_year"]:
-            raise ResearchError("PLAN_OUT_OF_SCOPE", "结束年份不能晚于当前年份")
-        ids = [d.domain_id for d in plan.directions]
-        if len(ids) != len(set(ids)):
-            raise ResearchError("PLAN_OUT_OF_SCOPE", "检索方向标识不能重复")
-        return
-    release = context["release"]
-    if (
-        plan.from_year < release["period_from_year"]
-        or plan.to_year > release["period_to_year"]
-    ):
-        raise ResearchError("PLAN_OUT_OF_SCOPE", "检索年份超出已发布数据范围")
-    ids = {d["domain_id"] for d in context["domains"]}
-    if any(d.domain_id not in ids for d in plan.directions):
-        raise ResearchError("PLAN_OUT_OF_SCOPE", "计划包含未发布领域")
+    if plan.to_year > context["period_to_year"]:
+        raise ResearchError("PLAN_OUT_OF_SCOPE", "结束年份不能晚于当前年份")
+    ids = [d.domain_id for d in plan.directions]
+    if len(ids) != len(set(ids)):
+        raise ResearchError("PLAN_OUT_OF_SCOPE", "检索方向标识不能重复")
 
 
 def validate_decisions(decisions, artifacts):

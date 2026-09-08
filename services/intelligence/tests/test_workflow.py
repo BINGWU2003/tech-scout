@@ -31,6 +31,7 @@ def sample():
                 "patent_id": "p1",
                 "patent_title": "Edge neural vision",
                 "grant_year": 2025,
+                "publication_year": 2025,
                 "source_sha256": "a" * 64,
             }
         ],
@@ -146,21 +147,22 @@ def plan():
     )
 
 
-class FakeCatalog:
+class FakeAcquisition:
     def __init__(self):
         self.data = sample()
         self.reads = 0
 
-    async def read(self, expected_release=None):
-        self.reads += 1
-        if expected_release and expected_release != self.data["release"]["release_id"]:
-            raise ResearchError("RELEASE_CHANGED", "数据版本改变")
-        if expected_release:
-            return copy.deepcopy(self.data)
+    async def context(self):
         return {
-            "release": copy.deepcopy(self.data["release"]),
-            "domains": copy.deepcopy(self.data["domains"]),
+            "source_mode": "browser",
+            "domains": [],
+            "period_to_year": 2026,
+            "period_from_year": 1800,
         }
+
+    async def collect(self, run_id, plan, progress):
+        self.reads += 1
+        return copy.deepcopy(self.data)
 
 
 class FakeLLM:
@@ -203,14 +205,14 @@ def test_dedup_filters_and_deterministic_ranking():
 
 @pytest.mark.asyncio
 async def test_confirmation_and_failed_node_retry_do_not_repeat_planner():
-    catalog, llm, store = FakeCatalog(), FakeLLM(), AsyncMock()
-    graph = build_graph(catalog, llm, store, InMemorySaver())
+    catalog, llm, store = FakeAcquisition(), FakeLLM(), AsyncMock()
+    graph = build_graph(llm, store, InMemorySaver(), catalog)
     config: RunnableConfig = {
         "configurable": {"thread_id": str(uuid4()), "lease": uuid4()}
     }
     await graph.ainvoke({"question": "工业视觉"}, config)
     assert (await graph.aget_state(config)).next == ("plan_gate",)
-    assert catalog.reads == 1
+    assert catalog.reads == 0
     assert llm.calls == ["Plan"]
     llm.fail = "Analysis"
     with pytest.raises(ResearchError):
@@ -228,30 +230,15 @@ async def test_confirmation_and_failed_node_retry_do_not_repeat_planner():
     result = (await graph.aget_state(config)).values
     assert result["result"]["companies"][0]["patent_count"] == 1
     assert result["snapshot"]["patents"][0]["patent_title"] == "Edge neural vision"
-    assert catalog.reads == 2
+    assert catalog.reads == 1
     assert llm.calls == ["Plan", "Analysis", "Analysis"]
 
 
 @pytest.mark.asyncio
-async def test_release_changes_before_confirmation_stop_snapshot():
-    catalog, llm = FakeCatalog(), FakeLLM()
-    graph = build_graph(catalog, llm, AsyncMock(), InMemorySaver())
-    config: RunnableConfig = {
-        "configurable": {"thread_id": str(uuid4()), "lease": uuid4()}
-    }
-    await graph.ainvoke({"question": "视觉"}, config)
-    catalog.data["release"]["release_id"] = "v2"
-    with pytest.raises(ResearchError, match="数据版本改变"):
-        await graph.ainvoke(Command(resume={"plan": plan().model_dump()}), config)
-    assert (await graph.aget_state(config)).next == ("snapshot",)
-    assert llm.calls == ["Plan"]
-
-
-@pytest.mark.asyncio
 async def test_unverified_can_be_skipped_and_excluded_review_not_reopened():
-    catalog, llm = FakeCatalog(), FakeLLM()
+    catalog, llm = FakeAcquisition(), FakeLLM()
     catalog.data["company-patent-relations"] = []
-    graph = build_graph(catalog, llm, AsyncMock(), InMemorySaver())
+    graph = build_graph(llm, AsyncMock(), InMemorySaver(), catalog)
     config: RunnableConfig = {
         "configurable": {"thread_id": str(uuid4()), "lease": uuid4()}
     }
@@ -298,8 +285,8 @@ def test_identity_evidence_must_support_selected_company():
 
 @pytest.mark.asyncio
 async def test_no_result_does_not_broaden_or_call_analysis():
-    catalog, llm = FakeCatalog(), FakeLLM()
-    graph = build_graph(catalog, llm, AsyncMock(), InMemorySaver())
+    catalog, llm = FakeAcquisition(), FakeLLM()
+    graph = build_graph(llm, AsyncMock(), InMemorySaver(), catalog)
     config: RunnableConfig = {
         "configurable": {"thread_id": str(uuid4()), "lease": uuid4()}
     }
@@ -327,8 +314,10 @@ async def test_empty_database_waits_for_confirmation_before_collection():
     snapshot["source_mode"] = "browser"
     snapshot["patents"][0]["publication_year"] = 2025
     acquisition.collect.return_value = snapshot
-    graph = build_graph(catalog, llm, AsyncMock(), InMemorySaver(), acquisition)
-    config = {"configurable": {"thread_id": str(uuid4()), "lease": uuid4()}}
+    graph = build_graph(llm, AsyncMock(), InMemorySaver(), acquisition)
+    config: RunnableConfig = {
+        "configurable": {"thread_id": str(uuid4()), "lease": uuid4()}
+    }
     await graph.ainvoke({"question": "工业视觉"}, config)
     assert (await graph.aget_state(config)).next == ("plan_gate",)
     acquisition.collect.assert_not_called()

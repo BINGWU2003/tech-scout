@@ -9,7 +9,7 @@ from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from psycopg import AsyncConnection
 from psycopg.rows import DictRow, dict_row
 from psycopg_pool import AsyncConnectionPool
-from test_workflow import FakeCatalog, FakeLLM, plan
+from test_workflow import FakeAcquisition, FakeLLM, plan
 
 from tech_scout_intelligence.config import Settings
 from tech_scout_intelligence.models import Action, ResearchError
@@ -30,7 +30,6 @@ async def setup_runtime():
     config = Settings(
         _env_file=None,  # pyright: ignore[reportCallIssue]
         intelligence_database_url=DSN,
-        intelligence_catalog_database_url=DSN,
         intelligence_internal_token="test-token-" * 4,
     )
     async with AsyncConnectionPool[AsyncConnection[DictRow]](
@@ -49,8 +48,8 @@ async def setup_runtime():
         saver = AsyncPostgresSaver(pool)
         await saver.setup()
         store = Store(pool, config)
-        catalog, llm = FakeCatalog(), FakeLLM()
-        graph = build_graph(catalog, llm, store, saver)
+        catalog, llm = FakeAcquisition(), FakeLLM()
+        graph = build_graph(llm, store, saver, catalog)
         runtime = Runtime(graph, store, config)
         yield runtime, store, catalog, llm, saver
         await runtime.close()
@@ -75,7 +74,7 @@ async def test_postgres_restart_resume_budget_and_event_receipts(setup_runtime):
         "model"
     ] == "deepseek-v4-flash"
     # A new graph/runtime instance consumes the persisted checkpoint and command.
-    resumed = Runtime(build_graph(catalog, llm, store, saver), store, runtime.config)
+    resumed = Runtime(build_graph(llm, store, saver, catalog), store, runtime.config)
     await resumed.execute(run_id)
     state = await store.get(run_id)
     assert state.status == "completed", state.error

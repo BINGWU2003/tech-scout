@@ -70,13 +70,6 @@ export function SourceReference({ source }: { source: ResearchSourceView }) {
       )}
 
       <div>
-        <dt className='inline font-medium'>快照来源：</dt>
-        <dd className='inline'>
-          {source.path ?? '未提供'}
-          {source.row ? ` · 第 ${source.row} 行` : ''}
-        </dd>
-      </div>
-      <div>
         <dt className='inline font-medium'>SHA-256：</dt>
         <dd className='inline'>{source.sha256 ?? '未提供'}</dd>
       </div>

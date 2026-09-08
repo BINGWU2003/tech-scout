@@ -48,7 +48,7 @@ function CandidateEditor({
     <div className='space-y-4'>
       <p className='text-sm'>
         {detail.country ?? '国家缺失'} · {detail.patentCount} 条专利 ·{' '}
-        {decisionLabels[detail.decision ?? ''] ?? '待核验'}
+        {decisionLabels[detail.decision ?? detail.status] ?? '待核验'}
       </p>
       {detail.reviewNote && (
         <p className='rounded-md bg-muted p-3 text-sm'>{detail.reviewNote}</p>
@@ -210,7 +210,7 @@ function CandidateDialog({
         <DialogHeader>
           <DialogTitle>{query.data?.name ?? '主体依据'}</DialogTitle>
           <DialogDescription>
-            决定只影响本次研究，不改写 Catalog 审核结论。
+            核对决定保存在本次研究中，保留原始网页证据。
           </DialogDescription>
         </DialogHeader>
         <ErrorNotice error={query.error} retry={() => void query.refetch()} />
@@ -282,7 +282,7 @@ export function EntityReview({
                 {u.patentCount} 条专利 ·{' '}
                 {draft[u.id]
                   ? `已暂存：${decisionLabels[draft[u.id].action]}`
-                  : (decisionLabels[u.decision ?? ''] ?? '待核验')}
+                  : (decisionLabels[u.decision ?? u.status] ?? '待核验')}
               </p>
             </div>
             <Button

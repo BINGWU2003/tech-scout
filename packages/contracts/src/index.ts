@@ -1,5 +1,5 @@
 export * from './auth.js'
-export * from './catalog.js'
+export * from './library.js'
 export * from './common.js'
 export * from './research.js'
 export * from './research-view.js'

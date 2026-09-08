@@ -85,11 +85,7 @@ class Runtime:
                     await asyncio.sleep(2)
                     now = time.monotonic()
                     current = await self.store.get(run_id)
-                    collecting = (
-                        getattr(self.config, "research_source_mode", "catalog")
-                        == "browser"
-                        and current.node == "snapshot"
-                    )
+                    collecting = current.node == "snapshot"
                     await self.store.heartbeat(
                         run_id, lease, 0 if collecting else now - last_tick
                     )
@@ -109,11 +105,7 @@ class Runtime:
             if remaining <= 0:
                 raise ResearchError("TIME_BUDGET_EXCEEDED", "执行时间预算已用完")
             # Browser collection has a separate overall time bound.
-            acquisition_allowance = (
-                21600
-                if getattr(self.config, "research_source_mode", "catalog") == "browser"
-                else 0
-            )
+            acquisition_allowance = 21600
             async with asyncio.timeout(remaining + acquisition_allowance):
                 saved = await self.graph.aget_state(config)
                 command = row["command"] or {}

@@ -14,9 +14,7 @@ export const researchViewQuerySchema = z.object({
 })
 export const researchSourceViewSchema = z.object({
   url: z.string().nullable().optional(),
-  path: z.string().nullable(),
   sha256: z.string().nullable(),
-  row: z.string().nullable(),
 })
 export const researchSummaryViewSchema = z.object({
   id: z.uuid(),
@@ -31,7 +29,7 @@ export const researchSummaryViewSchema = z.object({
   error: researchStateSchema.shape.error,
   budget: researchStateSchema.shape.budget.nullable(),
   releaseId: z.string().nullable(),
-  sourceMode: z.enum(['browser', 'catalog']).default('catalog'),
+  sourceMode: z.literal('browser').default('browser'),
   acquisition: z
     .object({
       status: z.string(),

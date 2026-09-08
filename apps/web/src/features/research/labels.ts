@@ -13,7 +13,7 @@ export const nodeLabels: Record<string, string> = {
   context: '确定研究范围',
   planner: '生成计划',
   plan_gate: '确认计划',
-  snapshot: '固定数据快照',
+  snapshot: '采集专利与企业',
   patent: '筛选专利',
   company: '关联企业',
   entity: '核验主体',
@@ -21,6 +21,8 @@ export const nodeLabels: Record<string, string> = {
   finish: '保存结果',
 }
 export const decisionLabels: Record<string, string> = {
+  not_found: '风鸟未找到',
+  unverified: '待核对',
   accepted: '已接受',
   auto_accepted: '自动匹配',
   insufficient_evidence: '证据不足',

@@ -11,12 +11,12 @@ import { SidebarNav } from './components/sidebar-nav'
 
 const sidebarNavItems = [
   {
-    title: 'Profile',
+    title: '个人资料',
     href: '/settings',
     icon: <UserCog size={18} />,
   },
   {
-    title: 'Account',
+    title: '修改密码',
     href: '/settings/account',
     icon: <Wrench size={18} />,
   },

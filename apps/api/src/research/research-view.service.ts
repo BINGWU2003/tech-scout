@@ -26,9 +26,7 @@ export const sourceView = (v: Record<string, unknown>) => ({
     )
       ? v.source_url
       : null,
-  path: str(v.source_path),
   sha256: str(v.source_sha256),
-  row: v.source_row_number == null ? null : String(v.source_row_number),
 })
 export const evidenceView = (e: Record<string, unknown>) => ({
   id: String(e.evidence_id),
@@ -124,7 +122,7 @@ export class ResearchViewService {
       error: s.error ?? null,
       budget: s.budget ?? null,
       releaseId: str(r.snapshotReleaseId) ?? str(release.release_id),
-      sourceMode: context.source_mode === 'browser' ? 'browser' : 'catalog',
+      sourceMode: 'browser',
       acquisition: r.acquisition ?? null,
       fromYear: num(context.period_from_year) ?? num(release.period_from_year),
       toYear: num(context.period_to_year) ?? num(release.period_to_year),

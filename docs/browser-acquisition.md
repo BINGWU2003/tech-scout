@@ -1,6 +1,6 @@
 # 按需网页采集
 
-默认数据源为 Google Patents 网页和风鸟网页。旧 `catalog`、`staging` 及离线流水线保留，切换不会删除历史数据。
+数据源为 Google Patents 网页和风鸟网页。旧离线管道、旧目录及其历史研究已退出运行流程。
 
 ## 流程与入库时机
 
@@ -17,7 +17,7 @@
 - `uv sync --project services/acquisition`
 - 复制 `services/acquisition/.env.example` 为 `.env`，配置数据库写入连接及内部令牌。
 - 在 `services/intelligence/.env` 配置相同的 `ACQUISITION_INTERNAL_TOKEN`，以及 `ACQUISITION_BASE_URL=http://127.0.0.1:8002`。
-- API 与 Intelligence 均使用 `RESEARCH_SOURCE_MODE=browser`。
+- 网页采集是唯一数据来源，不需要来源模式开关。
 - `pnpm migrate:acquisition` 只新增 `ingestion` 和 `catalog_v2` schema。
 - 给 `CATALOG_DATABASE_URL` 中的只读角色授予新 schema 的 USAGE 和表 SELECT 权限。连接必须指向同一数据库。
 - `pnpm login:acquisition` 打开专用 Chrome。登录风鸟后停留几秒，再关闭此窗口。无需退出账号。
@@ -50,9 +50,11 @@ Google 列表名称与详情当前权利人分别保留。只有风鸟身份匹�
 
 真实站点验收需单独记录来源访问结果。测试夹具的 100 条通过不代表网站已完成 100 条采集。若来源要求验证，应先处理等待原因，再使用原任务恢复。
 
-## 回退
+## 累计库与旧数据清理
 
-API 与 Intelligence 都设为 `RESEARCH_SOURCE_MODE=catalog`，重启服务即可读取旧目录；旧模式需要 `INTELLIGENCE_CATALOG_DATABASE_URL`。已保存研究结果仍按其原来源模式展示。新采集数据与旧 schema 分开保存。
+累计库读取事实表，并通过 `record_source` 追溯研究、方向、网页、观察时间。`run_projection` 提供正在采集的关系投影；完成快照保持不可变。
+
+旧离线管道与目录接口已移除。停服务后运行 `cleanup_legacy.py --apply` 清理明确属于旧来源的研究及旧表，未知来源记录保留并报告。脚本默认仅盘点，可重复执行。账号、登录配置及新来源记录不删除。本地旧文件使用逐文件清单清理，不删除共享数据根目录。
 
 ## 2026-09-07 真实网页验收记录
 

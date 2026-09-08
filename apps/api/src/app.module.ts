@@ -4,10 +4,10 @@ import { AdminModule } from './admin/admin.module.js'
 import { AppController } from './app.controller.js'
 import { AppService } from './app.service.js'
 import { AuthModule } from './auth/auth.module.js'
-import { CatalogModule } from './catalog/catalog.module.js'
 import { OriginMiddleware } from './common/origin.middleware.js'
 import { ZodResponseInterceptor } from './common/zod-response.interceptor.js'
 import { DatabaseModule } from './database/database.module.js'
+import { LibraryModule } from './library/library.module.js'
 import { ResearchModule } from './research/research.module.js'
 
 @Module({
@@ -15,7 +15,7 @@ import { ResearchModule } from './research/research.module.js'
     DatabaseModule,
     AuthModule,
     AdminModule,
-    CatalogModule,
+    LibraryModule,
     ResearchModule,
   ],
   controllers: [AppController],

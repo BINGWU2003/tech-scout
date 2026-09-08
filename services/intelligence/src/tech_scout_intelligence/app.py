@@ -12,7 +12,6 @@ from psycopg.rows import DictRow, dict_row
 from psycopg_pool import AsyncConnectionPool
 
 from .acquisition import Acquisition
-from .catalog import Catalog
 from .config import settings
 from .llm import DeepSeek
 from .models import Action, Event, ResearchError, RunView, Start
@@ -38,13 +37,10 @@ async def lifespan(app):
         store = Store(pool, config)
         saver = AsyncPostgresSaver(pool)
         graph = build_graph(
-            Catalog(config.intelligence_catalog_database_url.get_secret_value()),
             DeepSeek(config, store),
             store,
             saver,
-            acquisition=Acquisition(config)
-            if config.research_source_mode == "browser"
-            else None,
+            acquisition=Acquisition(config),
         )
         runtime = Runtime(graph, store, config)
         app.state.store = store

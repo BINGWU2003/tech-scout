@@ -36,7 +36,10 @@ async def test_database_idempotency_pause_and_immutable_release():
         await store.create(other, {})
         await store.save(other, "patent", "CN123B", {"title": "更新"})
         async with pool.connection() as conn:
-            count = await conn.execute("SELECT count(*) AS n FROM catalog_v2.patent")
+            count = await conn.execute(
+                "SELECT count(*) AS n FROM catalog_v2.patent WHERE "
+                "publication_number='CN123B'"
+            )
             assert (await count.fetchone())["n"] == 1
         await store.update(run, "paused")
         with pytest.raises(AcquisitionBlocked):

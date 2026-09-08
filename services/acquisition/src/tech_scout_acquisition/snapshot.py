@@ -138,6 +138,7 @@ def build_snapshot(run_id, plan, patents, company_results):
                 }
             )
             enrichment = company_results.get(normalized(name), {})
+            candidate["lookup_status"] = enrichment.get("status", "unresolved")
             if not enrichment:
                 matched = {
                     co["company_id"]: co

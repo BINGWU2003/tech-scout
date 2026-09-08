@@ -297,7 +297,7 @@ describe.skipIf(!enabled)(
       expect(patents.body.items[0]).toMatchObject({
         id: 'p1',
         title: 'Vision inspection',
-        source: { path: 'silver/patents.csv' },
+        source: { sha256: 'a'.repeat(64) },
       })
       expect(
         (

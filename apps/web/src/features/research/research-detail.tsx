@@ -35,7 +35,7 @@ function ResultPanel({ run }: { run: ResearchSummaryView }) {
         <>
           <div className='rounded-lg bg-muted p-4 text-sm'>
             <p>
-              版本 {query.data.releaseId} · {query.data.patentCount} 条去重专利
+              快照 {query.data.releaseId} · {query.data.patentCount} 条去重专利
               · {query.data.companies.length} 个候选主体 ·{' '}
               {query.data.unverifiedCount} 个隔离条目
             </p>
@@ -76,7 +76,7 @@ function ResultPanel({ run }: { run: ResearchSummaryView }) {
                     {c.country ?? '国家缺失'} ·{' '}
                     {c.identity === 'user_confirmed'
                       ? '本次人工确认身份'
-                      : 'Catalog 关系匹配'}{' '}
+                      : '来源身份匹配'}{' '}
                     · {c.patentCount} 条相关专利 · 规则分 {c.ruleScore}
                   </p>
                 </div>
@@ -105,9 +105,7 @@ function ResultPanel({ run }: { run: ResearchSummaryView }) {
                 ))}
               </div>
               <p className='text-xs text-muted-foreground'>
-                {run.sourceMode === 'browser'
-                  ? '公开年份统计：'
-                  : '授权年份统计：'}
+                公开年份统计：
                 {Object.entries(c.trend)
                   .sort(([a], [b]) => a.localeCompare(b))
                   .map(([y, n]) => `${y} 年 ${n} 件`)
@@ -246,9 +244,8 @@ function RunWorkspace({ id }: { id: string }) {
                 {statusLabels[run.status]}
               </Badge>
               <span className='text-sm text-muted-foreground'>
-                数据版本：
-                {run.releaseId ??
-                  (run.sourceMode === 'browser' ? '采集完成后生成' : '待读取')}
+                研究快照：
+                {run.releaseId ?? '采集完成后生成'}
               </span>
               <Button
                 variant='ghost'

@@ -26,7 +26,7 @@ export function AppTitle() {
               className='grid flex-1 text-start text-sm leading-tight'
             >
               <span className='truncate font-bold'>Tech Scout</span>
-              <span className='truncate text-xs'>Vite + ShadcnUI</span>
+              <span className='truncate text-xs'>技术研究工作台</span>
             </Link>
             <ToggleSidebar />
           </div>
