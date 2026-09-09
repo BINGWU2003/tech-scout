@@ -61,7 +61,7 @@ suite('累计数据库（端到端）', () => {
           run,
           {
             domain_ids: ['test'],
-            source_url: 'https://patents.google.com/patent/' + id,
+            source_url: 'https://d.wanfangdata.com.cn/patent/' + id,
             observed_at: '2026-09-08T00:00:00Z',
           },
         ]

@@ -1,8 +1,8 @@
 # 按需采集架构
 
-Web → NestJS → Intelligence → Acquisition → Google Patents / 风鸟。
+Web → NestJS → Research（Intelligence + Acquisition）→ 万方专利 / 风鸟。
 
-NestJS 持有账号和研究项目，研究服务使用持久化状态图完成规划、计划确认、采集等待、企业核对、分析与结果。采集服务串行使用独立 Chrome 登录配置，按来源限速并保存断点。
+NestJS 持有账号和研究项目，统一研究服务使用持久化状态图完成规划、计划确认、采集等待、企业核对、分析与结果；同一进程内的采集 worker 串行使用独立 Chrome 登录配置，按来源限速并保存断点。两个模块直接调用，不再经过本机 HTTP。
 
 数据库按职责划分：`app` 保存账号、项目和页面投影；`agent_runtime` 保存图检查点、预算与执行事件；`ingestion` 保存已确认采集计划、条目和企业缓存；`catalog_v2` 保存去重事实、研究来源、进行中的关系投影与完成时不可变快照。
 

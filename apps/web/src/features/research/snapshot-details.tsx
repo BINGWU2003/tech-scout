@@ -48,7 +48,7 @@ export function PatentSnapshot({
               {patent.year ?? '缺失'}
             </p>
             <p className='break-words'>
-              CPC：{patent.cpcs.join('、') || '缺失'}
+              IPC：{patent.cpcs.join('、') || '缺失'}
             </p>
             <SourceReference source={patent.source} />
             <p className='whitespace-pre-wrap'>
@@ -119,7 +119,7 @@ export function PatentList({
               {p.dateKind === 'publication' ? '公开年份' : '授权年份'}：
               {p.year ?? '缺失'}
             </p>
-            <p className='break-words'>CPC：{p.cpcs.join('、') || '缺失'}</p>
+            <p className='break-words'>IPC：{p.cpcs.join('、') || '缺失'}</p>
             <p>本次领域：{p.domains.join('、')}</p>
             <SourceReference source={p.source} />
             <p className='text-xs text-muted-foreground'>

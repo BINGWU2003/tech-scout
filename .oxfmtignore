@@ -1,4 +1,4 @@
 apps/web/src/routeTree.gen.ts
 apps/api/src/generated/catalog.database.ts
 apps/api/src/generated/intelligence/
-services/intelligence/openapi.json
+services/research/openapi.json

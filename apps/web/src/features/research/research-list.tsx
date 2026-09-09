@@ -40,7 +40,7 @@ export function ResearchList() {
       <div>
         <h1 className='text-2xl font-bold'>研究工作台</h1>
         <p className='mt-1 text-muted-foreground'>
-          输入技术方向，确认检索后采集 Google 专利和风鸟企业信息。
+          输入技术方向，确认检索后采集万方专利和风鸟企业信息。
         </p>
       </div>
       <ol className='grid gap-3 text-sm sm:grid-cols-4' aria-label='研究流程'>

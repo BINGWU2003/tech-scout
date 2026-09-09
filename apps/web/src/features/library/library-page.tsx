@@ -33,7 +33,7 @@ function SourceList({ sources }: { sources: LibraryRecord['sources'] }) {
             {s.observedAt ? new Date(s.observedAt).toLocaleString() : '未记录'}
           </div>
           {s.url &&
-          /^https:\/\/(patents\.google\.com|(?:www\.)?riskbird\.com)\//.test(
+          /^https:\/\/((?:[cds]|www)\.wanfangdata\.com\.cn|(?:www\.)?riskbird\.com)\//.test(
             s.url
           ) ? (
             <a
@@ -74,7 +74,7 @@ function Detail({ kind, id }: { kind: 'companies' | 'patents'; id: string }) {
           <p>公开日期：{d.date ?? '未提供'}</p>
           <p>原始申请人：{d.originalAssignees.join('；') || '未提供'}</p>
           <p>当前权利人：{d.currentAssignees.join('；') || '未提供'}</p>
-          <p>CPC：{d.cpcs.join('、') || '未提供'}</p>
+          <p>IPC：{d.cpcs.join('、') || '未提供'}</p>
           {(
             [
               ['摘要', d.abstract],

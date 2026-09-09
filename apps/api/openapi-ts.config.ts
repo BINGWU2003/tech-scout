@@ -1,6 +1,6 @@
 import { defineConfig } from '@hey-api/openapi-ts'
 
 export default defineConfig({
-  input: '../../services/intelligence/openapi.json',
+  input: '../../services/research/openapi.json',
   output: { path: 'src/generated/intelligence', importFileExtension: '.js' },
 })

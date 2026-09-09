@@ -19,7 +19,7 @@ async function files(directory, prefix = '') {
 }
 try {
   await createClient({
-    input: path.resolve(root, '../../services/intelligence/openapi.json'),
+    input: path.resolve(root, '../../services/research/openapi.json'),
     output: { path: temporary, importFileExtension: '.js' },
   })
   const checkedIn = path.join(root, 'src/generated/intelligence')

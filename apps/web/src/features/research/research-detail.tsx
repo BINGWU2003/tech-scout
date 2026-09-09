@@ -40,7 +40,7 @@ function ResultPanel({ run }: { run: ResearchSummaryView }) {
               {query.data.unverifiedCount} 个隔离条目
             </p>
             <p className='mt-2'>
-              结果保留程序原始排序。现阶段可能包含非商业主体或宽泛硬件相关项；模型解释仅为标题/CPC
+              结果保留程序原始排序。现阶段可能包含非商业主体或宽泛硬件相关项；模型解释仅为标题/IPC
               推断，不证明产品能力。
             </p>
             {query.data.conflictCount > 0 && (
@@ -427,7 +427,7 @@ function RunWorkspace({ id }: { id: string }) {
                   <div key={i}>
                     <p className='font-medium'>{d.name}</p>
                     <p>
-                      关键词：{d.keywords.join('、') || '不限'}；CPC：
+                      关键词：{d.keywords.join('、') || '不限'}；IPC：
                       {d.cpc_prefixes.join('、') || '不限'}
                     </p>
                     <p>排除词：{d.excluded_keywords.join('、') || '无'}</p>

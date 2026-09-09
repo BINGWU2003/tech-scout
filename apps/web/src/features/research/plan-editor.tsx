@@ -94,8 +94,8 @@ export function PlanEditor({
         </h2>
         <p className='mt-1 text-sm text-muted-foreground'>
           确认检索后才开始采集专利和公司信息，无需预先准备数据库。
-          方向之间取并集；关键词组内任选其一，关键词与 CPC 同时满足。
-          关键词留空时使用方向名称，CPC 留空表示不限。 确认后本轮计划锁定。
+          方向之间取并集；关键词组内任选其一，关键词与 IPC 同时满足。
+          关键词留空时使用方向名称，IPC 留空表示不限。 确认后本轮计划锁定。
         </p>
       </div>
       <fieldset disabled={busy} className='space-y-5'>
@@ -147,7 +147,7 @@ export function PlanEditor({
                 (key, index) => (
                   <div key={key}>
                     <Label htmlFor={`${key}-${i}`}>
-                      {['关键词', '排除词', 'CPC 前缀'][index]}（每行一项，最多
+                      {['关键词', '排除词', 'IPC 前缀'][index]}（每行一项，最多
                       12 项）
                     </Label>
                     <Textarea

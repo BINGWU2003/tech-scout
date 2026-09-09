@@ -16,6 +16,8 @@ dist-ssr
 *.tsbuildinfo
 
 .env
+.env.*
+!.env.example
 db.txt
 /apps/api/src/generated/prisma/
 

@@ -21,7 +21,7 @@ const strings = (v: unknown) =>
 export const sourceView = (v: Record<string, unknown>) => ({
   url:
     typeof v.source_url === 'string' &&
-    /^https:\/\/(patents\.google\.com|(?:www\.)?riskbird\.com)\//.test(
+    /^https:\/\/((?:[cds]|www)\.wanfangdata\.com\.cn|(?:www\.)?riskbird\.com)\//.test(
       v.source_url
     )
       ? v.source_url
