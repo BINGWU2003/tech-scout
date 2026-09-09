@@ -38,7 +38,7 @@ pnpm dev
 pnpm dev:research
 ```
 
-前端默认端口 5173，API 3000，统一研究服务 8001。前端使用同源 `/api` 代理；访问地址需与 API 的 `WEB_ORIGIN` 一致。
+前端默认端口 8848，API 3000，统一研究服务 8001。前端使用同源 `/api` 代理；访问地址需与 API 的 `WEB_ORIGIN` 一致。
 
 API 的 `CATALOG_DATABASE_URL` 现在仅表示累计数据库的只读连接，需要 `ingestion`、`catalog_v2` 的 USAGE/SELECT 权限。保留变量名便于现有本机配置使用，不再支持旧 Catalog 数据源模式。
 
