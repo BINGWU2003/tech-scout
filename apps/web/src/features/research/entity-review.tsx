@@ -17,7 +17,7 @@ import {
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { researchApi } from '@/lib/research-api'
-import { decisionLabels } from './labels'
+import { candidateCountryLabel, countryName, decisionLabels } from './labels'
 import { ErrorNotice, Pager, SourceReference } from './shared'
 
 type Decision = ResearchAction['decisions'][number]
@@ -47,8 +47,11 @@ function CandidateEditor({
   return (
     <div className='space-y-4'>
       <p className='text-sm'>
-        {detail.country ?? '国家缺失'} · {detail.patentCount} 条专利 ·{' '}
+        中国专利 · 关联 {detail.patentCount} 条 ·{' '}
         {decisionLabels[detail.decision ?? detail.status] ?? '待核验'}
+      </p>
+      <p className='text-xs text-muted-foreground'>
+        {candidateCountryLabel(detail)}
       </p>
       {detail.reviewNote && (
         <p className='rounded-md bg-muted p-3 text-sm'>{detail.reviewNote}</p>
@@ -89,7 +92,7 @@ function CandidateEditor({
                 <option value=''>请选择公司</option>
                 {detail.companyOptions.map((c) => (
                   <option key={c.id} value={c.id}>
-                    {c.name} · {c.country ?? '国家缺失'}
+                    {c.name} · 企业注册地：{countryName(c.country)}
                     {c.supportingEvidenceIds.length ? '（有支持依据）' : ''}
                   </option>
                 ))}
@@ -136,7 +139,8 @@ function CandidateEditor({
             </label>
             <p className='mt-1 text-xs break-all'>
               {e.identifierType ?? '无标识类型'}：
-              {e.identifierValue ?? '未提供'} · {e.country ?? '国家缺失'}
+              {e.identifierValue ?? '未提供'} · 注册国家：
+              {countryName(e.country)}
             </p>
             <p className='text-xs'>
               观察时间：{e.observedAt ?? '缺失'} ·{' '}
@@ -279,10 +283,13 @@ export function EntityReview({
             <div className='min-w-0'>
               <p className='text-sm font-medium break-words'>{u.name}</p>
               <p className='text-xs text-muted-foreground'>
-                {u.patentCount} 条专利 ·{' '}
+                中国专利 · 关联 {u.patentCount} 条 ·{' '}
                 {draft[u.id]
                   ? `已暂存：${decisionLabels[draft[u.id].action]}`
                   : (decisionLabels[u.decision ?? u.status] ?? '待核验')}
+              </p>
+              <p className='text-xs text-muted-foreground'>
+                {candidateCountryLabel(u)}
               </p>
             </div>
             <Button

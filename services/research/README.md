@@ -7,7 +7,6 @@
 ```powershell
 uv sync --project services/research
 pnpm migrate:research
-pnpm login:research
 pnpm dev:research
 uv run --project services/research pytest services/research/tests
 ```

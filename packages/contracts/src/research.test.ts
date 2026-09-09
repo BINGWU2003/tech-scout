@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { researchCandidateViewSchema } from './research-view.js'
 import {
   researchActionSchema,
   researchCreateSchema,
@@ -48,5 +49,28 @@ describe('阶段 2 输入契约', () => {
         decisions: [{ candidate_id: 'c', action: 'skip' }],
       }).decisions[0].evidence_ids
     ).toEqual([])
+  })
+})
+
+describe('待核对主体输出契约', () => {
+  it('区分建议国家、确认国家和未知国家', () => {
+    const candidate = researchCandidateViewSchema.parse({
+      id: 'candidate-1',
+      name: '示例科技有限公司',
+      country: 'CN',
+      countryStatus: 'suggested',
+      countrySource: 'tianyancha',
+      status: 'unverified',
+      needsReview: true,
+      terminalExclusion: false,
+      decision: null,
+      patentCount: 6,
+    })
+
+    expect(candidate).toMatchObject({
+      country: 'CN',
+      countryStatus: 'suggested',
+      countrySource: 'tianyancha',
+    })
   })
 })

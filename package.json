@@ -7,7 +7,6 @@
     "dev": "turbo run dev",
     "dev:research": "uv run --project services/research start",
     "migrate:research": "uv run --project services/research research migrate",
-    "login:research": "uv run --project services/research research login",
     "build": "turbo run build",
     "lint": "oxlint apps packages",
     "format": "oxfmt --ignore-path .gitignore --ignore-path .oxfmtignore .",

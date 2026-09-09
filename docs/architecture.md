@@ -1,6 +1,6 @@
 # 按需采集架构
 
-Web → NestJS → Research（Intelligence + Acquisition）→ 万方专利 / 风鸟。
+Web → NestJS → Research（Intelligence + Acquisition）→ Google Patents / 天眼查企业。
 
 NestJS 持有账号和研究项目，统一研究服务使用持久化状态图完成规划、计划确认、采集等待、企业核对、分析与结果；同一进程内的采集 worker 串行使用独立 Chrome 登录配置，按来源限速并保存断点。两个模块直接调用，不再经过本机 HTTP。
 

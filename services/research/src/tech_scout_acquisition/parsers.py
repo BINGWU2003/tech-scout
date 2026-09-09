@@ -5,7 +5,7 @@ import json
 import re
 import unicodedata
 from datetime import UTC, datetime
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urljoin
 from uuid import NAMESPACE_URL, uuid5
 
 from bs4 import BeautifulSoup
@@ -21,222 +21,283 @@ def normalized(value):
     return re.sub(r"[\W_]+", "", unicodedata.normalize("NFKC", value).casefold())
 
 
-def source(url, content):
+def attribute(node, name):
+    value = node.get(name)
+    return value if isinstance(value, str) else ""
+
+
+def source(url, content, suffix="html", parser_version="google-patents-browser-v1"):
     digest = hashlib.sha256(content.encode()).hexdigest()
     return {
         "source_url": url,
-        "source_path": f"browser/{digest}.html",
+        "source_path": f"browser/{digest}.{suffix}",
         "source_sha256": digest,
         "source_row_number": None,
         "observed_at": datetime.now(UTC).isoformat(),
-        "parser_version": "wanfang-browser-v1",
+        "parser_version": parser_version,
         "content": content,
     }
 
 
-def search_url(direction, plan, page):
-    # Terms are quoted literals, not model-controlled query operators.  Keep
-    # exclusions out of the remote query; they are applied to preserved text by
-    # the research workflow so a useful candidate is not discarded too early.
-    def literal(term):
-        return '"' + term.replace('"', " ").strip() + '"'
-
+def search_url(direction, plan, page, keyword=None):
+    # Send one literal user-approved keyword per request. Company domicile and
+    # title-language checks are enforced again from parsed records.
     terms = direction["keywords"] or [direction["name"]]
-    query = "(" + " OR ".join(map(literal, terms)) + ")"
-    # WanFang uses IPC.  The protocol field keeps its historical name for API
-    # compatibility, while the query and UI describe it as IPC.
-    if direction["cpc_prefixes"]:
-        ipc = " OR ".join(map(literal, direction["cpc_prefixes"]))
-        query += f" 分类号:({ipc})"
-
-    years = [str(year) for year in range(plan["from_year"], plan["to_year"] + 1)]
-    params = {"q": query, "p": page + 1, "s": 20}
-    # WanFang's facet UI supports at most 30 simultaneous values.  Wider ranges
-    # are still enforced locally by the worker and the research workset.
-    if len(years) <= 30:
-        params["facet"] = json.dumps(
-            [
-                {
-                    "PublishYear": {
-                        "label": years,
-                        "title": "公开/公告年份",
-                        "value": years,
-                    }
-                }
-            ],
-            ensure_ascii=False,
-            separators=(",", ":"),
-        )
-    return "https://s.wanfangdata.com.cn/patent?" + urlencode(params)
+    query = (keyword or terms[0]).strip()
+    params = {
+        "q": query,
+        "page": page,
+        "num": 10,
+        "before": f"publication:{plan['to_year'] + 1}0101",
+        "after": f"publication:{plan['from_year']}0101",
+        "country": "CN",
+        "language": "CHINESE",
+        "dedup": "family",
+    }
+    return "https://patents.google.com/?" + urlencode(params)
 
 
 def parse_results(html, url=None):
     soup = BeautifulSoup(html, "html.parser")
     records = []
-    for item in soup.select(".normal-list"):
-        hidden_id = item.select_one(".title-id-hidden")
-        title = item.select_one(".title-area .title")
-        author_area = item.select_one(".author-area")
-        if not hidden_id or not title or not author_area:
+    for item in soup.select("search-result-item"):
+        link = item.select_one('[data-result^="patent/"], a[href*="/patent/"]')
+        if not link:
             continue
-        detail_id = hidden_id.get_text(" ", strip=True)
-        detail_id = re.sub(r"^patent_", "", detail_id, flags=re.I)
-        match = re.search(
-            r"\b([A-Z]{2}\d+(?:[A-Z]\d?)?)\b", author_area.get_text(" ", strip=True)
-        )
+        target = attribute(link, "data-result") or attribute(link, "href")
+        match = re.search(r"(?:^|/)patent/([A-Z]{2}\d+[A-Z]\d?)(?:/|$)", target)
         if not match:
             continue
-        assignees = list(
+        publication_number = match[1]
+        title_text = link.get_text(" ", strip=True)
+        applicants = list(
             dict.fromkeys(
-                n.get_text(" ", strip=True)
-                for n in author_area.select(".authors")
-                if n.get_text(" ", strip=True)
+                attribute(node, "content") or node.get_text(" ", strip=True)
+                for node in item.select('[itemprop="assignee"]')
+                if attribute(node, "content") or node.get_text(" ", strip=True)
             )
         )
-        dates = author_area.select_one(".applyDate")
-        date_text = dates.get_text(" ", strip=True) if dates else ""
-        filing = re.search(r"申请日[：:]\s*(\d{4}-\d{2}-\d{2})", date_text)
-        publication = re.search(r"公开日[：:]\s*(\d{4}-\d{2}-\d{2})", date_text)
-        abstract_node = item.select_one(".abstract-area")
-        abstract = abstract_node.get_text(" ", strip=True) if abstract_node else None
-        if abstract:
-            abstract = re.sub(r"^摘要[：:]\s*", "", abstract)
+        if not applicants:
+            metadata = item.select("h4.metadata > span > span.bullet-before raw-html")
+            if len(metadata) >= 2:
+                applicants = [metadata[-1].get_text(" ", strip=True)]
+        if (
+            not re.fullmatch(r"CN\d+[A-Z]\d?", publication_number)
+            or not re.search(r"[\u4e00-\u9fff]", title_text)
+            or not any(domestic_candidate(name) for name in applicants)
+        ):
+            continue
+
+        def date(prop, item=item):
+            node = item.select_one(f'[itemprop="{prop}"]')
+            if node:
+                return (
+                    attribute(node, "content")
+                    or attribute(node, "datetime")
+                    or node.get_text(" ", strip=True)
+                    or None
+                )
+            labels = {"filingDate": "Filed", "publicationDate": "Published"}
+            dates = item.select_one("h4.dates")
+            match = re.search(
+                rf"\b{labels[prop]}\s+(\d{{4}}-\d{{2}}-\d{{2}})",
+                dates.get_text(" ", strip=True) if dates else "",
+            )
+            return match[1] if match else None
+
         records.append(
             {
-                "publication_number": match[1],
-                "list_assignees": assignees,
-                "list_title": title.get_text(" ", strip=True),
-                "filing_date": filing[1] if filing else None,
-                "publication_date": publication[1] if publication else None,
-                "abstract": abstract,
-                "detail_id": detail_id,
-                "detail_url": "https://d.wanfangdata.com.cn/patent/" + detail_id,
+                "publication_number": publication_number,
+                "list_assignees": [
+                    name for name in applicants if domestic_candidate(name)
+                ],
+                "list_title": title_text,
+                "filing_date": date("filingDate"),
+                "publication_date": date("publicationDate"),
+                "detail_url": urljoin(
+                    "https://patents.google.com",
+                    f"/patent/{publication_number}/zh",
+                ),
                 "list_source": source(url, str(item)) if url else None,
             }
         )
     return records
 
 
-def select_patent_html(html):
-    """Keep WanFang's public bibliographic block, excluding account/navigation UI."""
-    soup = BeautifulSoup(html, "html.parser")
-    essential = soup.select_one("#essential")
-    return str(essential) if essential else ""
-
-
 def parse_patent(html, url):
     soup = BeautifulSoup(html, "html.parser")
 
-    def text(selector):
+    def values(prop):
+        selector = (
+            f'dd[itemprop="{prop}"]'
+            if prop in {"assigneeOriginal", "assigneeCurrent", "inventor"}
+            else f'[itemprop="{prop}"]'
+        )
+        return list(
+            dict.fromkeys(
+                value
+                for node in soup.select(selector)
+                if (
+                    value := attribute(node, "content")
+                    or attribute(node, "datetime")
+                    or node.get_text(" ", strip=True)
+                )
+            )
+        )
+
+    def first(prop):
+        return next(iter(values(prop)), None)
+
+    def section(selector):
         node = soup.select_one(selector)
         return node.get_text(" ", strip=True) if node else None
 
-    def field(label):
-        for row in soup.select("#essential .detailList > .list"):
-            name = row.select_one(".item")
-            if name and name.get_text(" ", strip=True).rstrip("：:") == label:
-                value = row.select_one(".itemUrl, .text-overflow")
-                return value.get_text(" ", strip=True) if value else None
-        return None
+    def meta(name, scheme=None):
+        selector = f'meta[name="{name}"]'
+        if scheme:
+            selector += f'[scheme="{scheme}"]'
+        node = soup.select_one(selector)
+        return attribute(node, "content").strip() if node else None
 
-    def linked_field(label):
-        for row in soup.select("#essential .detailList > .list"):
-            name = row.select_one(".item")
-            if not name or name.get_text(" ", strip=True).rstrip("：:") != label:
+    def labeled_values(label):
+        result = []
+        for name in soup.select("dl.important-people dt"):
+            if name.get_text(" ", strip=True).casefold() != label.casefold():
                 continue
-            values = [
-                node.get_text(" ", strip=True)
-                for node in row.select(".itemUrl > a, .itemUrl > .multi-sep")
-                if node.get_text(" ", strip=True)
-            ]
-            if values:
-                return list(dict.fromkeys(values))
-            value = row.select_one(".itemUrl")
-            return [value.get_text(" ", strip=True)] if value else []
-        return []
+            for sibling in name.find_next_siblings():
+                if sibling.name == "dt":
+                    break
+                if sibling.name == "dd" and (
+                    value := sibling.get_text(" ", strip=True)
+                ):
+                    result.append(value)
+            break
+        return result
 
-    publication_text = field("公开/公告号") or ""
-    publication_match = re.search(
-        r"[A-Z]{2}\d+(?:[A-Z]\d?)?",
-        re.sub(r"[\s-]", "", publication_text),
-        re.I,
+    citation = soup.select_one(
+        'meta[name="citation_patent_number"], '
+        'meta[name="citation_patent_publication_number"]'
     )
-    publication = publication_match[0].upper() if publication_match else None
-    title = text("#essential .detailTitleCN")
-    abstract = text("#essential .summary .text-overflow") or None
-    if not publication or not title:
+    publication_text = (
+        attribute(citation, "content")
+        if citation
+        else first("publicationNumber") or ""
+    )
+    publication = re.sub(r"[:\s-]", "", publication_text).upper()
+    title_meta = soup.select_one('meta[name="DC.title"]')
+    title = (
+        attribute(title_meta, "content").strip()
+        if title_meta
+        else section('h1#title, h1[itemprop="title"], #title')
+    )
+    abstract = section('[itemprop="abstract"], .abstract') or meta("DC.description")
+    if (
+        not re.fullmatch(r"CN\d+[A-Z]\d?", publication)
+        or not title
+        or not re.search(r"[\u4e00-\u9fff]", title)
+    ):
         raise AcquisitionBlocked(
             "PARSE_CHANGED", "专利详情缺少公开号或标题，等待检查页面"
         )
-    assignees = linked_field("申请/专利权人")
-    publication_date = field("公开/公告日")
-    kind_code = publication[-2:]
     return {
         "publication_number": publication,
         "title": title,
         "abstract": abstract,
-        "description": None,
-        "claims": field("主权项"),
-        "publication_date": publication_date,
-        "filing_date": field("申请日期"),
-        "priority_date": None,
-        "grant_date": publication_date
-        if re.search(r"[BUY]\d?$", kind_code, re.I)
-        else None,
-        "application_number": field("申请/专利号"),
-        "family_id": None,
-        "country": publication[:2].upper(),
-        # WanFang exposes a combined applicant/patentee field.  Preserve the
-        # names as current parties so downstream identity matching remains
-        # conservative and does not invent a distinction absent from source.
-        "current_assignees": assignees,
-        "original_assignees": [],
+        "description": section(
+            '[itemprop="description"], patent-text[name="description"], '
+            "#descriptionText"
+        ),
+        "claims": section('[itemprop="claims"], .claims'),
+        "publication_date": first("publicationDate") or meta("DC.date", "issue"),
+        "filing_date": first("filingDate") or meta("DC.date", "dateSubmitted"),
+        "priority_date": first("priorityDate") or meta("DC.date", "dateSubmitted"),
+        "grant_date": first("grantDate")
+        or (
+            meta("DC.date", "issue")
+            if re.search(r"[BUY]\d?$", publication[-2:], re.I)
+            else None
+        ),
+        "application_number": first("applicationNumber")
+        or re.sub(r"[:\s]", "", meta("citation_patent_application_number") or "")
+        or None,
+        "family_id": first("familyID"),
+        "country": first("countryCode") or "CN",
+        "current_assignees": [
+            name
+            for name in dict.fromkeys(
+                values("assigneeCurrent")
+                + labeled_values("Current Assignee")
+                + [
+                    attribute(node, "content").strip()
+                    for node in soup.select(
+                        'meta[name="DC.contributor"][scheme="assignee"]'
+                    )
+                    if attribute(node, "content").strip()
+                ]
+            )
+            if domestic_candidate(name)
+        ],
+        "original_assignees": [
+            name for name in values("assigneeOriginal") if domestic_candidate(name)
+        ],
         "cpcs": list(
             dict.fromkeys(
-                node.get_text(" ", strip=True)
-                for node in soup.select("#essential .classify .patentCode > span")
-                if node.get_text(" ", strip=True)
+                values("Code")
+                + [
+                    attribute(node, "data-cpc")
+                    for node in soup.select("[data-cpc]")
+                    if attribute(node, "data-cpc")
+                ]
             )
         ),
-        "inventors": linked_field("发明/设计人"),
+        "inventors": list(
+            dict.fromkeys(
+                values("inventor")
+                + labeled_values("Inventor")
+                + [
+                    attribute(node, "content").strip()
+                    for node in soup.select(
+                        'meta[name="DC.contributor"][scheme="inventor"]'
+                    )
+                    if attribute(node, "content").strip()
+                ]
+            )
+        ),
         **source(url, str(soup)),
     }
 
 
-def parse_company(html, url):
-    soup = BeautifulSoup(html, "html.parser")
-    # Only the business-information table is persisted, never account/navigation HTML.
-    table = next(
-        (
-            t
-            for t in soup.select("table")
-            if "统一社会信用代码" in t.get_text() and "企业名称" in t.get_text()
-        ),
-        None,
-    )
-    if table is None:
-        raise AcquisitionBlocked("PARSE_CHANGED", "未读到企业工商信息表")
-    cells = [
-        c.get_text(" ", strip=True).replace("点击复制", "").replace("复制", "").strip()
-        for c in table.select("th, td")
-    ]
-    labels = {
-        "统一社会信用代码",
-        "企业名称",
-        "法定代表人",
-        "经营状态",
-        "成立日期",
-        "注册资本",
-        "实缴资本",
-        "所属地区",
-        "所属行业",
-        "英文名",
-        "注册地址",
-        "经营业务范围",
-        "参保人数",
+def parse_company_item(item, url):
+    mapping = {
+        "统一社会信用代码": "creditCode",
+        "企业名称": "name",
+        "法定代表人": "legalPersonName",
+        "经营状态": "regStatus",
+        "成立日期": "estiblishTime",
+        "注册资本": "regCapital",
+        "公司类型": "companyOrgType",
+        "所在城市": "city",
+        "所在区县": "district",
+        "所属行业": "categoryStr",
+        "英文名": "englishName",
+        "注册地址": "regLocation",
+        "经营业务范围": "businessScope",
+        "企业规模": "companyScale",
+        "登记机关": "registerInstitute",
+        "参保人数": "socialSecurityStaffNum",
     }
+
+    def clean(value):
+        if value is None:
+            return ""
+        return re.sub(
+            r"\s+", " ", BeautifulSoup(str(value), "html.parser").get_text(" ")
+        ).strip()
+
     fields = {
-        value: cells[i + 1] for i, value in enumerate(cells[:-1]) if value in labels
+        label: value
+        for label, key in mapping.items()
+        if (value := clean(item.get(key)))
     }
     credit = fields.get("统一社会信用代码", "")
     if not credit or credit in {"-", "--", "无", "暂无", "未公示"}:
@@ -244,20 +305,40 @@ def parse_company(html, url):
             "UNSUPPORTED_COMPANY", "该主体没有中国统一社会信用代码"
         )
     if not re.fullmatch(r"[0-9A-Z]{18}", credit):
+        if item.get("companyType") == 2 or clean(item.get("base")) in {
+            "香港",
+            "澳门",
+            "台湾",
+        }:
+            raise AcquisitionBlocked(
+                "UNSUPPORTED_COMPANY", "该主体不是中国大陆登记企业"
+            )
         raise AcquisitionBlocked("PARSE_CHANGED", "企业信用代码缺失或格式异常")
-    name_field = fields.get("企业名称", "")
-    names = re.split(r"曾用名[：:]\s*", name_field)
-    if not names[0].strip():
+    name = fields.get("企业名称", "")
+    if not name:
         raise AcquisitionBlocked("PARSE_CHANGED", "企业名称缺失")
+    history = item.get("historyNames") or []
+    if not isinstance(history, list):
+        history = re.split(r"[；;\t]+", str(history))
+    aliases = list(dict.fromkeys(clean(value) for value in history if clean(value)))
+    preserved = {
+        key: item.get(key)
+        for key in {*mapping.values(), "historyNames", "id"}
+        if item.get(key) is not None
+    }
+    content = json.dumps(
+        preserved, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+    )
     return {
         "company_id": stable_id("CN:" + credit),
         "credit_code": credit,
-        "name": names[0].strip(),
-        "aliases": [s.strip() for s in names[1:]],
-        "english_name": fields.get("英文名"),
+        "name": name,
+        "aliases": aliases,
+        "english_name": fields.get("英文名") or None,
         "country": "CN",
         "fields": fields,
-        **source(url, str(table)),
+        "provider": "tianyancha",
+        **source(url, content, "json", "tianyancha-company-search-v1"),
     }
 
 

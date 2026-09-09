@@ -21,7 +21,7 @@ const strings = (v: unknown) =>
 export const sourceView = (v: Record<string, unknown>) => ({
   url:
     typeof v.source_url === 'string' &&
-    /^https:\/\/((?:[cds]|www)\.wanfangdata\.com\.cn|(?:www\.)?riskbird\.com)\//.test(
+    /^(?:https:\/\/patents\.google\.com|https:\/\/m\.tianyancha\.com)\//.test(
       v.source_url
     )
       ? v.source_url
@@ -40,18 +40,47 @@ export const evidenceView = (e: Record<string, unknown>) => ({
   contentHash: str(e.content_sha256),
   source: sourceView(e),
 })
-export const candidateView = (u: Record<string, unknown>) => ({
-  id: String(u.candidate_id),
-  name: String(u.name),
-  country: str(u.country),
-  status: String(u.status),
-  needsReview: u.requires_confirmation === true,
-  terminalExclusion: u.terminal_exclusion === true,
-  decision:
-    str(object(u.user_decision).action) ??
-    str(object(u.catalog_decision).decision),
-  patentCount: strings(u.patent_ids).length,
-})
+export const candidateView = (u: Record<string, unknown>) => {
+  const evidence = rows(u.evidence)
+  const evidenceCountries = [
+    ...new Set(evidence.map((e) => str(e.country)).filter(Boolean)),
+  ]
+  const suggestedCountry =
+    evidenceCountries.length === 1 ? evidenceCountries[0] : null
+  const evidenceSources = [
+    ...new Set(
+      evidence
+        .filter((e) => str(e.country) === suggestedCountry)
+        .map((e) => str(e.publisher))
+        .filter(Boolean)
+    ),
+  ]
+  const country = str(u.country) ?? suggestedCountry
+  const countryStatus =
+    str(u.country_status) ??
+    (str(u.country) ? 'verified' : suggestedCountry ? 'suggested' : 'unknown')
+  const countrySource =
+    str(u.country_source) ??
+    (countryStatus === 'verified' && str(u.country)
+      ? 'patent'
+      : countryStatus === 'suggested' && evidenceSources.length === 1
+        ? evidenceSources[0]
+        : null)
+  return {
+    id: String(u.candidate_id),
+    name: String(u.name),
+    country,
+    countryStatus,
+    countrySource,
+    status: String(u.status),
+    needsReview: u.requires_confirmation === true,
+    terminalExclusion: u.terminal_exclusion === true,
+    decision:
+      str(object(u.user_decision).action) ??
+      str(object(u.catalog_decision).decision),
+    patentCount: strings(u.patent_ids).length,
+  }
+}
 export function resultView(v: unknown) {
   const r = object(v)
   if (!r.release_id) throw new NotFoundException('研究结果尚未生成')

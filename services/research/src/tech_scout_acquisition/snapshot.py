@@ -41,7 +41,7 @@ def build_snapshot(run_id, plan, patents, company_results):
     result["source_mode"] = "browser"
     result["release"] = {
         "release_id": str(run_id),
-        "dataset": "wanfang-patent-riskbird",
+        "dataset": "web-acquisition",
         "period_from_year": plan["from_year"],
         "period_to_year": plan["to_year"],
         "published_at": datetime.now(UTC).isoformat(),
@@ -85,7 +85,9 @@ def build_snapshot(run_id, plan, patents, company_results):
                     "domain_id": domain,
                     "total_score": 1,
                     "evaluation_id": stable_id(key + ":" + domain),
-                    "decision_reason": "万方专利检索命中，待研究相关性分析",
+                    "decision_reason": (
+                        "Google Patents 中国专利检索命中，待研究相关性分析"
+                    ),
                     **src,
                 }
             )
@@ -151,12 +153,13 @@ def build_snapshot(run_id, plan, patents, company_results):
             for company in enrichment.get("companies", []):
                 coid = company["company_id"]
                 csrc = provenance(company, run_id)
+                provider = company.get("provider") or "tianyancha"
                 companies[coid] = {
                     "company_id": coid,
                     "preferred_name": company["name"],
                     "legal_name": company["name"],
                     "country": "CN",
-                    "provider": "riskbird",
+                    "provider": provider,
                     "business_info": company["fields"],
                     **csrc,
                 }
@@ -167,7 +170,7 @@ def build_snapshot(run_id, plan, patents, company_results):
                     {
                         "candidate_id": cid,
                         "evidence_id": evidence_id,
-                        "publisher": "riskbird",
+                        "publisher": provider,
                         "legal_name": company["name"],
                         "country": "CN",
                         "identifier_type": "USCC",

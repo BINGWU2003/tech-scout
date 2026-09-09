@@ -59,15 +59,25 @@ class Worker:
             async with self.browser_factory(self.config) as browser:
                 discovered = await self.store.items(run_id, "discovered")
                 pages = await self.store.items(run_id, "page")
+                searches = []
+                for direction in plan["directions"]:
+                    keywords = direction["keywords"] or [direction["name"]]
+                    for index, keyword in enumerate(keywords):
+                        cursor = (
+                            direction["domain_id"]
+                            if len(keywords) == 1
+                            else f"{direction['domain_id']}:{index}"
+                        )
+                        searches.append((cursor, direction, keyword))
                 ended = set()
                 for page in range(100):
-                    for direction in plan["directions"]:
-                        if direction["domain_id"] in ended:
+                    for cursor, direction, keyword in searches:
+                        if cursor in ended:
                             continue
-                        page_key = f"{direction['domain_id']}:{page}"
+                        page_key = f"{cursor}:{page}"
                         if page_key in pages:
                             if pages[page_key].get("end"):
-                                ended.add(direction["domain_id"])
+                                ended.add(cursor)
                             continue
                         if len(discovered) >= self.config.acquisition_patent_limit:
                             break
@@ -77,7 +87,9 @@ class Worker:
                             len(discovered),
                             self.config.acquisition_patent_limit,
                         )
-                        rows = await browser.search(search_url(direction, plan, page))
+                        rows = await browser.search(
+                            search_url(direction, plan, page, keyword)
+                        )
                         eligible = []
                         for row in rows:
                             date = row.get("publication_date") or ""
@@ -101,15 +113,15 @@ class Worker:
                             discovered[key] = existing
                             await self.store.save(run_id, "discovered", key, existing)
                         ids = [r["publication_number"] for r in rows]
-                        previous = pages.get(f"{direction['domain_id']}:{page - 1}", {})
+                        previous = pages.get(f"{cursor}:{page - 1}", {})
                         end = not rows or ids == previous.get("ids")
                         pages[page_key] = {"end": end, "ids": ids}
                         await self.store.save(run_id, "page", page_key, pages[page_key])
                         if end:
-                            ended.add(direction["domain_id"])
+                            ended.add(cursor)
                     if len(discovered) >= self.config.acquisition_patent_limit or len(
                         ended
-                    ) == len(plan["directions"]):
+                    ) == len(searches):
                         break
                 patents = await self.store.items(run_id, "patent")
                 for key, listing in discovered.items():

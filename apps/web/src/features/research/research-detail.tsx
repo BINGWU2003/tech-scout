@@ -12,7 +12,7 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { researchApi } from '@/lib/research-api'
 import { EntityReview } from './entity-review'
-import { eventLabels, nodeLabels, statusLabels } from './labels'
+import { countryName, eventLabels, nodeLabels, statusLabels } from './labels'
 import { PlanEditor } from './plan-editor'
 import { ErrorNotice, Pager, ResearchShell } from './shared'
 import { CompanySnapshot, PatentList, PatentSnapshot } from './snapshot-details'
@@ -73,7 +73,7 @@ function ResultPanel({ run }: { run: ResearchSummaryView }) {
                     {i + 1}. {c.name}
                   </h3>
                   <p className='mt-1 text-xs text-muted-foreground'>
-                    {c.country ?? '国家缺失'} ·{' '}
+                    企业注册地：{countryName(c.country)} ·{' '}
                     {c.identity === 'user_confirmed'
                       ? '本次人工确认身份'
                       : '来源身份匹配'}{' '}

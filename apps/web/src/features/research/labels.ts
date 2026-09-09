@@ -21,7 +21,7 @@ export const nodeLabels: Record<string, string> = {
   finish: '保存结果',
 }
 export const decisionLabels: Record<string, string> = {
-  not_found: '风鸟未找到',
+  not_found: '天眼查未找到',
   unverified: '待核对',
   accepted: '已接受',
   auto_accepted: '自动匹配',
@@ -33,6 +33,41 @@ export const decisionLabels: Record<string, string> = {
   confirm: '本次确认',
   unresolved: '待处理',
 }
+
+type CandidateCountry = {
+  country: string | null
+  countryStatus: 'verified' | 'suggested' | 'unknown'
+  countrySource: string | null
+}
+
+const countryLabels: Record<string, string> = {
+  CN: '中国',
+  US: '美国',
+}
+
+const countrySourceLabels: Record<string, string> = {
+  patent: '专利来源',
+  tianyancha: '天眼查',
+}
+
+export function countryName(country: string | null) {
+  return country ? (countryLabels[country] ?? country) : '未提供'
+}
+
+export function candidateCountryLabel(candidate: CandidateCountry) {
+  if (!candidate.country || candidate.countryStatus === 'unknown')
+    return '申请人注册地尚未核验'
+  const country = countryName(candidate.country)
+  if (candidate.countryStatus === 'suggested') {
+    const source = candidate.countrySource
+      ? (countrySourceLabels[candidate.countrySource] ??
+        candidate.countrySource)
+      : '企业登记证据'
+    return `候选企业注册地：${country}（${source}，待确认）`
+  }
+  return `企业注册地：${country}（已确认）`
+}
+
 export const eventLabels: Record<string, string> = {
   acquisition_progress: '采集进度已更新',
   started: '开始执行',

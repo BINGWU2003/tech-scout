@@ -146,7 +146,8 @@ class Store:
         async with self.pool.connection() as conn:
             cur = await conn.execute(
                 "SELECT data FROM ingestion.company_cache WHERE query=%s "
-                "AND updated_at>now()-(%s * interval '1 day')",
+                "AND updated_at>now()-(%s * interval '1 day') "
+                "AND data#>>'{companies,0,provider}'='tianyancha'",
                 (query, days),
             )
             row = await cur.fetchone()

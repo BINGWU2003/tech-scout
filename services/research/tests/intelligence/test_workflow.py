@@ -203,6 +203,30 @@ def test_dedup_filters_and_deterministic_ranking():
     assert patent_workset(snapshot, excluded) == []
 
 
+def test_company_workset_exposes_registry_country_as_a_suggestion_only():
+    snapshot = sample()
+    snapshot["patent-parties"][0]["country"] = None
+    snapshot["company-candidates"][0]["country"] = None
+    snapshot["company-patent-relations"] = []
+    snapshot["entity-evidence"][0].update(
+        country="CN",
+        publisher="tianyancha",
+        identifier_type="USCC",
+        identifier_value="91110108MA007H3P5K",
+    )
+
+    _, unresolved = company_workset(snapshot, patent_workset(snapshot, plan()))
+
+    assert {
+        key: unresolved[0][key]
+        for key in ("country", "country_status", "country_source")
+    } == {
+        "country": "CN",
+        "country_status": "suggested",
+        "country_source": "tianyancha",
+    }
+
+
 @pytest.mark.asyncio
 async def test_confirmation_and_failed_node_retry_do_not_repeat_planner():
     catalog, llm, store = FakeAcquisition(), FakeLLM(), AsyncMock()

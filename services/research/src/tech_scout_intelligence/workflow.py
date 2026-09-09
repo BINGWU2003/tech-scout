@@ -122,12 +122,39 @@ def company_workset(snapshot, patents):
         excluded = bool(
             decision and decision["decision"] not in {"accepted", "unresolved"}
         )
+        evidence = [e for e in snapshot["entity-evidence"] if e["candidate_id"] == cid]
+        evidence_countries = {e["country"] for e in evidence if e.get("country")}
+        suggested_country = (
+            next(iter(evidence_countries)) if len(evidence_countries) == 1 else None
+        )
+        country = party["country"] or suggested_country
+        country_status = (
+            "verified"
+            if party["country"]
+            else "suggested"
+            if suggested_country
+            else "unknown"
+        )
+        evidence_publishers = {
+            e["publisher"]
+            for e in evidence
+            if e.get("country") == suggested_country and e.get("publisher")
+        }
+        country_source = (
+            "patent"
+            if party["country"]
+            else next(iter(evidence_publishers))
+            if len(evidence_publishers) == 1
+            else None
+        )
         item = unverified.setdefault(
             cid,
             {
                 "candidate_id": cid,
                 "name": party["party_name"],
-                "country": party["country"],
+                "country": country,
+                "country_status": country_status,
+                "country_source": country_source,
                 "patent_ids": [],
                 "party_ids": [],
                 "catalog_decision": decision,
@@ -139,9 +166,7 @@ def company_workset(snapshot, patents):
                 "suggestions": [
                     m for m in snapshot["entity-matches"] if m["candidate_id"] == cid
                 ],
-                "evidence": [
-                    e for e in snapshot["entity-evidence"] if e["candidate_id"] == cid
-                ],
+                "evidence": evidence,
             },
         )
         item["patent_ids"] = sorted(set(item["patent_ids"]) | {party["patent_id"]})
@@ -302,7 +327,7 @@ def build_graph(llm, store, checkpointer, acquisition):
             run_id,
             lease,
             (
-                "将技术方向拆成 1–3 个万方专利可检索方向。"
+                "将技术方向拆成 1–3 个 Google Patents 可检索方向。"
                 "为每个方向生成唯一 domain_id。"
                 "无需已有数据库领域。年份表示公开年份，不能晚于当前年份。"
                 "只生成检索方案，不生成公司或专利事实。"

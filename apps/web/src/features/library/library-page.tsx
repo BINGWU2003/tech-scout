@@ -33,7 +33,7 @@ function SourceList({ sources }: { sources: LibraryRecord['sources'] }) {
             {s.observedAt ? new Date(s.observedAt).toLocaleString() : '未记录'}
           </div>
           {s.url &&
-          /^https:\/\/((?:[cds]|www)\.wanfangdata\.com\.cn|(?:www\.)?riskbird\.com)\//.test(
+          /^(?:https:\/\/patents\.google\.com|https:\/\/m\.tianyancha\.com)\//.test(
             s.url
           ) ? (
             <a

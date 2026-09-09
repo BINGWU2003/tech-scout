@@ -108,6 +108,10 @@ export const researchCandidateViewSchema = z.object({
   id: z.string(),
   name: z.string(),
   country: z.string().nullable(),
+  countryStatus: z
+    .enum(['verified', 'suggested', 'unknown'])
+    .default('unknown'),
+  countrySource: z.string().nullable().default(null),
   status: z.string(),
   needsReview: z.boolean(),
   terminalExclusion: z.boolean(),

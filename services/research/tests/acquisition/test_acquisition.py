@@ -1,5 +1,4 @@
 import copy
-import json
 import time
 from types import SimpleNamespace
 from urllib.parse import parse_qs, urlparse
@@ -12,11 +11,9 @@ from tech_scout_acquisition.models import AcquisitionBlocked
 from tech_scout_acquisition.parsers import (
     assignee_matches,
     domestic_candidate,
-    parse_company,
     parse_patent,
     parse_results,
     search_url,
-    select_patent_html,
 )
 from tech_scout_acquisition.snapshot import build_snapshot
 from tech_scout_acquisition.worker import Worker
@@ -53,7 +50,7 @@ def patent(key):
         "domain_ids": ["battery"],
         "source_sha256": "a" * 64,
         "source_path": "browser/p.html",
-        "source_url": f"https://d.wanfangdata.com.cn/patent/{key}",
+        "source_url": f"https://patents.google.com/patent/{key}/zh",
     }
 
 
@@ -70,65 +67,88 @@ def company():
     }
 
 
-def wanfang_detail(publication="CN122291669A", abstract="摘要内容"):
-    return f"""<html><nav>private navigation</nav><script>secret()</script>
-      <div id="essential">
-        <div class="detailTitleCN"><div><span>复合固态电解质</span></div></div>
-        <div class="detailList">
-          <div class="summary list"><span class="item">摘要：</span>
-            <span class="text-overflow">{abstract}</span></div>
-          <div class="patentCode list"><span class="item">申请/专利号：</span>
-            <div class="itemUrl">CN202610246657.9</div></div>
-          <div class="applicationDate list"><span class="item">申请日期：</span>
-            <div class="itemUrl">2026-03-02</div></div>
-          <div class="publicationNo list"><span class="item">公开/公告号：</span>
-            <div class="itemUrl">{publication}</div></div>
-          <div class="applicationDate list"><span class="item">公开/公告日：</span>
-            <div class="itemUrl">2026-06-26</div></div>
-          <div class="classify list"><span class="item">分类号：</span>
-            <div class="itemUrl"><span class="patentCode">
-              <span>H01M10/0565</span></span>
-              <span class="patentCode"><span>H01M10/058</span></span></div></div>
-          <div class="applicant list"><span class="item">申请/专利权人：</span>
-            <div class="itemUrl"><a><span>示例有限公司</span></a></div></div>
-          <div class="applicant list"><span class="item">发明/设计人：</span>
-            <div class="itemUrl"><a><span>张三</span></a>
-              <a><span>李四</span></a></div></div>
-          <div class="signoryItem list"><span class="item">主权项：</span>
-            <div class="itemUrl">1. 一种固态电池。</div></div>
-        </div>
-      </div></html>"""
+def google_patent_detail(
+    publication="CN122716301A",
+    title="固态电池极片生产方法",
+    abstract="一种固态电池极片生产方法。",
+):
+    abstract_html = f'<div class="abstract">{abstract}</div>' if abstract else ""
+    return f"""
+      <meta name="citation_patent_number" content="{publication}">
+      <meta name="DC.title" content="{title}">
+      <meta name="DC.date" scheme="dateSubmitted" content="2025-03-06">
+      <meta name="DC.date" scheme="issue" content="2026-09-08">
+      <meta name="citation_patent_application_number"
+        content="CN:2025102628579">
+      <meta name="DC.contributor" scheme="inventor" content="张三">
+      <meta name="DC.contributor" scheme="inventor" content="李四">
+      {abstract_html}
+      <patent-text name="description">说明书正文。</patent-text>
+      <div class="claims">1. 一种固态电池。</div>
+      <dl class="important-people">
+        <dt>Inventor</dt><dd>张三</dd><dd>李四</dd>
+        <dt>Current Assignee</dt><dd>示例科技股份有限公司</dd>
+        <dd>日本电气硝子株式会社</dd>
+      </dl>
+      <dd itemprop="assigneeOriginal">原始示例有限公司</dd>
+      <state-modifier data-cpc="H01M4/139"></state-modifier>
+      <state-modifier data-cpc="H01M10/058"></state-modifier>
+    """
 
 
-def test_wanfang_dynamic_result_and_detail_fields():
-    rows = parse_results("""<div class="normal-list">
-      <div class="title-area"><span class="title">固态<span>电池</span></span>
-        <span class="title-id-hidden">
-          patent_ZL_CN202610246657.9_CN108550907B_20260626
-        </span></div>
-      <div class="author-area"><span class="t-ML6">发明专利</span>
-        <span class="t-ML6">CN108550907B</span>
-        <span class="authors">示例有限公司</span>
-        <span class="applyDate">申请日：2026-03-02 公开日：2026-06-26</span>
-      </div>
-      <div class="abstract-area"><span>摘要：</span><span>摘要内容</span></div>
-    </div>""", "https://s.wanfangdata.com.cn/patent?q=test")
-    assert rows[0]["publication_number"] == "CN108550907B"
-    assert rows[0]["list_assignees"] == ["示例有限公司"]
-    assert rows[0]["list_title"] == "固态 电池"
-    assert rows[0]["publication_date"] == "2026-06-26"
-    assert rows[0]["detail_url"].endswith(
-        "/ZL_CN202610246657.9_CN108550907B_20260626"
+def test_google_patents_detail_produces_a_cn_chinese_company_patent_record():
+    url = "https://patents.google.com/patent/CN122716301A/zh"
+
+    patent = parse_patent(google_patent_detail(), url)
+
+    assert patent["publication_number"] == "CN122716301A"
+    assert patent["title"] == "固态电池极片生产方法"
+    assert patent["application_number"] == "CN2025102628579"
+    assert patent["filing_date"] == "2025-03-06"
+    assert patent["publication_date"] == "2026-09-08"
+    assert patent["current_assignees"] == ["示例科技股份有限公司"]
+    assert patent["original_assignees"] == ["原始示例有限公司"]
+    assert patent["inventors"] == ["张三", "李四"]
+    assert patent["cpcs"] == ["H01M4/139", "H01M10/058"]
+    assert patent["abstract"] == "一种固态电池极片生产方法。"
+    assert patent["claims"] == "1. 一种固态电池。"
+
+
+def test_google_patents_results_keep_only_cn_chinese_titles_and_chinese_companies():
+    def card(title, publication, applicant):
+        return f"""<search-result-item><article>
+          <state-modifier data-result="patent/{publication}/zh">
+            <a href="#"><h3><raw-html>{title}</raw-html></h3></a>
+          </state-modifier>
+          <h4 class="metadata"><span><span class="bullet-before">
+            <raw-html>张三</raw-html></span></span><span>
+            <span class="bullet-before"><raw-html>{applicant}</raw-html></span>
+          </span></h4>
+          <h4 class="dates">Priority 2025-03-01 • Filed 2025-03-06 •
+            Published 2026-09-08</h4>
+        </article></search-result-item>"""
+
+    html = "".join(
+        [
+            card("固态电池极片生产方法", "CN122716301A", "示例科技股份有限公司"),
+            card("二次电池及其制造方法", "CN122720041A", "日本电气硝子株式会社"),
+            card("ALL SOLID STATE BATTERY", "CN122719658A", "示例科技股份有限公司"),
+            card("固态电池极片生产方法", "US122716301A", "示例科技股份有限公司"),
+        ]
     )
-    p = parse_patent(wanfang_detail(), rows[0]["detail_url"])
-    assert p["publication_number"] == "CN122291669A"
-    assert p["current_assignees"] == ["示例有限公司"]
-    assert p["inventors"] == ["张三", "李四"]
-    assert p["cpcs"] == ["H01M10/0565", "H01M10/058"]
-    assert p["claims"] == "1. 一种固态电池。"
+
+    rows = parse_results(html, "https://patents.google.com/?q=固态电池")
+
+    assert len(rows) == 1
+    assert rows[0]["publication_number"] == "CN122716301A"
+    assert rows[0]["list_assignees"] == ["示例科技股份有限公司"]
+    assert rows[0]["list_title"] == "固态电池极片生产方法"
+    assert rows[0]["publication_date"] == "2026-09-08"
+    assert rows[0]["filing_date"] == "2025-03-06"
+    assert rows[0]["detail_url"] == "https://patents.google.com/patent/CN122716301A/zh"
 
 
-def test_search_url_uses_wanfang_ipc_years_without_sending_exclusion_terms():
+def test_google_patents_search_url_keeps_one_plain_chinese_keyword_and_cn_scope():
     direction = plan()["directions"][0]
     direction["excluded_keywords"] = ["液态电解质", "半固态"]
     direction["cpc_prefixes"] = [
@@ -137,42 +157,64 @@ def test_search_url_uses_wanfang_ipc_years_without_sending_exclusion_terms():
         "H01M4/00",
         "H01M10/04",
     ]
-    query = parse_qs(urlparse(search_url(direction, plan(), 0)).query)
-    assert urlparse(search_url(direction, plan(), 0)).hostname == (
-        "s.wanfangdata.com.cn"
-    )
-    assert query["p"] == ["1"]
-    assert query["s"] == ["20"]
-    assert "分类号:" in query["q"][0]
-    assert "H01M10/058" in query["q"][0]
-    assert "液态电解质" not in query["q"][0]
-    assert "半固态" not in query["q"][0]
-    facet = json.loads(query["facet"][0])
-    assert facet[0]["PublishYear"]["value"] == [
-        str(year) for year in range(2016, 2027)
-    ]
+    url = search_url(direction, plan(), 0, "固态电池")
+    query = parse_qs(urlparse(url).query)
+    assert urlparse(url).hostname == "patents.google.com"
+    assert query == {
+        "q": ["固态电池"],
+        "page": ["0"],
+        "num": ["10"],
+        "before": ["publication:20270101"],
+        "after": ["publication:20160101"],
+        "country": ["CN"],
+        "language": ["CHINESE"],
+        "dedup": ["family"],
+    }
 
 
-class EmptySearchLocator:
-    def __init__(self, count=0, text=""):
-        self.result_count = count
-        self.text = text
+@pytest.mark.asyncio
+async def test_browser_search_reads_google_patents_result_cards():
+    result_html = """<search-result-item><article>
+      <a data-result="patent/CN122716301A/zh"
+        href="/patent/CN122716301A/zh">固态电池极片生产方法</a>
+      <span itemprop="assignee">示例科技股份有限公司</span>
+    </article></search-result-item>"""
 
-    async def count(self):
-        return self.result_count
+    class Locator:
+        async def evaluate_all(self, *_):
+            return result_html
 
-    async def inner_text(self):
-        return self.text
+    class Page:
+        def locator(self, selector):
+            assert selector == "search-result-item"
+            return Locator()
+
+    browser = Browser.__new__(Browser)
+    browser.page = Page()
+    visits = []
+
+    async def visit(url, selector):
+        visits.append((url, selector))
+        return True
+
+    browser.visit = visit
+    url = "https://patents.google.com/?q=固态电池&page=0&country=CN"
+
+    rows = await browser.search(url)
+
+    assert [row["publication_number"] for row in rows] == ["CN122716301A"]
+    assert visits == [(url, "search-result-item")]
 
 
-class EmptySearchPage:
-    def __init__(self, body=""):
-        self.body = body
+@pytest.mark.asyncio
+async def test_browser_search_returns_empty_for_an_explicitly_empty_google_page():
+    browser = Browser.__new__(Browser)
 
-    def locator(self, selector):
-        if selector == "body":
-            return EmptySearchLocator(text=self.body)
-        return EmptySearchLocator()
+    async def visit(*_):
+        return False
+
+    browser.visit = visit
+    assert await browser.search("https://patents.google.com/?q=不存在") == []
 
 
 class RetryVisitLocator:
@@ -222,89 +264,125 @@ async def test_visit_retries_incomplete_dynamic_content_before_parse_error():
     browser.last_request = time.monotonic() - 1
     browser.page = RetryVisitPage()
     assert await browser.visit(
-        "https://d.wanfangdata.com.cn/patent/ZL_CN1_CN1A_20260101", "#essential"
+        "https://patents.google.com/patent/CN1A/zh",
+        'meta[name="citation_patent_number"]',
     )
     assert browser.page.navigations == 3
 
 
-@pytest.mark.asyncio
-async def test_loaded_empty_later_search_page_is_the_end_of_results():
-    browser = Browser.__new__(Browser)
-    browser.page = EmptySearchPage("第 3 页")
-    selectors = []
-
-    async def visit(_, selector):
-        selectors.append(selector)
-        return True
-
-    browser.visit = visit
-    assert await browser.search("https://s.wanfangdata.com.cn/patent?q=test&p=3") == []
-    assert selectors == [".normal-list"]
-
-
-@pytest.mark.asyncio
-async def test_loaded_first_search_page_without_cards_remains_a_parser_error():
-    browser = Browser.__new__(Browser)
-    browser.page = EmptySearchPage("专利")
-
-    async def visit(*_):
-        return True
-
-    browser.visit = visit
-    with pytest.raises(AcquisitionBlocked, match="无法解析结果卡片") as error:
-        await browser.search("https://s.wanfangdata.com.cn/patent?q=test&p=1")
-    assert error.value.code == "PARSE_CHANGED"
-
-
-@pytest.mark.asyncio
-async def test_wanfang_query_syntax_error_is_not_treated_as_no_results():
-    browser = Browser.__new__(Browser)
-    browser.page = EmptySearchPage(
-        "未找到结果，检索表达式错误"
-    )
-
-    async def visit(*_):
-        return True
-
-    browser.visit = visit
-    with pytest.raises(AcquisitionBlocked, match="拒绝检索条件") as error:
-        await browser.search("https://s.wanfangdata.com.cn/patent?q=test&p=1")
-    assert error.value.code == "INVALID_QUERY"
-
-
 def test_granted_patent_without_abstract_is_still_a_valid_record():
     patent = parse_patent(
-        wanfang_detail("CN108550907B", ""),
-        "https://d.wanfangdata.com.cn/patent/ZL_CN1_CN108550907B_20260626",
+        google_patent_detail("CN108550907B", abstract=""),
+        "https://patents.google.com/patent/CN108550907B/zh",
     )
     assert patent["publication_number"] == "CN108550907B"
     assert patent["abstract"] is None
-    assert patent["grant_date"] == "2026-06-26"
-
-
-def test_wanfang_primary_publication_ignores_related_publication_in_same_field():
-    patent = parse_patent(
-        wanfang_detail(
-            "CN115763727B（同族公开/公告号：CN115763727A）",
-        ),
-        "https://d.wanfangdata.com.cn/patent/"
-        "ZL_CN202211371051.6_CN115763727B_20260127",
-    )
-    assert patent["publication_number"] == "CN115763727B"
-    assert patent["grant_date"] == "2026-06-26"
+    assert patent["grant_date"] == "2026-09-08"
 
 
 @pytest.mark.asyncio
-async def test_patent_reads_rendered_wanfang_detail_and_discards_navigation():
-    html = wanfang_detail()
+async def test_patent_reads_google_patents_structured_detail():
+    html = google_patent_detail()
 
     class DetailLocator:
-        async def evaluate(self, *_):
-            return html
+        async def evaluate(self, script):
+            required = (
+                'meta[name="DC.date"]',
+                'meta[name="citation_patent_application_number"]',
+                "dl.important-people",
+                'patent-text[name="description"]',
+                "[data-cpc]",
+                ".abstract",
+                ".claims",
+            )
+            if all(selector in script for selector in required):
+                return html
+            return """
+              <meta name="citation_patent_number" content="CN122716301A">
+              <meta name="DC.title" content="固态电池极片生产方法">
+            """
 
     class DetailPage:
         def locator(self, selector):
-            assert selector == "#essential"
+            assert selector == "html"
+            return DetailLocator()
+
+    browser = Browser.__new__(Browser)
+    browser.page = DetailPage()
+
+    visits = []
+
+    async def visit(url, selector):
+        visits.append((url, selector))
+        return True
+
+    browser.visit = visit
+    listing = {"detail_url": "https://example.invalid/ignored"}
+    patent = await browser.patent("CN122716301A", listing)
+    assert patent["publication_number"] == "CN122716301A"
+    assert patent["abstract"] == "一种固态电池极片生产方法。"
+    assert patent["description"] == "说明书正文。"
+    assert patent["claims"] == "1. 一种固态电池。"
+    assert patent["current_assignees"] == ["示例科技股份有限公司"]
+    assert patent["cpcs"] == ["H01M4/139", "H01M10/058"]
+    assert visits == [
+        (
+            "https://patents.google.com/patent/CN122716301A/zh",
+            "h1#title",
+        )
+    ]
+
+
+@pytest.mark.asyncio
+async def test_patent_retries_a_temporarily_incomplete_google_detail_dom():
+    html = iter(
+        [
+            '<h1 id="title"></h1>',
+            google_patent_detail(),
+        ]
+    )
+
+    class DetailLocator:
+        async def evaluate(self, _script):
+            return next(html)
+
+    class DetailPage:
+        def locator(self, selector):
+            assert selector == "html"
+            return DetailLocator()
+
+    browser = Browser.__new__(Browser)
+    browser.page = DetailPage()
+    visits = []
+
+    async def visit(url, selector):
+        visits.append((url, selector))
+        return True
+
+    browser.visit = visit
+
+    patent = await browser.patent("CN122716301A", {})
+
+    assert patent["publication_number"] == "CN122716301A"
+    assert len(visits) == 2
+
+
+@pytest.mark.asyncio
+async def test_patent_accepts_google_publication_number_metadata_variant():
+    html = google_patent_detail("CN113841279A").replace(
+        'name="citation_patent_number" content="CN113841279A"',
+        'name="citation_patent_publication_number" content="CN:113841279:A"',
+    )
+
+    class DetailLocator:
+        async def evaluate(self, script):
+            if 'meta[name="citation_patent_publication_number"]' in script:
+                return html
+            return '<meta name="DC.title" content="液体渗透固态电解质">'
+
+    class DetailPage:
+        def locator(self, selector):
+            assert selector == "html"
             return DetailLocator()
 
     browser = Browser.__new__(Browser)
@@ -314,55 +392,196 @@ async def test_patent_reads_rendered_wanfang_detail_and_discards_navigation():
         return True
 
     browser.visit = visit
-    listing = {
-        "detail_url": "https://d.wanfangdata.com.cn/patent/"
-        "ZL_CN202610246657.9_CN122291669A_20260626"
-    }
-    patent = await browser.patent("CN122291669A", listing)
-    assert patent["publication_number"] == "CN122291669A"
-    assert "private navigation" not in patent["content"]
-    assert "secret()" not in patent["content"]
-    assert select_patent_html(html) == patent["content"]
+
+    patent = await browser.patent("CN113841279A", {})
+
+    assert patent["publication_number"] == "CN113841279A"
 
 
 @pytest.mark.asyncio
-async def test_foreign_company_without_cn_credit_code_remains_unresolved():
-    class CompanyLocator:
-        def __init__(self, selector):
-            self.selector = selector
+async def test_company_uses_tianyancha_candidates_and_normalized_exact_identity():
+    class Response:
+        status = 200
+        headers = {}
 
-        async def evaluate_all(self, *_):
-            if self.selector.startswith("a["):
-                return [
-                    {
-                        "name": "阿里巴巴新加坡控股有限公司",
-                        "url": "https://riskbird.com/ent/foreign",
-                    }
-                ]
-            return """<table><tr><th>企业名称</th>
-              <td>阿里巴巴新加坡控股有限公司</td></tr>
-              <tr><th>统一社会信用代码</th><td>-</td></tr></table>"""
+        async def json(self):
+            return {
+                "state": "ok",
+                "data": {
+                    "items": [
+                        {
+                            "id": 123,
+                            "name": "<em>中科超能（深圳）新能源科技有限公司</em>",
+                            "creditCode": "91440300MACUHG9Y8K",
+                            "legalPersonName": "张三",
+                            "regCapital": "1000万人民币",
+                            "estiblishTime": "2023-08-17 00:00:00.0",
+                            "regStatus": "存续",
+                            "companyOrgType": "有限责任公司",
+                            "regLocation": "深圳市南山区示例路1号",
+                            "categoryStr": "科技推广和应用服务业",
+                            "businessScope": "新材料技术研发",
+                            "companyScale": "小型",
+                            "historyNames": (
+                                "深圳中科超能有限公司；中科超能科技有限公司"
+                            ),
+                            "englishName": "Example Energy Co., Ltd.",
+                            "phone": "NEVER_PERSIST",
+                            "emails": "NEVER_PERSIST@example.com",
+                        },
+                        {
+                            "id": 456,
+                            "name": "中科超能（深圳）新能源科技有限公司北京分公司",
+                            "creditCode": "91110111MACYGLTL01",
+                        },
+                    ]
+                },
+            }
 
-    class CompanyPage:
-        def locator(self, selector):
-            return CompanyLocator(selector)
+    class Request:
+        async def get(self, *_args, **_kwargs):
+            return Response()
 
     browser = Browser.__new__(Browser)
-    browser.page = CompanyPage()
+    browser.config = SimpleNamespace(acquisition_interval_seconds=0)
+    browser.last_request = time.monotonic() - 1
+    browser.context = SimpleNamespace(request=Request())
 
-    async def visit(*_):
-        return True
+    result = await browser.company("中科超能(深圳)新能源科技有限公司")
 
-    browser.visit = visit
-    result = await browser.company("阿里巴巴新加坡控股有限公司")
-    assert result == {"companies": [], "status": "unresolved"}
-    with pytest.raises(AcquisitionBlocked) as error:
-        parse_company(
-            """<table><tr><th>企业名称</th><td>境外主体有限公司</td></tr>
-            <tr><th>统一社会信用代码</th><td>-</td></tr></table>""",
-            "https://riskbird.com/ent/foreign",
-        )
-    assert error.value.code == "UNSUPPORTED_COMPANY"
+    assert result["status"] == "matched"
+    assert len(result["companies"]) == 1
+    record = result["companies"][0]
+    assert record["name"] == "中科超能（深圳）新能源科技有限公司"
+    assert record["credit_code"] == "91440300MACUHG9Y8K"
+    assert record["aliases"] == [
+        "深圳中科超能有限公司",
+        "中科超能科技有限公司",
+    ]
+    assert record["english_name"] == "Example Energy Co., Ltd."
+    assert record["fields"]["法定代表人"] == "张三"
+    assert record["source_url"].startswith(
+        "https://m.tianyancha.com/proxyPeers/getCompanyPhone.json?"
+    )
+    assert record["source_path"].endswith(".json")
+    assert "NEVER_PERSIST" not in str(record)
+
+
+@pytest.mark.asyncio
+async def test_company_ignores_a_hong_kong_candidate_without_a_cn_credit_code():
+    class Response:
+        status = 200
+        headers = {}
+
+        async def json(self):
+            return {
+                "state": "ok",
+                "data": {
+                    "items": [
+                        {
+                            "id": 661017758,
+                            "name": "<em>惠州亿纬锂能股份有限公司</em>",
+                            "creditCode": "91441300734122111K",
+                            "companyType": 1,
+                            "base": "广东",
+                        },
+                        {
+                            "id": 7866066178,
+                            "name": "惠州億緯鋰能股份有限公司",
+                            "creditCode": "78713229",
+                            "companyType": 2,
+                            "base": "香港",
+                        },
+                    ]
+                },
+            }
+
+    class Request:
+        async def get(self, *_args, **_kwargs):
+            return Response()
+
+    browser = Browser.__new__(Browser)
+    browser.config = SimpleNamespace(acquisition_interval_seconds=0)
+    browser.last_request = time.monotonic() - 1
+    browser.context = SimpleNamespace(request=Request())
+
+    result = await browser.company("惠州亿纬锂能股份有限公司")
+
+    assert result["status"] == "matched"
+    assert [item["credit_code"] for item in result["companies"]] == [
+        "91441300734122111K"
+    ]
+
+
+@pytest.mark.asyncio
+async def test_company_treats_http_406_as_a_temporary_rate_limit():
+    class Response:
+        status = 406
+        headers = {}
+
+        async def json(self):
+            raise AssertionError("a rate-limited response must not be parsed")
+
+    class Request:
+        async def get(self, *_args, **_kwargs):
+            return Response()
+
+    browser = Browser.__new__(Browser)
+    browser.config = SimpleNamespace(acquisition_interval_seconds=0)
+    browser.last_request = time.monotonic() - 1
+    browser.context = SimpleNamespace(request=Request())
+
+    with pytest.raises(AcquisitionBlocked) as caught:
+        await browser.company("比亚迪股份有限公司")
+
+    assert (caught.value.code, caught.value.retry_after) == ("RATE_LIMITED", 900)
+
+
+@pytest.mark.asyncio
+async def test_company_treats_tianyancha_system_error_as_a_temporary_rate_limit():
+    class Response:
+        status = 200
+        headers = {}
+
+        async def json(self):
+            return {"state": "error", "message": "系统异常"}
+
+    class Request:
+        async def get(self, *_args, **_kwargs):
+            return Response()
+
+    browser = Browser.__new__(Browser)
+    browser.config = SimpleNamespace(acquisition_interval_seconds=0)
+    browser.last_request = time.monotonic() - 1
+    browser.context = SimpleNamespace(request=Request())
+
+    with pytest.raises(AcquisitionBlocked) as caught:
+        await browser.company("伊奎希尔德医疗有限公司")
+
+    assert (caught.value.code, caught.value.retry_after) == ("RATE_LIMITED", 900)
+
+
+@pytest.mark.asyncio
+async def test_company_treats_tianyancha_no_data_warning_as_not_found():
+    class Response:
+        status = 200
+        headers = {}
+
+        async def json(self):
+            return {"state": "warn", "message": "无数据"}
+
+    class Request:
+        async def get(self, *_args, **_kwargs):
+            return Response()
+
+    browser = Browser.__new__(Browser)
+    browser.config = SimpleNamespace(acquisition_interval_seconds=0)
+    browser.last_request = time.monotonic() - 1
+    browser.context = SimpleNamespace(request=Request())
+
+    result = await browser.company("伊奎希尔德医疗有限公司")
+
+    assert result == {"companies": [], "status": "not_found"}
 
 
 def test_identity_normalization_does_not_strip_company_name_substrings():
@@ -385,6 +604,23 @@ def test_listing_detail_disagreement_never_creates_ownership():
     assert all(not m["is_accepted"] for m in s["entity-matches"])
     assert len(s["patent-parties"]) == 3
     assert all(p["country"] is None for p in s["patent-parties"])
+
+
+def test_snapshot_preserves_the_company_provider_from_each_source():
+    p = patent("CN2B")
+    p["current_assignees"] = ["示例股份有限公司"]
+    co = company()
+    co["provider"] = "tianyancha"
+    co["source_url"] = (
+        "https://m.tianyancha.com/proxyPeers/getCompanyPhone.json?key=示例"
+    )
+
+    snapshot = build_snapshot(
+        uuid4(), plan(), {"CN2B": p}, {"示例股份有限公司": {"companies": [co]}}
+    )
+
+    assert snapshot["companies"][0]["provider"] == "tianyancha"
+    assert snapshot["entity-evidence"][0]["publisher"] == "tianyancha"
 
 
 class MemoryStore:
@@ -422,6 +658,37 @@ class MemoryStore:
 
 
 @pytest.mark.asyncio
+async def test_worker_searches_each_keyword_as_a_separate_google_query():
+    store = MemoryStore()
+    store.job["plan"]["directions"][0]["keywords"] = [
+        "固态电池",
+        "固态电解质",
+    ]
+    queries = []
+
+    class Browser:
+        def __init__(self, _):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_):
+            pass
+
+        async def search(self, url):
+            queries.append(parse_qs(urlparse(url).query)["q"][0])
+            return []
+
+    await Worker(
+        store, SimpleNamespace(acquisition_patent_limit=100), Browser
+    ).execute(uuid4())
+
+    assert queries == ["固态电池", "固态电解质"]
+    assert store.job["status"] == "completed"
+
+
+@pytest.mark.asyncio
 async def test_worker_resumes_100_publications_without_repeating_completed_details():
     store = MemoryStore()
     calls = []
@@ -440,14 +707,13 @@ async def test_worker_resumes_100_publications_without_repeating_completed_detai
         async def search(self, url):
             from urllib.parse import parse_qs, urlparse
 
-            page = int(parse_qs(urlparse(url).query)["p"][0]) - 1
+            page = int(parse_qs(urlparse(url).query)["page"][0])
             return [
                 {
                     "publication_number": f"CN{n:03}B",
                     "list_assignees": [],
                     "detail_url": (
-                        "https://d.wanfangdata.com.cn/patent/"
-                        f"ZL_CN{n:03}_CN{n:03}B_20250101"
+                        f"https://patents.google.com/patent/CN{n:03}B/zh"
                     ),
                 }
                 for n in range(page * 10, (page + 1) * 10)
@@ -469,7 +735,7 @@ async def test_worker_resumes_100_publications_without_repeating_completed_detai
     assert store.job["status"] == "waiting"
     assert len(store.data["patent"]) == 50
     assert "battery:0" in store.data["page"]
-    assert all(not key.startswith("wanfang-") for key in store.data["page"])
+    assert all(key.startswith("battery") for key in store.data["page"])
     assert store.release is None
     store.job["status"] = "queued"
     await worker.execute(run_id)
