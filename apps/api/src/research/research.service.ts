@@ -17,6 +17,7 @@ import { PrismaService } from '../database/prisma.service.js'
 import { type Action } from '../generated/intelligence/types.gen.js'
 import { Prisma, type ResearchRun } from '../generated/prisma/client.js'
 import { IntelligenceClient } from './intelligence.client.js'
+import { object } from './research-view.service.js'
 
 const json = (value: unknown) =>
   JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue
@@ -102,7 +103,13 @@ export class ResearchService implements OnModuleInit, OnModuleDestroy {
       include: {
         runs: {
           orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
-          select: { id: true, status: true, sequence: true, createdAt: true },
+          select: {
+            id: true,
+            question: true,
+            status: true,
+            sequence: true,
+            createdAt: true,
+          },
         },
       },
     })
@@ -120,17 +127,62 @@ export class ResearchService implements OnModuleInit, OnModuleDestroy {
   }
 
   async newRun(userId: string, projectId: string, input: ResearchCreate) {
-    await this.project(userId, projectId)
-    const run = await this.prisma.researchRun.upsert({
-      where: {
-        projectId_requestKey: { projectId, requestKey: input.requestKey },
-      },
-      update: {},
-      create: {
-        projectId,
-        requestKey: input.requestKey,
-        question: input.question,
-      },
+    const project = await this.project(userId, projectId)
+    const run = await this.prisma.$transaction(async (tx) => {
+      // Serialize new rounds across tabs so a project has a single active branch.
+      await tx.$queryRaw`SELECT id FROM app.research_project WHERE id = ${projectId}::uuid FOR UPDATE`
+      const existing = await tx.researchRun.findUnique({
+        where: {
+          projectId_requestKey: { projectId, requestKey: input.requestKey },
+        },
+      })
+      if (existing) {
+        if (
+          existing.question !== input.question ||
+          (input.parentRunId &&
+            object(existing.context).parentRunId !== input.parentRunId)
+        )
+          throw new ConflictException('请求键已用于不同的追问')
+        return existing
+      }
+      const previous = await tx.researchRun.findFirst({
+        where: { projectId },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      })
+      if (input.parentRunId && previous?.id !== input.parentRunId)
+        throw new ConflictException('研究已有更新，请刷新后继续追问')
+      const active = await tx.researchRun.findFirst({
+        where: { projectId, status: { in: ['queued', 'running'] } },
+        select: { id: true },
+      })
+      const pending = await tx.researchCommand.findFirst({
+        where: { run: { projectId }, status: 'pending' },
+        select: { id: true },
+      })
+      if (active || pending)
+        throw new ConflictException('请等待当前研究结束或停止后再发送')
+      const previousContext = object(previous?.context)
+      const artifacts = object(object(previous?.state).artifacts)
+      const history = Array.isArray(previousContext.questions)
+        ? previousContext.questions
+        : []
+      return tx.researchRun.create({
+        data: {
+          projectId,
+          requestKey: input.requestKey,
+          question: input.question,
+          context: json({
+            parentRunId: previous?.id,
+            originalQuestion: project.question,
+            questions: [...history, ...(previous ? [previous.question] : [])],
+            plan:
+              artifacts.confirmed_plan ??
+              artifacts.plan ??
+              previousContext.plan ??
+              null,
+          }),
+        },
+      })
     })
     if (run.question !== input.question)
       throw new ConflictException({
@@ -164,12 +216,24 @@ export class ResearchService implements OnModuleInit, OnModuleDestroy {
   }
 
   async action(userId: string, runId: string, input: ResearchAction) {
-    await this.ownedRun(userId, runId)
+    const owned = await this.ownedRun(userId, runId)
     const payload: Action = { ...input, actor_id: userId }
-    const command = await this.prisma.researchCommand.upsert({
-      where: { id: input.action_id },
-      update: {},
-      create: { id: input.action_id, runId, payload: json(payload) },
+    const command = await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM app.research_project WHERE id = ${owned.projectId}::uuid FOR UPDATE`
+      const existing = await tx.researchCommand.findUnique({
+        where: { id: input.action_id },
+      })
+      if (existing) return existing
+      const latest = await tx.researchRun.findFirst({
+        where: { projectId: owned.projectId },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        select: { id: true },
+      })
+      if (latest?.id !== runId && !['cancel', 'pause'].includes(input.kind))
+        throw new ConflictException('此轮已归入历史，请在最新轮次继续操作')
+      return tx.researchCommand.create({
+        data: { id: input.action_id, runId, payload: json(payload) },
+      })
     })
     if (
       command.runId !== runId ||
@@ -266,7 +330,9 @@ export class ResearchService implements OnModuleInit, OnModuleDestroy {
     if (this.syncing.has(run.id)) return
     this.syncing.add(run.id)
     try {
-      await this.save(await this.intelligence.start(run.id, run.question))
+      await this.save(
+        await this.intelligence.start(run.id, run.question, object(run.context))
+      )
       const latest = await this.prisma.researchEvent.findFirst({
         where: { runId: run.id },
         orderBy: { sequence: 'desc' },

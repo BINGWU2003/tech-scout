@@ -20,8 +20,26 @@ export function useResearchRun(id: string) {
   const events = useQuery({
     queryKey: ['research', id, 'events'],
     queryFn: () => researchApi.events(id),
+    structuralSharing: (old, incoming) => {
+      // Immutable sequence IDs let replay and in-flight SSE safely converge.
+      const combined = [
+        ...((old as ResearchProgressView[] | undefined) ?? []),
+        ...(incoming as ResearchProgressView[]),
+      ]
+      return [
+        ...new Map(combined.map((event) => [event.sequence, event])).values(),
+      ].sort((a, b) => a.sequence - b.sequence)
+    },
     staleTime: 0,
+    refetchInterval: active ? 5000 : false,
   })
+  const status = summary.data?.status
+  const sequence = summary.data?.sequence
+  useEffect(() => {
+    // Capture final events even when the summary reaches a terminal state before SSE.
+    if (status && !isExecuting(status))
+      void client.invalidateQueries({ queryKey: ['research', id, 'events'] })
+  }, [client, id, status, sequence])
   const cursor = useRef(0)
   const ready = events.isSuccess
   useEffect(() => {
@@ -54,11 +72,10 @@ export function useResearchRun(id: string) {
       cursor.current = progress.sequence
       client.setQueryData<ResearchProgressView[]>(
         ['research', id, 'events'],
-        (old) =>
-          [
-            ...(old ?? []).filter((e) => e.sequence < progress.sequence),
-            progress,
-          ].slice(-100)
+        (old) => [
+          ...(old ?? []).filter((e) => e.sequence < progress.sequence),
+          progress,
+        ]
       )
       if (!timer)
         timer = setTimeout(() => {

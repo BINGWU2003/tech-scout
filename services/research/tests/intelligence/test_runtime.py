@@ -76,6 +76,7 @@ async def test_postgres_restart_resume_budget_and_event_receipts(setup_runtime):
     # A new graph/runtime instance consumes the persisted checkpoint and command.
     resumed = Runtime(build_graph(llm, store, saver, catalog), store, runtime.config)
     await resumed.execute(run_id)
+    await advance_to_report(resumed, store, run_id)
     state = await store.get(run_id)
     assert state.status == "completed", state.error
     assert state.artifacts["result"]["companies"][0]["patent_count"] == 1
@@ -107,6 +108,7 @@ async def test_failed_planner_allows_manual_plan_without_another_model_call(
         Action(action_id=uuid4(), actor_id=uuid4(), kind="confirm_plan", plan=plan()),
     )
     await runtime.execute(run_id)
+    await advance_to_report(runtime, store, run_id)
     assert (await store.get(run_id)).status == "completed"
     assert llm.calls == ["Plan", "Analysis"]
 
@@ -123,6 +125,7 @@ async def test_failed_analysis_stops_then_explicit_retry_reuses_facts(setup_runt
     )
     llm.fail = "Analysis"
     await runtime.execute(run_id)
+    await advance_to_report(runtime, store, run_id)
     failed = await store.get(run_id)
     assert failed.status == "failed"
     assert "result" not in failed.artifacts
@@ -269,3 +272,21 @@ async def test_cancel_running_model_never_continues(setup_runtime, monkeypatch):
     assert current.status == "cancelled"
     assert "snapshot" not in current.artifacts
     assert "result" not in current.artifacts
+
+
+async def advance_to_report(runtime, store, run_id):
+    assert (await store.get(run_id)).status == "awaiting_companies"
+    with pytest.raises(ResearchError, match="当前状态"):
+        await store.action(
+            run_id, Action(action_id=uuid4(), actor_id=uuid4(), kind="resolve_entities")
+        )
+    action = Action(action_id=uuid4(), actor_id=uuid4(), kind="start_companies")
+    first = await store.action(run_id, action)
+    again = await store.action(run_id, action)
+    assert first.sequence == again.sequence
+    await runtime.execute(run_id)
+    assert (await store.get(run_id)).status == "awaiting_entities"
+    await store.action(
+        run_id, Action(action_id=uuid4(), actor_id=uuid4(), kind="resolve_entities")
+    )
+    await runtime.execute(run_id)

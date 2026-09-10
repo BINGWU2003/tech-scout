@@ -347,6 +347,7 @@
             "type": "string",
             "enum": [
               "confirm_plan",
+              "start_companies",
               "resolve_entities",
               "retry",
               "cancel",
@@ -668,6 +669,7 @@
               "queued",
               "running",
               "awaiting_plan",
+              "awaiting_companies",
               "awaiting_entities",
               "completed",
               "empty",
@@ -733,6 +735,11 @@
             "maxLength": 2000,
             "minLength": 1,
             "title": "Question"
+          },
+          "conversation": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Conversation"
           }
         },
         "additionalProperties": false,

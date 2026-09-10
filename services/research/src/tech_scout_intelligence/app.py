@@ -26,20 +26,23 @@ from .workflow import build_graph
 @asynccontextmanager
 async def lifespan(app):
     config = settings()
-    async with AsyncConnectionPool[AsyncConnection[DictRow]](
-        config.intelligence_database_url.get_secret_value(),
-        open=False,
-        kwargs={
-            "autocommit": True,
-            "row_factory": dict_row,
-            "prepare_threshold": 0,
-            "options": "-c search_path=agent_runtime",
-        },
-    ) as pool, AsyncConnectionPool(
-        config.acquisition_dsn(),
-        open=False,
-        kwargs={"autocommit": True, "row_factory": dict_row},
-    ) as acquisition_pool:
+    async with (
+        AsyncConnectionPool[AsyncConnection[DictRow]](
+            config.intelligence_database_url.get_secret_value(),
+            open=False,
+            kwargs={
+                "autocommit": True,
+                "row_factory": dict_row,
+                "prepare_threshold": 0,
+                "options": "-c search_path=agent_runtime",
+            },
+        ) as pool,
+        AsyncConnectionPool(
+            config.acquisition_dsn(),
+            open=False,
+            kwargs={"autocommit": True, "row_factory": dict_row},
+        ) as acquisition_pool,
+    ):
         await pool.wait()
         await acquisition_pool.wait()
         acquisition_store = AcquisitionStore(acquisition_pool)
@@ -104,7 +107,9 @@ async def health(request: Request) -> dict[str, str]:
 
 @app.post("/runs", response_model=RunView, operation_id="start_run")
 async def start_run(body: Start, request: Request):
-    return await request.app.state.store.create(body.run_id, body.question.strip())
+    return await request.app.state.store.create(
+        body.run_id, body.question.strip(), body.conversation
+    )
 
 
 @app.get("/runs/{run_id}", response_model=RunView, operation_id="get_run")

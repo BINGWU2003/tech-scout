@@ -19,7 +19,16 @@ export default defineConfig({
       bundler: 'vite',
     }),
   ],
-  optimizeDeps: { include: ['@tanstack/react-query', 'vitest-browser-react'] },
+  optimizeDeps: {
+    include: [
+      '@tanstack/react-query',
+      'vitest-browser-react',
+      '@tanstack/react-query-devtools',
+      '@tanstack/react-router-devtools',
+      'react-top-loading-bar',
+      'react-dom/client',
+    ],
+  },
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),

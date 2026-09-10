@@ -22,8 +22,11 @@ class Acquisition:
             "period_to_year": datetime.now(UTC).year,
         }
 
-    async def collect(self, run_id, plan, progress):
+    async def collect(self, run_id, plan, progress, after=0, phase="patents"):
         job = await self.store.create(run_id, plan)
+        if phase == "companies" and job["status"] == "awaiting_companies":
+            await self.store.start_companies(run_id)
+            job = await self.store.get(run_id)
         if job["status"] in {"waiting", "paused", "failed"}:
             retry_at = (job.get("error") or {}).get("retry_at")
             if retry_at and datetime.fromisoformat(retry_at) > datetime.now(UTC):
@@ -37,6 +40,22 @@ class Acquisition:
         try:
             while True:
                 job = await self.store.get(run_id)
+                # Replay logs: latest-progress polling alone loses fast searches.
+                while True:
+                    events = await self.store.events(run_id, after)
+                    for event in events:
+                        await progress(
+                            {
+                                "process": {
+                                    **event["data"],
+                                    "occurredAt": event["created_at"].isoformat(),
+                                },
+                                "acquisition_cursor": event["sequence"],
+                            }
+                        )
+                        after = event["sequence"]
+                    if len(events) < 100:
+                        break
                 view = {
                     "status": job["status"],
                     **job["progress"],
@@ -45,6 +64,13 @@ class Acquisition:
                 if view != previous:
                     await progress(view)
                     previous = view
+                if phase == "patents" and job["status"] == "awaiting_companies":
+                    snapshot = await self.store.patent_snapshot(run_id)
+                    if snapshot is None:
+                        raise ResearchError(
+                            "ACQUISITION_INCOMPLETE", "专利快照尚未生成"
+                        )
+                    return snapshot
                 if job["status"] == "completed":
                     snapshot = await self.store.snapshot(run_id)
                     if snapshot is None:

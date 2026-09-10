@@ -628,6 +628,13 @@ class MemoryStore:
         self.job = {"plan": plan(), "status": "queued"}
         self.data = {}
         self.release = None
+        self.log = []
+
+    async def complete_patents(self, _):
+        self.job["status"] = "awaiting_companies"
+
+    async def record(self, _, data):
+        self.log.append(copy.deepcopy(data))
 
     async def get(self, _):
         return self.job
@@ -680,11 +687,21 @@ async def test_worker_searches_each_keyword_as_a_separate_google_query():
             queries.append(parse_qs(urlparse(url).query)["q"][0])
             return []
 
-    await Worker(
-        store, SimpleNamespace(acquisition_patent_limit=100), Browser
-    ).execute(uuid4())
+    await Worker(store, SimpleNamespace(acquisition_patent_limit=100), Browser).execute(
+        uuid4()
+    )
 
     assert queries == ["固态电池", "固态电解质"]
+    searches = [e for e in store.log if "keyword" in e]
+    assert [e["outcome"] for e in searches] == [
+        "running",
+        "completed",
+        "running",
+        "completed",
+    ]
+    assert [e["keyword"] for e in searches[::2]] == queries
+    assert all(e["url"].startswith("https://patents.google.com/") for e in searches)
+    assert all(e["count"] == 0 for e in searches if e["outcome"] == "completed")
     assert store.job["status"] == "completed"
 
 
@@ -712,9 +729,7 @@ async def test_worker_resumes_100_publications_without_repeating_completed_detai
                 {
                     "publication_number": f"CN{n:03}B",
                     "list_assignees": [],
-                    "detail_url": (
-                        f"https://patents.google.com/patent/CN{n:03}B/zh"
-                    ),
+                    "detail_url": (f"https://patents.google.com/patent/CN{n:03}B/zh"),
                 }
                 for n in range(page * 10, (page + 1) * 10)
             ]
@@ -734,6 +749,8 @@ async def test_worker_resumes_100_publications_without_repeating_completed_detai
     await worker.execute(run_id)
     assert store.job["status"] == "waiting"
     assert len(store.data["patent"]) == 50
+    assert store.log[-1]["outcome"] == "failed"
+    search_count = len([e for e in store.log if "keyword" in e])
     assert "battery:0" in store.data["page"]
     assert all(key.startswith("battery") for key in store.data["page"])
     assert store.release is None
@@ -742,6 +759,7 @@ async def test_worker_resumes_100_publications_without_repeating_completed_detai
     assert store.job["status"] == "completed"
     assert len(store.release["patents"]) == 100
     assert len(calls) == len(set(calls)) == 100
+    assert len([e for e in store.log if "keyword" in e]) == search_count
     store.job["status"] = "queued"
     await worker.execute(run_id)
     assert len(calls) == 100
@@ -760,3 +778,48 @@ async def test_paused_job_never_opens_browser():
     ).execute(uuid4())
     assert store.job["status"] == "paused"
     assert not store.data
+
+
+@pytest.mark.asyncio
+async def test_patent_phase_never_queries_companies_until_explicit_advance():
+    store = MemoryStore()
+    store.job["target"] = "patents"
+    calls = []
+
+    class Browser:
+        def __init__(self, _):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_):
+            pass
+
+        async def search(self, url):
+            return [
+                {"publication_number": "CN001B", "list_assignees": ["示例有限公司"]}
+            ]
+
+        async def patent(self, key, listing):
+            return patent(key)
+
+        async def company(self, name):
+            calls.append(name)
+            return {"status": "not_found", "companies": []}
+
+    worker = Worker(
+        store,
+        SimpleNamespace(acquisition_patent_limit=1, acquisition_company_cache_days=30),
+        Browser,
+    )
+    run_id = uuid4()
+    await worker.execute(run_id)
+    assert store.job["status"] == "awaiting_companies"
+    assert calls == []
+    assert store.release is None
+    assert len(store.data["patent"]) == 1
+    store.job.update(status="queued", target="companies")
+    await worker.execute(run_id)
+    assert store.job["status"] == "completed"
+    assert calls == ["示例有限公司"]

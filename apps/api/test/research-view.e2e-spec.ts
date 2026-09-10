@@ -426,6 +426,19 @@ describe.skipIf(!enabled)(
         .set('x-csrf-token', strangerCsrf)
         .send(payload)
         .expect(404)
+      // The fixture also contains a queued sibling: explicitly stop it before a new round.
+      await owner
+        .post(`/api/v1/research/ui/projects/${response.body.projectId}/runs`)
+        .set('Origin', 'http://localhost:5173')
+        .set('x-csrf-token', csrf)
+        .send(payload)
+        .expect(409)
+      await owner
+        .post(`/api/v1/research/ui/runs/${queuedId}/actions`)
+        .set('Origin', 'http://localhost:5173')
+        .set('x-csrf-token', csrf)
+        .send({ action_id: randomUUID(), kind: 'cancel' })
+        .expect(201)
       const round = await owner
         .post(`/api/v1/research/ui/projects/${response.body.projectId}/runs`)
         .set('Origin', 'http://localhost:5173')

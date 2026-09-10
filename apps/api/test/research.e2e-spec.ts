@@ -221,4 +221,107 @@ describeDb('阶段 2 产品 API：所有权、幂等与持久化', () => {
       })
     ).toBe(1)
   })
+  it('追问继承上轮条件，重复请求不新增轮次，旧轮次不能恢复执行', async () => {
+    const owner = await account()
+    const post = (url: string, body: unknown) =>
+      owner.agent
+        .post(url)
+        .set('Origin', 'http://localhost:5173')
+        .set('x-csrf-token', owner.csrf)
+        .send(body)
+    const created = await post('/api/v1/research/projects', {
+      requestKey: randomUUID(),
+      question: '工业视觉',
+    }).expect(201)
+    const projectId = created.body.id,
+      parentRunId = created.body.runs[0].id
+    const input = {
+      requestKey: randomUUID(),
+      question: '只看近五年',
+      parentRunId,
+    }
+    const responses = await Promise.all([
+      post(`/api/v1/research/projects/${projectId}/runs`, input).expect(201),
+      post(`/api/v1/research/projects/${projectId}/runs`, input).expect(201),
+    ])
+    expect(responses[0].body.id).toBe(responses[1].body.id)
+    const saved = await prisma.researchRun.findUniqueOrThrow({
+      where: { id: responses[0].body.id },
+    })
+    expect(saved.context).toMatchObject({
+      parentRunId,
+      originalQuestion: '工业视觉',
+      questions: ['工业视觉'],
+      plan: { risks: ['test'] },
+    })
+    expect(await prisma.researchRun.count({ where: { projectId } })).toBe(2)
+    await post(`/api/v1/research/projects/${projectId}/runs`, {
+      ...input,
+      question: '不同追问',
+    }).expect(409)
+    await post(`/api/v1/research/runs/${parentRunId}/actions`, {
+      action_id: randomUUID(),
+      kind: 'retry',
+    }).expect(409)
+    await post(`/api/v1/research/projects/${projectId}/runs`, {
+      ...input,
+      requestKey: randomUUID(),
+    }).expect(409)
+    await prisma.researchRun.update({
+      where: { id: saved.id },
+      data: { status: 'running' },
+    })
+    await post(`/api/v1/research/projects/${projectId}/runs`, {
+      ...input,
+      parentRunId: saved.id,
+      requestKey: randomUUID(),
+    }).expect(409)
+  })
+
+  it('过程记录持久化并可按游标回放，投影不会泄露内部字段', async () => {
+    const owner = await account()
+    const created = await owner.agent
+      .post('/api/v1/research/projects')
+      .set('Origin', 'http://localhost:5173')
+      .set('x-csrf-token', owner.csrf)
+      .send({ requestKey: randomUUID(), question: '专利过程测试' })
+      .expect(201)
+    const id = created.body.runs[0].id
+    const state = states.get(id)!
+    const service = app.get(ResearchService)
+    await service.receive({
+      sequence: 2,
+      kind: 'search_progress',
+      created_at: new Date().toISOString(),
+      data: {
+        ...state,
+        sequence: 2,
+        artifacts: {
+          ...state.artifacts,
+          process: {
+            stage: 'search',
+            message: '检索完成',
+            outcome: 'completed',
+            keyword: '视觉',
+            page: 1,
+            count: 7,
+            url: 'https://patents.google.com/?q=vision',
+            private_token: 'do-not-expose',
+          },
+        },
+      },
+    })
+    const events = await owner.agent
+      .get(`/api/v1/research/ui/runs/${id}/events?after=1`)
+      .expect(200)
+    expect(events.body).toHaveLength(1)
+    expect(events.body[0].process).toMatchObject({ keyword: '视觉', count: 7 })
+    expect(events.body[0].process).not.toHaveProperty('private_token')
+    const replay = await owner.agent
+      .get(`/api/v1/research/ui/runs/${id}/events?after=1`)
+      .expect(200)
+    expect(replay.body).toEqual(events.body)
+    const other = await account()
+    await other.agent.get(`/api/v1/research/ui/runs/${id}/events`).expect(404)
+  })
 })

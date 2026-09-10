@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common'
 import {
   researchPlanSchema,
   researchSummaryViewSchema,
+  researchProcessSchema,
   type ResearchViewQuery,
 } from '@tech-scout/contracts'
 import { PrismaService } from '../database/prisma.service.js'
@@ -128,6 +129,8 @@ export class ResearchViewService {
         r.state #> '{artifacts,plan}' AS plan, r.state #> '{artifacts,confirmed_plan}' AS confirmed,
         COALESCE(jsonb_array_length(r.state #> '{artifacts,unverified}'), 0) AS "candidateCount",
         r.state #> '{artifacts,result}' IS NOT NULL AS "hasResult",
+        r.state #> '{artifacts,patents}' IS NOT NULL AS "hasPatents",
+        r.state #> '{artifacts,companies}' IS NOT NULL AS "hasCompanies",
         (SELECT COALESCE(jsonb_agg(u->'candidate_id'), '[]'::jsonb)
          FROM jsonb_array_elements(COALESCE(r.state #> '{artifacts,unverified}', '[]'::jsonb)) u
          WHERE u->>'requires_confirmation' = 'true') AS pending
@@ -165,6 +168,8 @@ export class ResearchViewService {
       pendingCandidateIds: strings(r.pending),
       candidateCount: r.candidateCount,
       hasResult: r.hasResult,
+      hasPatents: r.hasPatents ?? false,
+      hasCompanies: r.hasCompanies ?? false,
     })
   }
 
@@ -175,7 +180,7 @@ export class ResearchViewService {
       select: { id: true },
     })
     if (!owned) throw new NotFoundException('研究运行不存在')
-    return this.prisma.$queryRaw<
+    const events = await this.prisma.$queryRaw<
       Array<{
         sequence: number
         kind: string
@@ -183,12 +188,25 @@ export class ResearchViewService {
         status: string
         node: string | null
         error: unknown
+        process: unknown
+        acquisition: unknown
       }>
     >(Prisma.sql`
       SELECT e.sequence, e.kind, to_char(e.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS "createdAt",
-        e.data->>'status' AS status, e.data->>'node' AS node, e.data->'error' AS error
+        e.data->>'status' AS status, e.data->>'node' AS node, e.data->'error' AS error,
+        CASE WHEN e.kind IN ('planner_progress', 'search_progress')
+          THEN e.data #> '{artifacts,process}' END AS process,
+        CASE WHEN e.kind = 'acquisition_progress'
+          THEN e.data #> '{artifacts,acquisition}' END AS acquisition
       FROM app.research_event e WHERE e.run_id = ${id}::uuid AND e.sequence > ${after}
       ORDER BY e.sequence ASC LIMIT 100`)
+    return events.map((event) => ({
+      ...event,
+      process: researchProcessSchema.safeParse(event.process).data ?? null,
+      acquisition:
+        researchSummaryViewSchema.shape.acquisition.safeParse(event.acquisition)
+          .data ?? null,
+    }))
   }
 
   private async artifacts(userId: string, id: string) {
@@ -269,6 +287,19 @@ export class ResearchViewService {
     if (q.pending === 'true')
       items = items.filter((u) => u.requires_confirmation === true)
     return pageOf(items.map(candidateView), q)
+  }
+
+  async companyMatches(userId: string, id: string, q: ResearchViewQuery) {
+    const companies = rows((await this.artifacts(userId, id)).companies)
+    return pageOf(
+      companies.map((company) => ({
+        id: String(company.company_id),
+        name: String(company.preferred_name),
+        country: str(company.country),
+        patentCount: strings(company.patent_ids).length,
+      })),
+      q
+    )
   }
 
   async candidate(userId: string, id: string, candidateId: string) {

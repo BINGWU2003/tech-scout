@@ -47,6 +47,37 @@ export const researchSummaryViewSchema = z.object({
   pendingCandidateIds: z.array(z.string()),
   candidateCount: z.number().int(),
   hasResult: z.boolean(),
+  hasPatents: z.boolean().default(false),
+  hasCompanies: z.boolean().default(false),
+})
+export const researchCompanyMatchesSchema = z.object({
+  items: z.array(
+    z.object({
+      id: z.string(),
+      name: z.string(),
+      country: z.string().nullable(),
+      patentCount: z.number().int(),
+    })
+  ),
+  total: z.number().int(),
+  page: z.number().int(),
+  pageSize: z.number().int(),
+})
+export const researchProcessSchema = z.object({
+  stage: z.string(),
+  message: z.string(),
+  direction: z.string().nullable().optional(),
+  keyword: z.string().optional(),
+  url: z
+    .string()
+    .regex(/^https:\/\/patents\.google\.com\//)
+    .nullable()
+    .optional(),
+  page: z.number().int().positive().optional(),
+  count: z.number().int().nonnegative().optional(),
+  completed: z.number().int().nonnegative().optional(),
+  outcome: z.enum(['running', 'completed', 'failed', 'stopped']),
+  occurredAt: z.string().optional(),
 })
 export const researchProgressViewSchema = z.object({
   sequence: z.number().int(),
@@ -55,6 +86,8 @@ export const researchProgressViewSchema = z.object({
   status: researchStatusSchema,
   node: z.string().nullable(),
   error: researchStateSchema.shape.error,
+  process: researchProcessSchema.nullable().optional(),
+  acquisition: researchSummaryViewSchema.shape.acquisition.optional(),
 })
 export const researchCompanyViewSchema = z.object({
   id: z.string(),

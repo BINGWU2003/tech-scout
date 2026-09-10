@@ -43,6 +43,7 @@ class Plan(Model):
 class Start(Model):
     run_id: UUID
     question: str = Field(min_length=1, max_length=2000)
+    conversation: dict[str, Any] = Field(default_factory=dict)
 
 
 class IdentityDecision(Model):
@@ -55,7 +56,14 @@ class IdentityDecision(Model):
 
 class Action(Model):
     action_id: UUID
-    kind: Literal["confirm_plan", "resolve_entities", "retry", "cancel", "pause"]
+    kind: Literal[
+        "confirm_plan",
+        "start_companies",
+        "resolve_entities",
+        "retry",
+        "cancel",
+        "pause",
+    ]
     actor_id: UUID
     plan: Plan | None = None
     decisions: list[IdentityDecision] = Field(default_factory=list, max_length=1000)
@@ -93,6 +101,7 @@ Status = Literal[
     "queued",
     "running",
     "awaiting_plan",
+    "awaiting_companies",
     "awaiting_entities",
     "completed",
     "empty",

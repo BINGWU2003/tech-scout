@@ -9,6 +9,7 @@ import {
   researchCandidatePageSchema,
   researchCandidateDetailViewSchema,
   researchCompanyDetailViewSchema,
+  researchCompanyMatchesSchema,
   type ResearchAction,
   type ResearchCreate,
 } from '@tech-scout/contracts'
@@ -48,7 +49,7 @@ export const researchApi = {
       if (next <= after) throw new Error('研究事件游标没有前进，请重新读取')
       after = next
     }
-    return events.slice(-100)
+    return events
   },
   action: (id: string, input: ResearchAction) =>
     apiRequest(`${run(id)}/actions`, researchSummaryViewSchema, {
@@ -84,5 +85,10 @@ export const researchApi = {
     apiRequest(
       `${run(id)}/companies/${encodeURIComponent(companyId)}`,
       researchCompanyDetailViewSchema
+    ),
+  companyMatches: (id: string, page: number) =>
+    apiRequest(
+      `${run(id)}/companies?page=${page}`,
+      researchCompanyMatchesSchema
     ),
 }

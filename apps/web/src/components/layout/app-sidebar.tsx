@@ -6,6 +6,10 @@ import {
   SidebarRail,
 } from '@/components/ui/sidebar'
 import { useLayout } from '@/context/layout-provider'
+import {
+  ResearchSidebar,
+  ResearchNewButton,
+} from '@/features/research/research-sidebar'
 import { useAuthStore } from '@/stores/auth-store'
 import { AppTitle } from './app-title'
 import { sidebarData } from './data/sidebar-data'
@@ -25,11 +29,13 @@ export function AppSidebar() {
     <Sidebar collapsible={collapsible} variant={variant}>
       <SidebarHeader>
         <AppTitle />
+        <ResearchNewButton />
       </SidebarHeader>
       <SidebarContent>
         {navGroups.map((props) => (
           <NavGroup key={props.title} {...props} />
         ))}
+        <ResearchSidebar />
       </SidebarContent>
       <SidebarFooter>
         <NavUser

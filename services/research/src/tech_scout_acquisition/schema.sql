@@ -1,4 +1,11 @@
 CREATE SCHEMA IF NOT EXISTS ingestion;
+CREATE TABLE IF NOT EXISTS ingestion.event (
+    sequence bigserial PRIMARY KEY,
+    run_id uuid NOT NULL,
+    data jsonb NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS ingestion_event_run_sequence ON ingestion.event(run_id, sequence);
 CREATE SCHEMA IF NOT EXISTS catalog_v2;
 
 CREATE TABLE IF NOT EXISTS ingestion.job (
@@ -10,6 +17,8 @@ CREATE TABLE IF NOT EXISTS ingestion.job (
     created_at timestamptz NOT NULL DEFAULT now(),
     updated_at timestamptz NOT NULL DEFAULT now()
 );
+-- Existing jobs retain their original collection boundary; new jobs opt into gates.
+ALTER TABLE ingestion.job ADD COLUMN IF NOT EXISTS target text NOT NULL DEFAULT 'complete';
 CREATE TABLE IF NOT EXISTS ingestion.item (
     run_id uuid NOT NULL REFERENCES ingestion.job(run_id),
     kind text NOT NULL,

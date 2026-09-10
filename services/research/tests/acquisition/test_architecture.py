@@ -113,20 +113,24 @@ def test_cleanup_preserves_accounts_browser_runs_and_unknowns():
                 "VALUES(%s,%s,%s,'fixture',now())",
                 (rid, rid, uuid4()),
             )
-        for table in ("checkpoints", "checkpoint_blobs", "checkpoint_writes"):
-            from psycopg import sql
-
-            conn.execute(
-                sql.SQL(
-                    "CREATE TABLE IF NOT EXISTS agent_runtime.{} (thread_id text)"
-                ).format(sql.Identifier(table))
-            )
-            conn.execute(
-                sql.SQL("INSERT INTO agent_runtime.{}(thread_id) VALUES(%s)").format(
-                    sql.Identifier(table)
-                ),
-                (str(old),),
-            )
+        # Use valid rows in the real LangGraph schema, including its required keys.
+        conn.execute(
+            "INSERT INTO agent_runtime.checkpoints(thread_id,checkpoint_id,checkpoint) "
+            "VALUES(%s,'cleanup-fixture','{}')",
+            (str(old),),
+        )
+        conn.execute(
+            "INSERT INTO agent_runtime.checkpoint_blobs"
+            "(thread_id,channel,version,type) "
+            "VALUES(%s,'test','1','empty')",
+            (str(old),),
+        )
+        conn.execute(
+            "INSERT INTO agent_runtime.checkpoint_writes"
+            "(thread_id,checkpoint_id,task_id,idx,channel,blob) "
+            "VALUES(%s,'cleanup-fixture','test',0,'test','')",
+            (str(old),),
+        )
         conn.execute(
             "CREATE SCHEMA IF NOT EXISTS catalog; CREATE TABLE catalog.obsolete(id int)"
         )

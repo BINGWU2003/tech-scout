@@ -24,6 +24,7 @@ export const researchCreateSchema = z
   .object({
     requestKey: z.uuid(),
     question: z.string().trim().min(1).max(2000),
+    parentRunId: z.uuid().optional(),
   })
   .strict()
 export const researchActionSchema = z
@@ -31,6 +32,7 @@ export const researchActionSchema = z
     action_id: z.uuid(),
     kind: z.enum([
       'confirm_plan',
+      'start_companies',
       'resolve_entities',
       'retry',
       'cancel',
@@ -65,6 +67,7 @@ export const researchStatusSchema = z.enum([
   'queued',
   'running',
   'awaiting_plan',
+  'awaiting_companies',
   'awaiting_entities',
   'completed',
   'empty',
@@ -118,6 +121,7 @@ export type ResearchEvent = z.infer<typeof researchEventSchema>
 
 export const researchRunSummarySchema = z.object({
   id: z.uuid(),
+  question: z.string().optional(),
   status: researchStatusSchema,
   sequence: z.number().int().nonnegative(),
   createdAt: z.iso.datetime(),

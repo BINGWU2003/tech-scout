@@ -79,6 +79,7 @@ model ResearchRun {
   projectId  String            @map("project_id") @db.Uuid
   requestKey String            @map("request_key") @db.Uuid
   question   String
+  context    Json              @default("{}")
   status     String            @default("queued") @db.VarChar(40)
   sequence   Int               @default(0)
   state      Json              @default("{}")

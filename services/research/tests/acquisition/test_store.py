@@ -53,3 +53,39 @@ async def test_database_idempotency_pause_and_immutable_release():
         await store.update(run, "running")
         await store.publish(run, {"version": 2})
         assert await store.snapshot(run) == {"version": 1}
+
+
+@pytest.mark.asyncio
+async def test_stage_gate_and_search_log_survive_store_recreation():
+    from test_acquisition import plan
+
+    dsn = os.environ.get("TEST_ACQUISITION_DATABASE_URL")
+    if not dsn:
+        pytest.skip("需要独立采集测试数据库")
+    async with AsyncConnectionPool(
+        dsn, open=False, kwargs={"autocommit": True, "row_factory": dict_row}
+    ) as pool:
+        await pool.wait()
+        store = Store(pool)
+        await store.migrate()
+        run, other = uuid4(), uuid4()
+        assert (await store.create(run, plan()))["target"] == "patents"
+        await store.record(
+            run, {"stage": "search", "message": "检索完成", "outcome": "completed"}
+        )
+        await store.record(other, {"message": "其他项目"})
+        await store.checkpoint(run, {"stage": "patents", "completed": 0})
+        await store.complete_patents(run)
+        restored = Store(pool)
+        assert (await restored.get(run))["status"] == "awaiting_companies"
+        assert await restored.snapshot(run) is None
+        assert (await restored.patent_snapshot(run))["patents"] == []
+        events = await restored.events(run)
+        assert len(events) == 1
+        assert events[0]["data"]["message"] == "检索完成"
+        assert await restored.events(run, events[0]["sequence"]) == []
+        await restored.start_companies(run)
+        await restored.start_companies(run)
+        job = await restored.get(run)
+        assert job["target"] == "companies"
+        assert job["status"] == "queued"

@@ -1,6 +1,6 @@
 import { Link } from '@tanstack/react-router'
 import { type ResearchSourceView } from '@tech-scout/contracts'
-import { type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
 import { ProfileDropdown } from '@/components/profile-dropdown'
@@ -8,17 +8,87 @@ import { ThemeSwitch } from '@/components/theme-switch'
 import { Button } from '@/components/ui/button'
 import { ApiClientError } from '@/lib/api-client-error'
 
-export function ResearchShell({ children }: { children: ReactNode }) {
+export function ResearchShell({
+  children,
+  composer,
+  navigation,
+  title = '技术研究',
+}: {
+  children: ReactNode
+  composer?: ReactNode
+  navigation?: ReactNode
+  title?: string
+}) {
+  const viewport = useRef<HTMLDivElement>(null)
+  const content = useRef<HTMLDivElement>(null)
+  const following = useRef(false)
+  const [showLatest, setShowLatest] = useState(false)
+  useEffect(() => {
+    const observer = new ResizeObserver(() => {
+      if (following.current && viewport.current)
+        viewport.current.scrollTop = viewport.current.scrollHeight
+    })
+    if (content.current) observer.observe(content.current)
+    return () => observer.disconnect()
+  }, [])
   return (
     <>
-      <Header fixed>
-        <Link to='/research' className='me-auto font-semibold'>
-          技术研究
+      <Header className='shrink-0 border-b bg-background'>
+        <Link
+          to='/research'
+          className='me-auto min-w-0 truncate text-sm font-medium'
+          title={title}
+        >
+          {title}
         </Link>
         <ThemeSwitch />
         <ProfileDropdown />
       </Header>
-      <Main className='flex flex-1 flex-col gap-6'>{children}</Main>
+      <Main fixed fluid className='relative min-h-0 p-0'>
+        {navigation && (
+          <div className='shrink-0 border-b px-4 py-3 sm:px-6'>
+            {navigation}
+          </div>
+        )}
+        <div
+          ref={viewport}
+          className='min-h-0 flex-1 overflow-y-auto overscroll-contain'
+          onScroll={(event) => {
+            const el = event.currentTarget
+            following.current =
+              el.scrollHeight - el.scrollTop - el.clientHeight < 100
+            setShowLatest(!following.current)
+          }}
+        >
+          <div
+            ref={content}
+            className='mx-auto flex min-h-full w-full max-w-3xl flex-col gap-8 px-4 py-8 sm:px-6'
+          >
+            {children}
+          </div>
+        </div>
+        {showLatest && (
+          <Button
+            size='sm'
+            variant='secondary'
+            className='absolute right-5 bottom-48 shadow'
+            onClick={() => {
+              following.current = true
+              viewport.current?.scrollTo({
+                top: viewport.current.scrollHeight,
+                behavior: 'smooth',
+              })
+            }}
+          >
+            回到最新 ↓
+          </Button>
+        )}
+        {composer && (
+          <div className='shrink-0 bg-background px-4 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))] sm:px-6'>
+            <div className='mx-auto max-w-3xl'>{composer}</div>
+          </div>
+        )}
+      </Main>
     </>
   )
 }

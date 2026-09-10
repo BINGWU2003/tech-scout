@@ -15,7 +15,7 @@ export type Action = {
     /**
      * Kind
      */
-    kind: 'confirm_plan' | 'resolve_entities' | 'retry' | 'cancel' | 'pause';
+    kind: 'confirm_plan' | 'start_companies' | 'resolve_entities' | 'retry' | 'cancel' | 'pause';
     /**
      * Actor Id
      */
@@ -205,7 +205,7 @@ export type RunView = {
     /**
      * Status
      */
-    status: 'queued' | 'running' | 'awaiting_plan' | 'awaiting_entities' | 'completed' | 'empty' | 'failed' | 'recoverable' | 'cancelled';
+    status: 'queued' | 'running' | 'awaiting_plan' | 'awaiting_companies' | 'awaiting_entities' | 'completed' | 'empty' | 'failed' | 'recoverable' | 'cancelled';
     /**
      * Sequence
      */
@@ -236,6 +236,12 @@ export type Start = {
      * Question
      */
     question: string;
+    /**
+     * Conversation
+     */
+    conversation?: {
+        [key: string]: unknown;
+    };
 };
 
 /**

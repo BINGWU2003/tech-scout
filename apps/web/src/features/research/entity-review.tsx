@@ -7,14 +7,14 @@ import {
 import { createRequestId } from '@tech-scout/shared'
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+} from '@/components/ui/sheet'
 import { Textarea } from '@/components/ui/textarea'
 import { researchApi } from '@/lib/research-api'
 import { candidateCountryLabel, countryName, decisionLabels } from './labels'
@@ -184,7 +184,7 @@ function CandidateEditor({
   )
 }
 
-function CandidateDialog({
+function CandidateSheet({
   runId,
   id,
   editable,
@@ -204,19 +204,19 @@ function CandidateDialog({
     queryFn: () => researchApi.candidate(runId, id),
   })
   return (
-    <Dialog
+    <Sheet
       open
       onOpenChange={(open) => {
         if (!open) close()
       }}
     >
-      <DialogContent className='max-h-[90dvh] overflow-y-auto sm:max-w-2xl'>
-        <DialogHeader>
-          <DialogTitle>{query.data?.name ?? '主体依据'}</DialogTitle>
-          <DialogDescription>
+      <SheetContent className='w-full overflow-y-auto p-6 sm:max-w-2xl'>
+        <SheetHeader>
+          <SheetTitle>{query.data?.name ?? '主体依据'}</SheetTitle>
+          <SheetDescription>
             核对决定保存在本次研究中，保留原始网页证据。
-          </DialogDescription>
-        </DialogHeader>
+          </SheetDescription>
+        </SheetHeader>
         <ErrorNotice error={query.error} retry={() => void query.refetch()} />
         {query.isPending && <p role='status'>读取身份依据…</p>}
         {query.data && (
@@ -227,8 +227,8 @@ function CandidateDialog({
             save={save}
           />
         )}
-      </DialogContent>
-    </Dialog>
+      </SheetContent>
+    </Sheet>
   )
 }
 
@@ -236,12 +236,14 @@ export function EntityReview({
   run,
   busy,
   onSubmit,
+  readOnly = false,
 }: {
   run: ResearchSummaryView
   busy: boolean
   onSubmit: (a: ResearchAction) => Promise<void>
+  readOnly?: boolean
 }) {
-  const editable = run.status === 'awaiting_entities'
+  const editable = !readOnly && run.status === 'awaiting_entities'
   const [page, setPage] = useState(1),
     [selected, setSelected] = useState<string | null>(null)
   const [draft, setDraft] = useState<Record<string, Decision>>({})
@@ -318,11 +320,15 @@ export function EntityReview({
             </Button>
             <Button
               disabled={
-                busy || remaining.length > 0 || !run.pendingCandidateIds.length
+                busy || remaining.length > 0 || query.isPending || query.isError
               }
               onClick={() => void submit()}
             >
-              {busy ? '提交中…' : '统一提交并继续研究'}
+              {busy
+                ? '提交中…'
+                : run.pendingCandidateIds.length
+                  ? '确认主体并生成报告'
+                  : '生成研究报告'}
             </Button>
           </div>
           {skipConfirm && (
@@ -368,7 +374,7 @@ export function EntityReview({
         </div>
       )}
       {selected && (
-        <CandidateDialog
+        <CandidateSheet
           key={selected}
           runId={run.id}
           id={selected}

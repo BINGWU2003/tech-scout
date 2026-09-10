@@ -10,6 +10,7 @@ from .store import validate_decisions, validate_plan
 
 class State(TypedDict, total=False):
     question: str
+    conversation: dict
     context: dict
     plan: dict
     confirmed_plan: dict
@@ -323,6 +324,25 @@ def build_graph(llm, store, checkpointer, acquisition):
 
     async def planner(state, config):
         run_id, lease = identity(config)
+
+        async def explain(message, direction=None):
+            current = await store.get(run_id)
+            await store.publish(
+                run_id,
+                lease=lease,
+                kind="planner_progress",
+                artifacts={
+                    **current.artifacts,
+                    "process": {
+                        "stage": "planner",
+                        "message": message,
+                        "direction": direction,
+                        "outcome": "completed" if direction else "running",
+                    },
+                },
+            )
+
+        await explain("正在结合研究需求与历史条件，生成技术方向、关键词和分类条件。")
         plan = await llm.generate(
             run_id,
             lease,
@@ -331,14 +351,24 @@ def build_graph(llm, store, checkpointer, acquisition):
                 "为每个方向生成唯一 domain_id。"
                 "无需已有数据库领域。年份表示公开年份，不能晚于当前年份。"
                 "只生成检索方案，不生成公司或专利事实。"
+                "conversation 是历史需求与上一轮计划；继承未被修改的条件，"
+                "以本轮 question 的修改要求为准。"
+                "不能用检索条件表达的要求必须在 risks 中说明。"
             )
             + "关键词组内 OR，"
             "关键词与 IPC 条件 AND，方向间 OR。优先使用中文标题词；"
             "避免同时设置过窄条件。年份不能超出数据范围。",
-            {"question": state["question"], "context": state["context"]},
+            {
+                "question": state["question"],
+                "context": state["context"],
+                "conversation": state.get("conversation", {}),
+            },
             Plan,
         )
+        await explain("技术方向已生成，正在校验年份范围与检索条件。")
         validate_plan(plan, state["context"])
+        for direction in plan.directions:
+            await explain(direction.explanation, direction.name)
         return {"plan": plan.model_dump()}
 
     async def plan_gate(state, config):
@@ -350,11 +380,19 @@ def build_graph(llm, store, checkpointer, acquisition):
         validate_plan(plan, state["context"])
         return {"confirmed_plan": plan.model_dump()}
 
-    async def snapshot(state, config):
+    async def collect_snapshot(state, config, phase):
         run_id, lease = identity(config)
 
         async def progress(value):
             current = await store.get(run_id)
+            if "process" in value:
+                await store.publish(
+                    run_id,
+                    lease=lease,
+                    kind="search_progress",
+                    artifacts={**current.artifacts, **value},
+                )
+                return
             await store.publish(
                 run_id,
                 lease=lease,
@@ -362,13 +400,33 @@ def build_graph(llm, store, checkpointer, acquisition):
                 artifacts={**current.artifacts, "acquisition": value},
             )
 
-        data = await acquisition.collect(run_id, state["confirmed_plan"], progress)
+        current = await store.get(run_id)
+        data = await acquisition.collect(
+            run_id,
+            state["confirmed_plan"],
+            progress,
+            after=current.artifacts.get("acquisition_cursor", 0),
+            phase=phase,
+        )
         return {
             "snapshot": scoped_snapshot(
                 data, Plan.model_validate(state["confirmed_plan"])
             ),
-            "acquisition": {"status": "completed", "stage": "snapshot"},
+            "acquisition": {
+                "status": "completed",
+                "stage": "patents" if phase == "patents" else "companies",
+            },
         }
+
+    async def snapshot(state, config):
+        return await collect_snapshot(state, config, "patents")
+
+    async def company_gate(state, config):
+        interrupt({"kind": "companies", "patent_count": len(state["patents"])})
+        return {}
+
+    async def company_snapshot(state, config):
+        return await collect_snapshot(state, config, "companies")
 
     async def patent(state, config):
         return {
@@ -383,8 +441,6 @@ def build_graph(llm, store, checkpointer, acquisition):
 
     async def entity(state, config):
         pending = [u for u in state["unverified"] if u["requires_confirmation"]]
-        if not pending:
-            return {"decisions": []}
         payload = interrupt({"kind": "entities", "unverified": pending})
         decisions = payload["decisions"]
         validate_decisions(decisions, state)
@@ -512,6 +568,8 @@ def build_graph(llm, store, checkpointer, acquisition):
         "plan_gate": plan_gate,
         "snapshot": snapshot,
         "patent": patent,
+        "company_gate": company_gate,
+        "company_snapshot": company_snapshot,
         "company": company,
         "entity": entity,
         "evidence": evidence,

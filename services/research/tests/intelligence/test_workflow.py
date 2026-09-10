@@ -1,4 +1,5 @@
 import copy
+from types import SimpleNamespace
 from unittest.mock import AsyncMock
 from uuid import uuid4
 
@@ -16,6 +17,12 @@ from tech_scout_intelligence.workflow import (
     patent_workset,
     rank,
 )
+
+
+def runtime_store():
+    store = AsyncMock()
+    store.get.return_value = SimpleNamespace(artifacts={})
+    return store
 
 
 def sample():
@@ -160,7 +167,7 @@ class FakeAcquisition:
             "period_from_year": 1800,
         }
 
-    async def collect(self, run_id, plan, progress):
+    async def collect(self, run_id, plan, progress, after=0, phase="patents"):
         self.reads += 1
         return copy.deepcopy(self.data)
 
@@ -169,9 +176,11 @@ class FakeLLM:
     def __init__(self):
         self.calls: list[str] = []
         self.fail: str | None = None
+        self.payloads = []
 
     async def generate(self, run_id, lease, instruction, payload, schema):
         self.calls.append(schema.__name__)
+        self.payloads.append(payload)
         if self.fail == schema.__name__:
             raise ResearchError("MODEL_REQUEST_FAILED", "模型失败")
         if schema is Plan:
@@ -229,7 +238,7 @@ def test_company_workset_exposes_registry_country_as_a_suggestion_only():
 
 @pytest.mark.asyncio
 async def test_confirmation_and_failed_node_retry_do_not_repeat_planner():
-    catalog, llm, store = FakeAcquisition(), FakeLLM(), AsyncMock()
+    catalog, llm, store = FakeAcquisition(), FakeLLM(), runtime_store()
     graph = build_graph(llm, store, InMemorySaver(), catalog)
     config: RunnableConfig = {
         "configurable": {"thread_id": str(uuid4()), "lease": uuid4()}
@@ -238,9 +247,16 @@ async def test_confirmation_and_failed_node_retry_do_not_repeat_planner():
     assert (await graph.aget_state(config)).next == ("plan_gate",)
     assert catalog.reads == 0
     assert llm.calls == ["Plan"]
+    await graph.ainvoke(Command(resume={"plan": plan().model_dump()}), config)
+    assert (await graph.aget_state(config)).next == ("company_gate",)
+    assert catalog.reads == 1
+    assert llm.calls == ["Plan"]
+    await graph.ainvoke(Command(resume={"kind": "start_companies"}), config)
+    assert (await graph.aget_state(config)).next == ("entity",)
+    assert llm.calls == ["Plan"]
     llm.fail = "Analysis"
     with pytest.raises(ResearchError):
-        await graph.ainvoke(Command(resume={"plan": plan().model_dump()}), config)
+        await graph.ainvoke(Command(resume={"decisions": []}), config)
     state = await graph.aget_state(config)
     assert state.next == ("evidence",)
     assert "result" not in state.values
@@ -254,7 +270,7 @@ async def test_confirmation_and_failed_node_retry_do_not_repeat_planner():
     result = (await graph.aget_state(config)).values
     assert result["result"]["companies"][0]["patent_count"] == 1
     assert result["snapshot"]["patents"][0]["patent_title"] == "Edge neural vision"
-    assert catalog.reads == 1
+    assert catalog.reads == 2
     assert llm.calls == ["Plan", "Analysis", "Analysis"]
 
 
@@ -262,12 +278,13 @@ async def test_confirmation_and_failed_node_retry_do_not_repeat_planner():
 async def test_unverified_can_be_skipped_and_excluded_review_not_reopened():
     catalog, llm = FakeAcquisition(), FakeLLM()
     catalog.data["company-patent-relations"] = []
-    graph = build_graph(llm, AsyncMock(), InMemorySaver(), catalog)
+    graph = build_graph(llm, runtime_store(), InMemorySaver(), catalog)
     config: RunnableConfig = {
         "configurable": {"thread_id": str(uuid4()), "lease": uuid4()}
     }
     await graph.ainvoke({"question": "视觉"}, config)
     await graph.ainvoke(Command(resume={"plan": plan().model_dump()}), config)
+    await graph.ainvoke(Command(resume={"kind": "start_companies"}), config)
     assert (await graph.aget_state(config)).next == ("entity",)
     payload = {
         "decisions": [{"candidate_id": "candidate1", "action": "skip"}],
@@ -310,7 +327,7 @@ def test_identity_evidence_must_support_selected_company():
 @pytest.mark.asyncio
 async def test_no_result_does_not_broaden_or_call_analysis():
     catalog, llm = FakeAcquisition(), FakeLLM()
-    graph = build_graph(llm, AsyncMock(), InMemorySaver(), catalog)
+    graph = build_graph(llm, runtime_store(), InMemorySaver(), catalog)
     config: RunnableConfig = {
         "configurable": {"thread_id": str(uuid4()), "lease": uuid4()}
     }
@@ -318,6 +335,8 @@ async def test_no_result_does_not_broaden_or_call_analysis():
     manual = plan()
     manual.directions[0].keywords = ["absent"]
     await graph.ainvoke(Command(resume={"plan": manual.model_dump()}), config)
+    await graph.ainvoke(Command(resume={"kind": "start_companies"}), config)
+    await graph.ainvoke(Command(resume={"decisions": []}), config)
     result = (await graph.aget_state(config)).values["result"]
     assert result["patent_count"] == 0
     assert result["empty_reason"]
@@ -338,7 +357,7 @@ async def test_empty_database_waits_for_confirmation_before_collection():
     snapshot["source_mode"] = "browser"
     snapshot["patents"][0]["publication_year"] = 2025
     acquisition.collect.return_value = snapshot
-    graph = build_graph(llm, AsyncMock(), InMemorySaver(), acquisition)
+    graph = build_graph(llm, runtime_store(), InMemorySaver(), acquisition)
     config: RunnableConfig = {
         "configurable": {"thread_id": str(uuid4()), "lease": uuid4()}
     }
@@ -353,3 +372,22 @@ async def test_empty_database_waits_for_confirmation_before_collection():
         == config["configurable"]["thread_id"]
     )
     catalog.read.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_followup_passes_history_and_publishes_actual_direction_explanations():
+    llm, store, acquisition = FakeLLM(), runtime_store(), FakeAcquisition()
+    graph = build_graph(llm, store, InMemorySaver(), acquisition)
+    config = {"configurable": {"thread_id": str(uuid4()), "lease": uuid4()}}
+    history = {"questions": ["工业视觉"], "plan": plan().model_dump()}
+    await graph.ainvoke({"question": "只看近五年", "conversation": history}, config)
+    assert llm.payloads[0]["conversation"] == history
+    assert llm.payloads[0]["question"] == "只看近五年"
+    assert acquisition.reads == 0
+    entries = [
+        call.kwargs["artifacts"]["process"]
+        for call in store.publish.call_args_list
+        if call.kwargs.get("kind") == "planner_progress"
+    ]
+    assert entries[-1]["message"] == plan().directions[-1].explanation
+    assert entries[-1]["direction"] == plan().directions[-1].name

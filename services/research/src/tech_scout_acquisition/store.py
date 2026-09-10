@@ -10,6 +10,22 @@ class Store:
     def __init__(self, pool):
         self.pool = pool
 
+    async def record(self, run_id, data):
+        async with self.pool.connection() as conn:
+            await conn.execute(
+                "INSERT INTO ingestion.event(run_id,data) VALUES (%s,%s)",
+                (run_id, Jsonb(data)),
+            )
+
+    async def events(self, run_id, after=0):
+        async with self.pool.connection() as conn:
+            cur = await conn.execute(
+                "SELECT sequence,data,created_at FROM ingestion.event "
+                "WHERE run_id=%s AND sequence>%s ORDER BY sequence LIMIT 100",
+                (run_id, after),
+            )
+            return await cur.fetchall()
+
     async def migrate(self):
         async with self.pool.connection() as conn:
             await conn.execute(
@@ -27,7 +43,8 @@ class Store:
     async def create(self, run_id, plan):
         async with self.pool.connection() as conn:
             await conn.execute(
-                "INSERT INTO ingestion.job(run_id,plan) VALUES (%s,%s) "
+                "INSERT INTO ingestion.job(run_id,plan,target) "
+                "VALUES (%s,%s,'patents') "
                 "ON CONFLICT DO NOTHING",
                 (run_id, Jsonb(plan)),
             )
@@ -35,6 +52,37 @@ class Store:
         if job["plan"] != plan:
             raise ValueError("同一研究运行不能更换已确认的检索计划")
         return job
+
+    async def complete_patents(self, run_id):
+        async with self.pool.connection() as conn, conn.transaction():
+            cur = await conn.execute(
+                "UPDATE ingestion.job SET status='awaiting_companies',error=NULL,"
+                "updated_at=now() WHERE run_id=%s AND status='running' "
+                "RETURNING run_id",
+                (run_id,),
+            )
+            if not await cur.fetchone():
+                raise AcquisitionBlocked("PAUSED", "采集已暂停，可继续")
+            # Also create an empty projection when no patent was found.
+            await self.refresh_projection(conn, run_id)
+
+    async def start_companies(self, run_id):
+        async with self.pool.connection() as conn:
+            await conn.execute(
+                "UPDATE ingestion.job SET target='companies',status='queued',"
+                "error=NULL,updated_at=now() WHERE run_id=%s "
+                "AND status='awaiting_companies'",
+                (run_id,),
+            )
+
+    async def patent_snapshot(self, run_id):
+        async with self.pool.connection() as conn:
+            cur = await conn.execute(
+                "SELECT snapshot FROM catalog_v2.run_projection WHERE run_id=%s",
+                (run_id,),
+            )
+            row = await cur.fetchone()
+            return row["snapshot"] if row else None
 
     async def get(self, run_id):
         async with self.pool.connection() as conn:

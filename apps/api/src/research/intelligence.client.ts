@@ -64,11 +64,18 @@ export class IntelligenceClient {
     }
   }
 
-  async start(runId: string, question: string) {
+  async start(
+    runId: string,
+    question: string,
+    conversation: Record<string, unknown> = {}
+  ) {
     return this.forRun(
       runId,
       await this.unwrap(() =>
-        startRun({ ...this.options(), body: { run_id: runId, question } })
+        startRun({
+          ...this.options(),
+          body: { run_id: runId, question, conversation },
+        })
       )
     )
   }

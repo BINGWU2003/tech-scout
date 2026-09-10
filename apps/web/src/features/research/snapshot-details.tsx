@@ -3,12 +3,12 @@ import { Link } from '@tanstack/react-router'
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from '@/components/ui/dialog'
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+} from '@/components/ui/sheet'
 import { withLibraryDetail } from '@/features/library/library-navigation'
 import { researchApi } from '@/lib/research-api'
 import { ErrorNotice, Pager, SourceReference } from './shared'
@@ -28,17 +28,17 @@ export function PatentSnapshot({
   })
   const patent = query.data?.items[0]
   return (
-    <Dialog
+    <Sheet
       open
       onOpenChange={(open) => {
         if (!open) close()
       }}
     >
-      <DialogContent className='max-h-[90dvh] overflow-y-auto sm:max-w-2xl'>
-        <DialogHeader>
-          <DialogTitle>专利 {patentId}</DialogTitle>
-          <DialogDescription>本次研究引用的快照依据。</DialogDescription>
-        </DialogHeader>
+      <SheetContent className='w-full overflow-y-auto p-6 sm:max-w-2xl'>
+        <SheetHeader>
+          <SheetTitle>专利 {patentId}</SheetTitle>
+          <SheetDescription>本次研究引用的快照依据。</SheetDescription>
+        </SheetHeader>
         <ErrorNotice error={query.error} retry={() => void query.refetch()} />
         {query.isPending && <p role='status'>读取专利…</p>}
         {patent && (
@@ -86,8 +86,8 @@ export function PatentSnapshot({
             )}
           </div>
         )}
-      </DialogContent>
-    </Dialog>
+      </SheetContent>
+    </Sheet>
   )
 }
 
@@ -101,6 +101,7 @@ export function PatentList({
   citations?: string[]
 }) {
   const [page, setPage] = useState(1)
+  const [patentId, setPatentId] = useState<string | null>(null)
   const query = useQuery({
     queryKey: ['research', runId, 'patents', companyId, page],
     queryFn: () => researchApi.patents(runId, page, companyId),
@@ -109,6 +110,11 @@ export function PatentList({
     <div className='space-y-3'>
       <ErrorNotice error={query.error} retry={() => void query.refetch()} />
       {query.isPending && <p role='status'>读取快照专利…</p>}
+      {query.data?.total === 0 && (
+        <p className='rounded-xl border border-dashed p-6 text-sm text-muted-foreground'>
+          本轮没有符合条件的专利，可以调整研究条件后重新检索。
+        </p>
+      )}
       {query.data?.items.map((p) => (
         <details key={p.id} className='rounded-lg border p-3'>
           <summary className='cursor-pointer text-sm font-medium'>
@@ -116,6 +122,13 @@ export function PatentList({
             {citations.includes(p.id) ? ' · 模型引用' : ''}
           </summary>
           <div className='mt-3 space-y-2 text-sm'>
+            <Button
+              size='sm'
+              variant='outline'
+              onClick={() => setPatentId(p.id)}
+            >
+              查看专利详情
+            </Button>
             <p>
               {p.dateKind === 'publication' ? '公开年份' : '授权年份'}：
               {p.year ?? '缺失'}
@@ -129,6 +142,13 @@ export function PatentList({
           </div>
         </details>
       ))}
+      {patentId && (
+        <PatentSnapshot
+          runId={runId}
+          patentId={patentId}
+          close={() => setPatentId(null)}
+        />
+      )}
       {query.data && (
         <Pager page={page} total={query.data.total} onChange={setPage} />
       )}
@@ -152,19 +172,19 @@ export function CompanySnapshot({
     queryFn: () => researchApi.company(runId, companyId),
   })
   return (
-    <Dialog
+    <Sheet
       open
       onOpenChange={(open) => {
         if (!open) close()
       }}
     >
-      <DialogContent className='max-h-[90dvh] overflow-y-auto sm:max-w-3xl'>
-        <DialogHeader>
-          <DialogTitle>{query.data?.name ?? '主体快照'}</DialogTitle>
-          <DialogDescription>
+      <SheetContent className='w-full overflow-y-auto p-6 sm:max-w-3xl'>
+        <SheetHeader>
+          <SheetTitle>{query.data?.name ?? '主体快照'}</SheetTitle>
+          <SheetDescription>
             这里展示本次研究保存的依据，不随目录更新而改变。
-          </DialogDescription>
-        </DialogHeader>
+          </SheetDescription>
+        </SheetHeader>
         <ErrorNotice error={query.error} retry={() => void query.refetch()} />
         {query.isPending && <p role='status'>读取快照…</p>}
         {query.data && (
@@ -256,7 +276,7 @@ export function CompanySnapshot({
             </details>
           </div>
         )}
-      </DialogContent>
-    </Dialog>
+      </SheetContent>
+    </Sheet>
   )
 }

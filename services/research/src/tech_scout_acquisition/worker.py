@@ -52,9 +52,23 @@ class Worker:
     async def execute(self, run_id):
         job = await self.store.get(run_id)
         plan = job["plan"]
+        active_search = {}
         try:
+            await self.store.record(
+                run_id,
+                {
+                    "stage": "companies"
+                    if job.get("target") == "companies"
+                    else "search",
+                    "message": "开始执行；已完成的采集项将从断点继续。",
+                    "outcome": "running",
+                },
+            )
             await self.checkpoint(
-                run_id, "search", 0, self.config.acquisition_patent_limit
+                run_id,
+                "companies" if job.get("target") == "companies" else "search",
+                0,
+                self.config.acquisition_patent_limit,
             )
             async with self.browser_factory(self.config) as browser:
                 discovered = await self.store.items(run_id, "discovered")
@@ -70,7 +84,7 @@ class Worker:
                         )
                         searches.append((cursor, direction, keyword))
                 ended = set()
-                for page in range(100):
+                for page in range(0 if job.get("target") == "companies" else 100):
                     for cursor, direction, keyword in searches:
                         if cursor in ended:
                             continue
@@ -87,9 +101,22 @@ class Worker:
                             len(discovered),
                             self.config.acquisition_patent_limit,
                         )
-                        rows = await browser.search(
-                            search_url(direction, plan, page, keyword)
+                        active_search = {
+                            "stage": "search",
+                            "direction": direction["name"],
+                            "keyword": keyword,
+                            "page": page + 1,
+                            "url": search_url(direction, plan, page, keyword),
+                        }
+                        await self.store.record(
+                            run_id,
+                            {
+                                **active_search,
+                                "message": "正在搜索 Google Patents",
+                                "outcome": "running",
+                            },
                         )
+                        rows = await browser.search(active_search["url"])
                         eligible = []
                         for row in rows:
                             date = row.get("publication_date") or ""
@@ -117,6 +144,17 @@ class Worker:
                         end = not rows or ids == previous.get("ids")
                         pages[page_key] = {"end": end, "ids": ids}
                         await self.store.save(run_id, "page", page_key, pages[page_key])
+                        await self.store.record(
+                            run_id,
+                            {
+                                **active_search,
+                                "message": "本页检索完成",
+                                "outcome": "completed",
+                                "count": len(rows),
+                                "completed": len(discovered),
+                            },
+                        )
+                        active_search = {}
                         if end:
                             ended.add(cursor)
                     if len(discovered) >= self.config.acquisition_patent_limit or len(
@@ -124,7 +162,9 @@ class Worker:
                     ) == len(searches):
                         break
                 patents = await self.store.items(run_id, "patent")
-                for key, listing in discovered.items():
+                for key, listing in (
+                    [] if job.get("target") == "companies" else discovered.items()
+                ):
                     await self.checkpoint(
                         run_id, "patents", len(patents), len(discovered)
                     )
@@ -141,6 +181,21 @@ class Worker:
                         )
                         await self.store.save(run_id, "patent", key, record)
                         patents[key] = record
+                if job.get("target") == "patents":
+                    await self.checkpoint(
+                        run_id, "patents", len(patents), len(discovered)
+                    )
+                    await self.store.record(
+                        run_id,
+                        {
+                            "stage": "patents",
+                            "message": "专利采集完成，等待你开始企业发现。",
+                            "outcome": "completed",
+                            "completed": len(patents),
+                        },
+                    )
+                    await self.store.complete_patents(run_id)
+                    return
                 names = {
                     normalized(name): name
                     for p in patents.values()
@@ -156,6 +211,15 @@ class Worker:
                     )
                     if key in companies:
                         continue
+                    await self.store.record(
+                        run_id,
+                        {
+                            "stage": "companies",
+                            "direction": name,
+                            "message": "正在查询企业登记信息",
+                            "outcome": "running",
+                        },
+                    )
                     record = await self.store.cached_company(
                         key, self.config.acquisition_company_cache_days
                     )
@@ -165,11 +229,32 @@ class Worker:
                             await self.store.cache_company(key, record)
                     await self.store.save(run_id, "company", key, record)
                     companies[key] = record
+                    await self.store.record(
+                        run_id,
+                        {
+                            "stage": "companies",
+                            "direction": name,
+                            "message": "企业信息查询完成"
+                            if record["status"] == "matched"
+                            else "未找到可匹配的企业登记信息",
+                            "outcome": "completed",
+                            "completed": len(companies),
+                        },
+                    )
                 await self.checkpoint(run_id, "snapshot", len(patents), len(discovered))
                 await self.store.publish(
                     run_id, build_snapshot(run_id, plan, patents, companies)
                 )
         except AcquisitionBlocked as exc:
+            await self.store.record(
+                run_id,
+                {
+                    "stage": "acquisition",
+                    **active_search,
+                    "message": exc.message,
+                    "outcome": "failed",
+                },
+            )
             status = "paused" if exc.code == "PAUSED" else "waiting"
             error = {"code": exc.code, "message": exc.message}
             if exc.retry_after:
@@ -178,6 +263,15 @@ class Worker:
                 ).isoformat()
             await self.store.update(run_id, status, error=error)
         except asyncio.CancelledError:
+            await self.store.record(
+                run_id,
+                {
+                    "stage": "acquisition",
+                    **active_search,
+                    "message": "采集已停止，完成项已保留",
+                    "outcome": "stopped",
+                },
+            )
             await self.store.update(
                 run_id,
                 "paused",
@@ -185,6 +279,15 @@ class Worker:
             )
             raise
         except Exception:
+            await self.store.record(
+                run_id,
+                {
+                    "stage": "acquisition",
+                    **active_search,
+                    "message": "采集失败，可从已完成项重试",
+                    "outcome": "failed",
+                },
+            )
             await self.store.update(
                 run_id,
                 "failed",

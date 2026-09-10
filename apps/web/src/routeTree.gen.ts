@@ -28,6 +28,8 @@ import { Route as AuthenticatedResearchIndexRouteImport } from './routes/_authen
 import { Route as AuthenticatedSettingsAccountRouteImport } from './routes/_authenticated/settings/account'
 import { Route as AuthenticatedResearchProjectIdRouteImport } from './routes/_authenticated/research/$projectId'
 import { Route as AuthenticatedErrorsErrorRouteImport } from './routes/_authenticated/errors/$error'
+import { Route as AuthenticatedResearchProjectIdIndexRouteImport } from './routes/_authenticated/research/$projectId.index'
+import { Route as AuthenticatedResearchProjectIdStageRouteImport } from './routes/_authenticated/research/$projectId.$stage'
 
 const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
   id: '/_authenticated',
@@ -130,6 +132,18 @@ const AuthenticatedErrorsErrorRoute =
     path: '/errors/$error',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedResearchProjectIdIndexRoute =
+  AuthenticatedResearchProjectIdIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => AuthenticatedResearchProjectIdRoute,
+  } as any)
+const AuthenticatedResearchProjectIdStageRoute =
+  AuthenticatedResearchProjectIdStageRouteImport.update({
+    id: '/$stage',
+    path: '/$stage',
+    getParentRoute: () => AuthenticatedResearchProjectIdRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AuthenticatedIndexRoute
@@ -145,11 +159,13 @@ export interface FileRoutesByFullPath {
   '/companies': typeof AuthenticatedCompaniesRoute
   '/patents': typeof AuthenticatedPatentsRoute
   '/errors/$error': typeof AuthenticatedErrorsErrorRoute
-  '/research/$projectId': typeof AuthenticatedResearchProjectIdRoute
+  '/research/$projectId': typeof AuthenticatedResearchProjectIdRouteWithChildren
   '/settings/account': typeof AuthenticatedSettingsAccountRoute
   '/research/': typeof AuthenticatedResearchIndexRoute
   '/settings/': typeof AuthenticatedSettingsIndexRoute
   '/users/': typeof AuthenticatedUsersIndexRoute
+  '/research/$projectId/$stage': typeof AuthenticatedResearchProjectIdStageRoute
+  '/research/$projectId/': typeof AuthenticatedResearchProjectIdIndexRoute
 }
 export interface FileRoutesByTo {
   '/sign-in': typeof authSignInRoute
@@ -163,11 +179,12 @@ export interface FileRoutesByTo {
   '/patents': typeof AuthenticatedPatentsRoute
   '/': typeof AuthenticatedIndexRoute
   '/errors/$error': typeof AuthenticatedErrorsErrorRoute
-  '/research/$projectId': typeof AuthenticatedResearchProjectIdRoute
   '/settings/account': typeof AuthenticatedSettingsAccountRoute
   '/research': typeof AuthenticatedResearchIndexRoute
   '/settings': typeof AuthenticatedSettingsIndexRoute
   '/users': typeof AuthenticatedUsersIndexRoute
+  '/research/$projectId/$stage': typeof AuthenticatedResearchProjectIdStageRoute
+  '/research/$projectId': typeof AuthenticatedResearchProjectIdIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -185,11 +202,13 @@ export interface FileRoutesById {
   '/_authenticated/patents': typeof AuthenticatedPatentsRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
   '/_authenticated/errors/$error': typeof AuthenticatedErrorsErrorRoute
-  '/_authenticated/research/$projectId': typeof AuthenticatedResearchProjectIdRoute
+  '/_authenticated/research/$projectId': typeof AuthenticatedResearchProjectIdRouteWithChildren
   '/_authenticated/settings/account': typeof AuthenticatedSettingsAccountRoute
   '/_authenticated/research/': typeof AuthenticatedResearchIndexRoute
   '/_authenticated/settings/': typeof AuthenticatedSettingsIndexRoute
   '/_authenticated/users/': typeof AuthenticatedUsersIndexRoute
+  '/_authenticated/research/$projectId/$stage': typeof AuthenticatedResearchProjectIdStageRoute
+  '/_authenticated/research/$projectId/': typeof AuthenticatedResearchProjectIdIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -212,6 +231,8 @@ export interface FileRouteTypes {
     | '/research/'
     | '/settings/'
     | '/users/'
+    | '/research/$projectId/$stage'
+    | '/research/$projectId/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/sign-in'
@@ -225,11 +246,12 @@ export interface FileRouteTypes {
     | '/patents'
     | '/'
     | '/errors/$error'
-    | '/research/$projectId'
     | '/settings/account'
     | '/research'
     | '/settings'
     | '/users'
+    | '/research/$projectId/$stage'
+    | '/research/$projectId'
   id:
     | '__root__'
     | '/_authenticated'
@@ -251,6 +273,8 @@ export interface FileRouteTypes {
     | '/_authenticated/research/'
     | '/_authenticated/settings/'
     | '/_authenticated/users/'
+    | '/_authenticated/research/$projectId/$stage'
+    | '/_authenticated/research/$projectId/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -399,17 +423,50 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedErrorsErrorRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/research/$projectId/': {
+      id: '/_authenticated/research/$projectId/'
+      path: '/'
+      fullPath: '/research/$projectId/'
+      preLoaderRoute: typeof AuthenticatedResearchProjectIdIndexRouteImport
+      parentRoute: typeof AuthenticatedResearchProjectIdRoute
+    }
+    '/_authenticated/research/$projectId/$stage': {
+      id: '/_authenticated/research/$projectId/$stage'
+      path: '/$stage'
+      fullPath: '/research/$projectId/$stage'
+      preLoaderRoute: typeof AuthenticatedResearchProjectIdStageRouteImport
+      parentRoute: typeof AuthenticatedResearchProjectIdRoute
+    }
   }
 }
 
+interface AuthenticatedResearchProjectIdRouteChildren {
+  AuthenticatedResearchProjectIdStageRoute: typeof AuthenticatedResearchProjectIdStageRoute
+  AuthenticatedResearchProjectIdIndexRoute: typeof AuthenticatedResearchProjectIdIndexRoute
+}
+
+const AuthenticatedResearchProjectIdRouteChildren: AuthenticatedResearchProjectIdRouteChildren =
+  {
+    AuthenticatedResearchProjectIdStageRoute:
+      AuthenticatedResearchProjectIdStageRoute,
+    AuthenticatedResearchProjectIdIndexRoute:
+      AuthenticatedResearchProjectIdIndexRoute,
+  }
+
+const AuthenticatedResearchProjectIdRouteWithChildren =
+  AuthenticatedResearchProjectIdRoute._addFileChildren(
+    AuthenticatedResearchProjectIdRouteChildren,
+  )
+
 interface AuthenticatedResearchRouteRouteChildren {
-  AuthenticatedResearchProjectIdRoute: typeof AuthenticatedResearchProjectIdRoute
+  AuthenticatedResearchProjectIdRoute: typeof AuthenticatedResearchProjectIdRouteWithChildren
   AuthenticatedResearchIndexRoute: typeof AuthenticatedResearchIndexRoute
 }
 
 const AuthenticatedResearchRouteRouteChildren: AuthenticatedResearchRouteRouteChildren =
   {
-    AuthenticatedResearchProjectIdRoute: AuthenticatedResearchProjectIdRoute,
+    AuthenticatedResearchProjectIdRoute:
+      AuthenticatedResearchProjectIdRouteWithChildren,
     AuthenticatedResearchIndexRoute: AuthenticatedResearchIndexRoute,
   }
 

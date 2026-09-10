@@ -85,7 +85,7 @@ class Runtime:
                     await asyncio.sleep(2)
                     now = time.monotonic()
                     current = await self.store.get(run_id)
-                    collecting = current.node == "snapshot"
+                    collecting = current.node in {"snapshot", "company_snapshot"}
                     await self.store.heartbeat(
                         run_id, lease, 0 if collecting else now - last_tick
                     )
@@ -109,7 +109,14 @@ class Runtime:
             async with asyncio.timeout(remaining + acquisition_allowance):
                 saved = await self.graph.aget_state(config)
                 command = row["command"] or {}
-                value = None if saved.values else {"question": row["question"]}
+                value = (
+                    None
+                    if saved.values
+                    else {
+                        "question": row["question"],
+                        "conversation": row["artifacts"].get("conversation", {}),
+                    }
+                )
                 if command.get("kind") == "confirm_plan" and saved.next == ("planner",):
                     await self.graph.aupdate_state(
                         config,
@@ -120,7 +127,11 @@ class Runtime:
                         as_node="planner",
                     )
                     value = None
-                elif command.get("kind") in {"confirm_plan", "resolve_entities"}:
+                elif command.get("kind") in {
+                    "confirm_plan",
+                    "start_companies",
+                    "resolve_entities",
+                }:
                     value = Command(resume=command)
                 elif command.get("kind") == "retry" and any(
                     t.interrupts for t in saved.tasks
@@ -148,6 +159,8 @@ class Runtime:
                     status = (
                         "awaiting_plan"
                         if "plan_gate" in saved.next
+                        else "awaiting_companies"
+                        if "company_gate" in saved.next
                         else "awaiting_entities"
                     )
                 else:

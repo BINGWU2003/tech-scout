@@ -45,7 +45,7 @@ class Store:
         self.pool = pool
         self.config = config
 
-    async def create(self, run_id, question):
+    async def create(self, run_id, question, conversation=None):
         budget = Budget(
             max_requests=self.config.research_max_requests,
             max_seconds=self.config.research_max_seconds,
@@ -60,11 +60,18 @@ class Store:
                     run_id,
                     question,
                     Jsonb(budget),
-                    Jsonb({"execution_config": self.config.execution_policy()}),
+                    Jsonb(
+                        {
+                            "execution_config": self.config.execution_policy(),
+                            "conversation": conversation or {},
+                        }
+                    ),
                 ),
             )
             row = await self.row(conn, run_id, lock=True)
-            if row["question"] != question:
+            if row["question"] != question or row["artifacts"].get(
+                "conversation", {}
+            ) != (conversation or {}):
                 raise ResearchError("IDEMPOTENCY_CONFLICT", "运行 ID 已用于不同问题")
             return self.view(row)
 
@@ -152,6 +159,7 @@ class Store:
                 return self.view(row)
             allowed = {
                 "confirm_plan": {"awaiting_plan", "failed"},
+                "start_companies": {"awaiting_companies"},
                 "resolve_entities": {"awaiting_entities"},
                 "retry": {"failed", "recoverable"},
                 "pause": {"queued", "running"},
@@ -159,6 +167,7 @@ class Store:
                     "queued",
                     "running",
                     "awaiting_plan",
+                    "awaiting_companies",
                     "awaiting_entities",
                     "failed",
                     "recoverable",
@@ -188,7 +197,7 @@ class Store:
                 "command": payload,
                 "error": None,
             }
-            if action.kind in {"confirm_plan", "resolve_entities"}:
+            if action.kind in {"confirm_plan", "start_companies", "resolve_entities"}:
                 payload = {**payload, "submitted_at": datetime.now(UTC).isoformat()}
                 artifacts = row["artifacts"]
                 artifacts["resume_command"] = payload
@@ -261,7 +270,7 @@ class Store:
                 # Charge time since heartbeat on crash; never reset a run's budget.
                 elapsed = (datetime.now(UTC) - row["heartbeat"]).total_seconds()
                 collecting = (
-                    row["node"] == "snapshot"
+                    row["node"] in {"snapshot", "company_snapshot"}
                     and row["artifacts"].get("context", {}).get("source_mode")
                     == "browser"
                 )
