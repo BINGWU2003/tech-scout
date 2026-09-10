@@ -9,6 +9,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from '@/components/ui/dialog'
+import { withLibraryDetail } from '@/features/library/library-navigation'
 import { researchApi } from '@/lib/research-api'
 import { ErrorNotice, Pager, SourceReference } from './shared'
 
@@ -189,7 +190,11 @@ export function CompanySnapshot({
               ))}
               <SourceReference source={query.data.source} />
               <Button asChild variant='outline' size='sm'>
-                <Link to='/companies' search={{ id: companyId }}>
+                <Link
+                  to='/companies'
+                  search={{}}
+                  state={withLibraryDetail('companies', companyId)}
+                >
                   查看企业库资料
                 </Link>
               </Button>

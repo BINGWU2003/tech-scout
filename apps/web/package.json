@@ -36,6 +36,7 @@
     "@radix-ui/react-tabs": "catalog:",
     "@radix-ui/react-tooltip": "catalog:",
     "@tailwindcss/vite": "catalog:",
+    "@tanstack/history": "catalog:",
     "@tanstack/react-query": "catalog:",
     "@tanstack/react-router": "catalog:",
     "@tanstack/react-table": "catalog:",

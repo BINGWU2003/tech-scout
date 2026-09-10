@@ -102,6 +102,9 @@ catalogs:
     '@tanstack/eslint-plugin-query':
       specifier: ^5.99.0
       version: 5.99.0
+    '@tanstack/history':
+      specifier: ^1.161.6
+      version: 1.161.6
     '@tanstack/react-query':
       specifier: ^5.99.0
       version: 5.99.0
@@ -462,6 +465,9 @@ importers:
       '@tailwindcss/vite':
         specifier: 'catalog:'
         version: 4.2.2(vite@8.0.8(@types/node@24.13.3)(esbuild@0.27.1)(jiti@2.6.1)(tsx@4.20.3)(yaml@2.9.0))
+      '@tanstack/history':
+        specifier: 'catalog:'
+        version: 1.161.6
       '@tanstack/react-query':
         specifier: 'catalog:'
         version: 5.99.0(react@19.2.5)

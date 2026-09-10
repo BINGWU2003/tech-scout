@@ -1,10 +1,20 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { z } from 'zod'
+import { librarySearchSchema } from '@/features/library/library-navigation'
 import { LibraryPage } from '@/features/library/library-page'
+
 export const Route = createFileRoute('/_authenticated/patents')({
-  validateSearch: z.object({ id: z.string().optional() }),
+  validateSearch: librarySearchSchema,
   component: function LibraryRoute() {
-    const { id } = Route.useSearch()
-    return <LibraryPage kind='patents' selectedId={id} />
+    const search = Route.useSearch()
+    const navigate = Route.useNavigate()
+    return (
+      <LibraryPage
+        kind='patents'
+        search={search}
+        onSearchChange={(next, replace) =>
+          void navigate({ search: next, replace })
+        }
+      />
+    )
   },
 })
