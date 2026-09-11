@@ -258,7 +258,7 @@ it('工作台从左侧切换项目，确认前追问保留上下文，并在手�
     .getByRole('link', { name: '固态电池技术研究', exact: true })
     .click()
   await expect
-    .element(screen.getByRole('button', { name: '确认检索并开始采集' }))
+    .element(screen.getByRole('button', { name: '确认方向并开始检索' }))
     .toBeVisible()
   expect(action).not.toHaveBeenCalled()
   await page.screenshot({ path: '__screenshots__/research-desktop.png' })
@@ -285,7 +285,7 @@ it('工作台从左侧切换项目，确认前追问保留上下文，并在手�
   expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(390)
   await page.screenshot({ path: '__screenshots__/research-mobile.png' })
   await page.viewport(1280, 900)
-  await screen.getByRole('button', { name: '确认检索并开始采集' }).click()
+  await screen.getByRole('button', { name: '确认方向并开始检索' }).click()
   await expect
     .element(screen.getByRole('heading', { name: '专利检索', exact: true }))
     .toBeVisible()
@@ -312,7 +312,7 @@ it('工作台从左侧切换项目，确认前追问保留上下文，并在手�
     .selectOptions(firstId)
   await expect.element(screen.getByText(/正在查看历史轮次/)).toBeVisible()
   await expect
-    .element(screen.getByRole('button', { name: '确认检索并开始采集' }))
+    .element(screen.getByRole('button', { name: '确认方向并开始检索' }))
     .not.toBeInTheDocument()
   // A fresh route mount uses the address, without resetting to the current execution stage.
   await router.navigate({

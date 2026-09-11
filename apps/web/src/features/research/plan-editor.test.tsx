@@ -34,7 +34,7 @@ describe('按需采集计划确认', () => {
     )
     await screen.getByRole('textbox', { name: '方向名称' }).fill('固态电解质')
     expect(submit).not.toHaveBeenCalled()
-    await screen.getByRole('button', { name: '确认检索并开始采集' }).click()
+    await screen.getByRole('button', { name: '确认方向并开始检索' }).click()
     expect(submit).toHaveBeenCalledOnce()
     expect(submit.mock.calls[0][0]).toMatchObject({
       kind: 'confirm_plan',

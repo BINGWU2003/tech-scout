@@ -4,7 +4,7 @@ from langchain_core.runnables import RunnableConfig
 from langgraph.graph import END, START, StateGraph
 from langgraph.types import interrupt
 
-from .models import Analysis, Plan, ResearchError
+from .models import Analysis, DirectionProposal, Plan, ResearchError
 from .store import validate_decisions, validate_plan
 
 
@@ -342,30 +342,28 @@ def build_graph(llm, store, checkpointer, acquisition):
                 },
             )
 
-        await explain("正在结合研究需求与历史条件，生成技术方向、关键词和分类条件。")
-        plan = await llm.generate(
+        await explain("正在结合研究需求与历史条件，生成技术方向与范围描述。")
+        proposal = await llm.generate(
             run_id,
             lease,
-            (
-                "将技术方向拆成 1–3 个 Google Patents 可检索方向。"
-                "为每个方向生成唯一 domain_id。"
-                "无需已有数据库领域。年份表示公开年份，不能晚于当前年份。"
-                "只生成检索方案，不生成公司或专利事实。"
-                "conversation 是历史需求与上一轮计划；继承未被修改的条件，"
-                "以本轮 question 的修改要求为准。"
-                "不能用检索条件表达的要求必须在 risks 中说明。"
-            )
-            + "关键词组内 OR，"
-            "关键词与 IPC 条件 AND，方向间 OR。优先使用中文标题词；"
-            "避免同时设置过窄条件。年份不能超出数据范围。",
+            "将研究需求拆成 1–3 个技术方向，包含唯一 domain_id、名称和范围描述。"
+            "只生成方向，不生成关键词或检索条件，也不生成公司或专利事实。"
+            "conversation 是历史需求与上一轮计划，继承未修改的要求，"
+            "以本轮 question 为准。"
+            "描述应明确技术范围及用户要求的限制。",
             {
                 "question": state["question"],
                 "context": state["context"],
                 "conversation": state.get("conversation", {}),
             },
-            Plan,
+            DirectionProposal,
         )
-        await explain("技术方向已生成，正在校验年份范围与检索条件。")
+        # Preserve the existing persisted plan envelope for older clients.
+        plan = Plan(
+            directions=proposal.model_dump()["directions"],
+            from_year=state["context"].get("period_from_year", 1800),
+            to_year=state["context"]["period_to_year"],
+        )
         validate_plan(plan, state["context"])
         for direction in plan.directions:
             await explain(direction.explanation, direction.name)
@@ -378,7 +376,63 @@ def build_graph(llm, store, checkpointer, acquisition):
             confirmed = payload["plan"]
         plan = Plan.model_validate(confirmed)
         validate_plan(plan, state["context"])
+        for direction in plan.directions:
+            direction.keywords = []
+            direction.excluded_keywords = []
+            direction.cpc_prefixes = []
+        plan.risks = []
         return {"confirmed_plan": plan.model_dump()}
+
+    async def search_planner(state, config):
+        run_id, lease = identity(config)
+        confirmed = Plan.model_validate(state["confirmed_plan"])
+        directions = [
+            {"domain_id": d.domain_id, "name": d.name, "explanation": d.explanation}
+            for d in confirmed.directions
+        ]
+        current = await store.get(run_id)
+        await store.publish(
+            run_id,
+            lease=lease,
+            kind="search_progress",
+            artifacts={
+                **current.artifacts,
+                "process": {
+                    "stage": "patents",
+                    "message": "正在根据已确认方向与描述生成检索条件。",
+                    "outcome": "running",
+                },
+            },
+        )
+        generated = await llm.generate(
+            run_id,
+            lease,
+            "根据用户最终确认的 directions 生成 Google Patents 检索条件。"
+            "保持方向 domain_id、名称和描述不变，不增删方向。"
+            "最终方向与描述优先于历史计划，重新生成关键词、排除词、IPC 和公开年份。"
+            "关键词组内 OR，关键词与 IPC 条件 AND，方向间 OR，避免过窄条件。"
+            "年份不得超出 context 范围，不能表达的限制记录在 risks。",
+            {
+                "directions": directions,
+                "question": state["question"],
+                "conversation": state.get("conversation", {}),
+                "context": state["context"],
+            },
+            Plan,
+        )
+        if [d.domain_id for d in generated.directions] != [
+            d.domain_id for d in confirmed.directions
+        ]:
+            raise ResearchError(
+                "MODEL_PLAN_INVALID", "检索条件改变了已确认方向，请重试"
+            )
+        for output, original in zip(
+            generated.directions, confirmed.directions, strict=True
+        ):
+            output.name = original.name
+            output.explanation = original.explanation
+        validate_plan(generated, state["context"])
+        return {"confirmed_plan": generated.model_dump()}
 
     async def collect_snapshot(state, config, phase):
         run_id, lease = identity(config)
@@ -566,6 +620,7 @@ def build_graph(llm, store, checkpointer, acquisition):
         "context": context,
         "planner": planner,
         "plan_gate": plan_gate,
+        "search_planner": search_planner,
         "snapshot": snapshot,
         "patent": patent,
         "company_gate": company_gate,

@@ -13,6 +13,7 @@ export const statusLabels: Record<string, string> = {
 export const nodeLabels: Record<string, string> = {
   context: '确定研究范围',
   planner: '生成计划',
+  search_planner: '生成检索条件',
   plan_gate: '确认计划',
   snapshot: '采集专利',
   patent: '筛选专利',

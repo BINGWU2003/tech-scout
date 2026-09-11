@@ -21,7 +21,11 @@ export const researchStages = {
 export type ResearchStage = keyof typeof researchStages
 
 export function stageForNode(node: string | null): ResearchStage {
-  if (['snapshot', 'patent', 'company_gate'].includes(node ?? ''))
+  if (
+    ['search_planner', 'snapshot', 'patent', 'company_gate'].includes(
+      node ?? ''
+    )
+  )
     return 'patents'
   if (['company_snapshot', 'company', 'entity'].includes(node ?? ''))
     return 'companies'

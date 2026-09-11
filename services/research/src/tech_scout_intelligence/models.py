@@ -10,6 +10,16 @@ class Model(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
 
+class DirectionDraft(Model):
+    domain_id: str = Field(min_length=1, max_length=100)
+    name: str = Field(min_length=1, max_length=200)
+    explanation: str = Field(min_length=1, max_length=2000)
+
+
+class DirectionProposal(Model):
+    directions: list[DirectionDraft] = Field(min_length=1, max_length=3)
+
+
 class Direction(Model):
     domain_id: str = Field(min_length=1, max_length=100)
     name: str = Field(min_length=1, max_length=200)

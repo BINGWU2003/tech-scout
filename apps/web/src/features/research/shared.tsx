@@ -13,11 +13,13 @@ export function ResearchShell({
   composer,
   navigation,
   title = '技术研究',
+  split = false,
 }: {
   children: ReactNode
   composer?: ReactNode
   navigation?: ReactNode
   title?: string
+  split?: boolean
 }) {
   const viewport = useRef<HTMLDivElement>(null)
   const content = useRef<HTMLDivElement>(null)
@@ -52,7 +54,11 @@ export function ResearchShell({
         )}
         <div
           ref={viewport}
-          className='min-h-0 flex-1 overflow-y-auto overscroll-contain'
+          className={
+            split
+              ? 'flex min-h-0 flex-1 flex-col overflow-y-auto md:overflow-hidden'
+              : 'min-h-0 flex-1 overflow-y-auto overscroll-contain'
+          }
           onScroll={(event) => {
             const el = event.currentTarget
             following.current =
@@ -62,12 +68,16 @@ export function ResearchShell({
         >
           <div
             ref={content}
-            className='mx-auto flex min-h-full w-full max-w-3xl flex-col gap-8 px-4 py-8 sm:px-6'
+            className={
+              split
+                ? 'flex min-h-0 flex-1 flex-col gap-4 px-4 py-4 sm:px-6'
+                : 'mx-auto flex min-h-full w-full max-w-3xl flex-col gap-8 px-4 py-8 sm:px-6'
+            }
           >
             {children}
           </div>
         </div>
-        {showLatest && (
+        {!split && showLatest && (
           <Button
             size='sm'
             variant='secondary'

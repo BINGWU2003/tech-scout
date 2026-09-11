@@ -8,7 +8,13 @@ from langchain_core.runnables import RunnableConfig
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.types import Command
 
-from tech_scout_intelligence.models import Analysis, Explanation, Plan, ResearchError
+from tech_scout_intelligence.models import (
+    Analysis,
+    DirectionProposal,
+    Explanation,
+    Plan,
+    ResearchError,
+)
 from tech_scout_intelligence.store import validate_decisions
 from tech_scout_intelligence.workflow import (
     build_graph,
@@ -177,14 +183,26 @@ class FakeLLM:
         self.calls: list[str] = []
         self.fail: str | None = None
         self.payloads = []
+        self.search_plan = plan()
 
     async def generate(self, run_id, lease, instruction, payload, schema):
         self.calls.append(schema.__name__)
         self.payloads.append(payload)
         if self.fail == schema.__name__:
             raise ResearchError("MODEL_REQUEST_FAILED", "模型失败")
+        if schema is DirectionProposal:
+            return DirectionProposal(
+                directions=[
+                    {
+                        "domain_id": d.domain_id,
+                        "name": d.name,
+                        "explanation": d.explanation,
+                    }
+                    for d in plan().directions
+                ]
+            )
         if schema is Plan:
-            return plan()
+            return self.search_plan.model_copy(deep=True)
         return Analysis(
             companies=[
                 Explanation(
@@ -246,14 +264,14 @@ async def test_confirmation_and_failed_node_retry_do_not_repeat_planner():
     await graph.ainvoke({"question": "工业视觉"}, config)
     assert (await graph.aget_state(config)).next == ("plan_gate",)
     assert catalog.reads == 0
-    assert llm.calls == ["Plan"]
+    assert llm.calls == ["DirectionProposal"]
     await graph.ainvoke(Command(resume={"plan": plan().model_dump()}), config)
     assert (await graph.aget_state(config)).next == ("company_gate",)
     assert catalog.reads == 1
-    assert llm.calls == ["Plan"]
+    assert llm.calls == ["DirectionProposal", "Plan"]
     await graph.ainvoke(Command(resume={"kind": "start_companies"}), config)
     assert (await graph.aget_state(config)).next == ("entity",)
-    assert llm.calls == ["Plan"]
+    assert llm.calls == ["DirectionProposal", "Plan"]
     llm.fail = "Analysis"
     with pytest.raises(ResearchError):
         await graph.ainvoke(Command(resume={"decisions": []}), config)
@@ -271,7 +289,7 @@ async def test_confirmation_and_failed_node_retry_do_not_repeat_planner():
     assert result["result"]["companies"][0]["patent_count"] == 1
     assert result["snapshot"]["patents"][0]["patent_title"] == "Edge neural vision"
     assert catalog.reads == 2
-    assert llm.calls == ["Plan", "Analysis", "Analysis"]
+    assert llm.calls == ["DirectionProposal", "Plan", "Analysis", "Analysis"]
 
 
 @pytest.mark.asyncio
@@ -301,7 +319,7 @@ async def test_unverified_can_be_skipped_and_excluded_review_not_reopened():
     ]
     _, unresolved = company_workset(catalog.data, patent_workset(catalog.data, plan()))
     assert unresolved[0]["requires_confirmation"] is False
-    assert llm.calls == ["Plan"]
+    assert llm.calls == ["DirectionProposal", "Plan"]
 
 
 def test_identity_evidence_must_support_selected_company():
@@ -333,14 +351,14 @@ async def test_no_result_does_not_broaden_or_call_analysis():
     }
     await graph.ainvoke({"question": "视觉"}, config)
     manual = plan()
-    manual.directions[0].keywords = ["absent"]
+    llm.search_plan.directions[0].keywords = ["absent"]
     await graph.ainvoke(Command(resume={"plan": manual.model_dump()}), config)
     await graph.ainvoke(Command(resume={"kind": "start_companies"}), config)
     await graph.ainvoke(Command(resume={"decisions": []}), config)
     result = (await graph.aget_state(config)).values["result"]
     assert result["patent_count"] == 0
     assert result["empty_reason"]
-    assert llm.calls == ["Plan"]
+    assert llm.calls == ["DirectionProposal", "Plan"]
 
 
 @pytest.mark.asyncio
@@ -391,3 +409,51 @@ async def test_followup_passes_history_and_publishes_actual_direction_explanatio
     ]
     assert entries[-1]["message"] == plan().directions[-1].explanation
     assert entries[-1]["direction"] == plan().directions[-1].name
+
+
+@pytest.mark.asyncio
+async def test_search_conditions_use_final_description_and_retry_without_collection():
+    catalog, llm, store = FakeAcquisition(), FakeLLM(), runtime_store()
+    saver = InMemorySaver()
+    graph = build_graph(llm, store, saver, catalog)
+    config = {"configurable": {"thread_id": str(uuid4()), "lease": uuid4()}}
+    await graph.ainvoke({"question": "视觉"}, config)
+    edited = plan()
+    edited.directions[0].name = "边缘视觉"
+    edited.directions[0].explanation = "仅关注边缘设备神经网络视觉处理"
+    edited.directions[0].keywords = ["obsolete"]
+    llm.fail = "Plan"
+    with pytest.raises(ResearchError):
+        await graph.ainvoke(Command(resume={"plan": edited.model_dump()}), config)
+    state = await graph.aget_state(config)
+    assert state.next == ("search_planner",)
+    assert catalog.reads == 0
+    assert state.values["confirmed_plan"]["directions"][0]["keywords"] == []
+    assert llm.payloads[-1]["directions"][0] == {
+        "domain_id": "vision",
+        "name": "边缘视觉",
+        "explanation": "仅关注边缘设备神经网络视觉处理",
+    }
+    llm.fail = None
+    resumed = build_graph(llm, store, saver, catalog)
+    await resumed.ainvoke(None, config)
+    state = await resumed.aget_state(config)
+    assert state.next == ("company_gate",)
+    assert catalog.reads == 1
+    assert llm.calls == ["DirectionProposal", "Plan", "Plan"]
+    direction = state.values["confirmed_plan"]["directions"][0]
+    assert direction["name"] == edited.directions[0].name
+    assert direction["explanation"] == edited.directions[0].explanation
+    assert direction["keywords"] == plan().directions[0].keywords
+
+
+@pytest.mark.asyncio
+async def test_changed_direction_identity_stops_before_search():
+    catalog, llm = FakeAcquisition(), FakeLLM()
+    graph = build_graph(llm, runtime_store(), InMemorySaver(), catalog)
+    config = {"configurable": {"thread_id": str(uuid4()), "lease": uuid4()}}
+    await graph.ainvoke({"question": "视觉"}, config)
+    llm.search_plan.directions[0].domain_id = "unexpected"
+    with pytest.raises(ResearchError, match="改变了已确认方向"):
+        await graph.ainvoke(Command(resume={"plan": plan().model_dump()}), config)
+    assert catalog.reads == 0

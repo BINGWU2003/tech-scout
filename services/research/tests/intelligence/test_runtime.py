@@ -91,12 +91,12 @@ async def test_postgres_restart_resume_budget_and_event_receipts(setup_runtime):
 
 
 @pytest.mark.asyncio
-async def test_failed_planner_allows_manual_plan_without_another_model_call(
+async def test_failed_planner_allows_manual_directions_then_generates_conditions(
     setup_runtime,
 ):
     runtime, store, _, llm, _ = setup_runtime
     run_id = uuid4()
-    llm.fail = "Plan"
+    llm.fail = "DirectionProposal"
     await store.create(run_id, "视觉")
     await runtime.execute(run_id)
     failed = await store.get(run_id)
@@ -110,7 +110,7 @@ async def test_failed_planner_allows_manual_plan_without_another_model_call(
     await runtime.execute(run_id)
     await advance_to_report(runtime, store, run_id)
     assert (await store.get(run_id)).status == "completed"
-    assert llm.calls == ["Plan", "Analysis"]
+    assert llm.calls == ["DirectionProposal", "Plan", "Analysis"]
 
 
 @pytest.mark.asyncio
@@ -290,3 +290,41 @@ async def advance_to_report(runtime, store, run_id):
         run_id, Action(action_id=uuid4(), actor_id=uuid4(), kind="resolve_entities")
     )
     await runtime.execute(run_id)
+
+
+@pytest.mark.asyncio
+async def test_search_planner_failure_restart_and_explicit_retry(setup_runtime):
+    runtime, store, catalog, llm, saver = setup_runtime
+    run_id = uuid4()
+    await store.create(run_id, "视觉")
+    await runtime.execute(run_id)
+    edited = plan()
+    edited.directions[0].explanation = "最终确认的边缘设备视觉范围"
+    await store.action(
+        run_id,
+        Action(
+            action_id=uuid4(),
+            actor_id=uuid4(),
+            kind="confirm_plan",
+            plan=edited,
+        ),
+    )
+    llm.fail = "Plan"
+    await runtime.execute(run_id)
+    failed = await store.get(run_id)
+    assert failed.status == "failed"
+    assert failed.node == "search_planner"
+    assert catalog.reads == 0
+    assert (
+        failed.artifacts["confirmed_plan"]["directions"][0]["explanation"]
+        == edited.directions[0].explanation
+    )
+    llm.fail = None
+    await store.action(
+        run_id, Action(action_id=uuid4(), actor_id=uuid4(), kind="retry")
+    )
+    resumed = Runtime(build_graph(llm, store, saver, catalog), store, runtime.config)
+    await resumed.execute(run_id)
+    assert (await store.get(run_id)).status == "awaiting_companies"
+    assert llm.calls == ["DirectionProposal", "Plan", "Plan"]
+    assert catalog.reads == 1

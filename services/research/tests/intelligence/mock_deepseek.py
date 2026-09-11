@@ -18,22 +18,29 @@ async def completions(request: Request):
         )
     if "context" in payload:
         context = payload["context"]
-        data = {
-            "directions": [
+        directions = (
+            payload.get("directions")
+            or [
                 {
                     "domain_id": d["domain_id"],
                     "name": d["name"],
-                    "keywords": [],
-                    "excluded_keywords": [],
-                    "cpc_prefixes": [],
-                    "explanation": "固定测试计划",
+                    "explanation": "固定测试方向描述",
                 }
-                for d in context["domains"][:2]
-            ],
-            "from_year": context["release"]["period_from_year"],
-            "to_year": context["release"]["period_to_year"],
-            "risks": ["测试响应"],
-        }
+                for d in context.get("domains", [])[:2]
+            ]
+            or [{"domain_id": "fixture", "name": "测试方向", "explanation": "测试范围"}]
+        )
+        data = {"directions": directions}
+        if "directions" in payload:
+            data.update(
+                from_year=context.get("period_from_year", 1800),
+                to_year=context.get("period_to_year", 2026),
+                risks=[],
+            )
+            data["directions"] = [
+                {**d, "keywords": [], "excluded_keywords": [], "cpc_prefixes": []}
+                for d in directions
+            ]
     else:
         data = {
             "companies": [
