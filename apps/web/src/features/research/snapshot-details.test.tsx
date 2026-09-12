@@ -83,10 +83,8 @@ it('慢速切换专利时保留旧详情并遮罩，关闭入口仍可操作', a
     .element(page.getByRole('heading', { name: patents[0].title }))
     .toBeVisible()
   const original = page.getByRole('tabpanel').element()
-  const height = page
-    .getByRole('dialog')
-    .element()
-    .getBoundingClientRect().height
+  const height = (page.getByRole('dialog').element() as HTMLElement)
+    .offsetHeight
   let finish!: (value: Awaited<ReturnType<typeof researchApi.patent>>) => void
   detail.mockImplementationOnce(
     () =>
@@ -100,9 +98,9 @@ it('慢速切换专利时保留旧详情并遮罩，关闭入口仍可操作', a
   expect(page.getByRole('dialog').element().textContent).toContain(
     patents[0].abstract
   )
-  expect(
-    page.getByRole('dialog').element().getBoundingClientRect().height
-  ).toBe(height)
+  expect((page.getByRole('dialog').element() as HTMLElement).offsetHeight).toBe(
+    height
+  )
   await expect
     .element(page.getByRole('button', { name: 'Close', exact: true }))
     .toBeEnabled()
