@@ -28,15 +28,14 @@ export function ProjectConversation({
   events?: ResearchProgressView[]
 }) {
   const live = [...events].reverse().find((event) => event.reasoning)?.reasoning
+  const liveAnswer = [...events].reverse().find((event) => event.answer)?.answer
   const messages = workspace.messages.map((message) => {
-    if (
-      message.role !== 'assistant' ||
-      message.runId !== workspace.activeRunId ||
-      !live
-    )
+    if (message.role !== 'assistant' || message.runId !== workspace.activeRunId)
       return message
+    let reasoning = live ?? message.reasoning
     const previous = message.reasoning
     if (
+      live &&
       previous &&
       (previous.startedAt > live.startedAt ||
         (previous.id === live.id &&
@@ -44,8 +43,19 @@ export function ProjectConversation({
             (['completed', 'interrupted'].includes(previous.status) &&
               ['thinking', 'answering'].includes(live.status)))))
     )
-      return message
-    return { ...message, reasoning: live }
+      reasoning = previous
+    let answer = liveAnswer ?? message.answer
+    const savedAnswer = message.answer
+    if (
+      liveAnswer &&
+      savedAnswer &&
+      (savedAnswer.startedAt > liveAnswer.startedAt ||
+        (savedAnswer.id === liveAnswer.id &&
+          savedAnswer.status !== 'streaming' &&
+          liveAnswer.status === 'streaming'))
+    )
+      answer = savedAnswer
+    return { ...message, reasoning, answer }
   })
   return (
     <div aria-label='研究对话记录' className='space-y-5'>
@@ -55,7 +65,8 @@ export function ProjectConversation({
             !message.pending ||
             message.text ||
             message.plan ||
-            message.reasoning
+            message.reasoning ||
+            message.answer
         )
         .map((message) => (
           <article
@@ -75,12 +86,20 @@ export function ProjectConversation({
                 <span>{message.proposal ? '建议已过期' : '已更新'}</span>
               )}
             </div>
-            {message.text && (
+            {message.reasoning && (
+              <ReasoningPanel reasoning={message.reasoning} />
+            )}
+            {(message.text || message.answer?.text) && (
               <p className='leading-7 break-words whitespace-pre-wrap'>
-                {message.text}
+                {message.text || message.answer?.text}
               </p>
             )}
-            {message.plan && (
+            {message.answer?.status === 'interrupted' && (
+              <p role='status' className='text-xs text-muted-foreground'>
+                回答已中断，以上内容尚未完成。
+              </p>
+            )}
+            {!message.pending && message.plan && (
               <details
                 open={
                   (message.recommendation || message.proposal) &&
@@ -182,9 +201,6 @@ export function ProjectConversation({
                   应用建议前，请保存或撤销当前计划调整。
                 </p>
               )}
-            {message.reasoning && (
-              <ReasoningPanel reasoning={message.reasoning} />
-            )}
             {message.hasResult && message.runId && (
               <Button asChild size='sm' variant='outline'>
                 <Link

@@ -90,8 +90,9 @@ class DeepSeek:
             )
 
         async def publish(status):
+            if reasoning["status"] == "thinking":
+                reasoning["durationMs"] = round((time.monotonic() - started) * 1000)
             reasoning["status"] = status
-            reasoning["durationMs"] = round((time.monotonic() - started) * 1000)
             current = await self.store.get(run_id)
             await self.store.publish(
                 run_id,
@@ -154,10 +155,13 @@ class DeepSeek:
                                     await publish("answering")
                                     last_publish = time.monotonic()
                                 reply = partial_reply(content)
-                                if reply != answer["text"]:
+                                if reply and reply != answer["text"]:
                                     first_answer = not answer["text"]
                                     answer["text"] = reply
-                                    if first_answer or time.monotonic() - last_answer_publish >= 0.3:
+                                    if (
+                                        first_answer
+                                        or time.monotonic() - last_answer_publish >= 0.3
+                                    ):
                                         await publish_answer("streaming")
                                         last_answer_publish = time.monotonic()
                             if changed and (

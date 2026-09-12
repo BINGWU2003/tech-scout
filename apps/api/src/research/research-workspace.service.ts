@@ -6,6 +6,7 @@ import {
 import {
   researchWorkspaceSchema,
   researchReasoningSchema,
+  researchAnswerSchema,
   researchSelectedPlanSchema,
   type ResearchWorkspaceAction,
   type ResearchWorkspace,
@@ -66,6 +67,7 @@ export class ResearchWorkspaceService {
         state #> '{artifacts,confirmed_plan}' AS confirmed,
         state #> '{artifacts,reply}' AS reply,
         state #> '{artifacts,reasoning}' AS reasoning,
+        state #> '{artifacts,answer}' AS answer,
         state #>> '{artifacts,reply_intent}' AS intent,
         state #> '{artifacts,proposal_plan}' AS proposal,
         state #> '{artifacts,result}' IS NOT NULL AS "hasResult"
@@ -89,6 +91,7 @@ export class ResearchWorkspaceService {
         runId: id,
         role: 'user',
         reasoning: null,
+        answer: null,
         pending: false,
         text: String(r.question),
         createdAt,
@@ -103,10 +106,10 @@ export class ResearchWorkspaceService {
       const recommendation = Boolean(
         (r.candidates ?? r.plan) &&
         !ctx.startSearch &&
+        !r.confirmed &&
+        !proposal &&
+        !r.hasResult &&
         (!ctx.workspace ||
-          // Older planner results contain a plan without a reply intent.
-          // Treat an unconfirmed result as a recommendation on follow-ups too.
-          (r.intent == null && !r.confirmed && !proposal && !r.hasResult) ||
           ['refresh_candidates', 'update_candidate'].includes(String(r.intent)))
       )
       const pending =
@@ -115,6 +118,12 @@ export class ResearchWorkspaceService {
         !r.plan &&
         ['queued', 'running'].includes(String(r.status))
       const reasoning = researchReasoningSchema.nullable().parse(r.reasoning)
+      const answer = researchAnswerSchema.nullable().parse(r.answer)
+      if (
+        answer?.status === 'streaming' &&
+        !['queued', 'running'].includes(String(r.status))
+      )
+        answer.status = 'interrupted'
       if (
         reasoning &&
         !['queued', 'running'].includes(String(r.status)) &&
@@ -127,24 +136,24 @@ export class ResearchWorkspaceService {
         r.confirmed ||
         r.hasResult ||
         pending ||
-        reasoning
+        reasoning ||
+        answer
       ) {
         messages.push({
           id: `${id}:reply`,
           runId: id,
           role: 'assistant',
           reasoning,
+          answer,
           pending,
           text:
             typeof r.reply === 'string'
               ? r.reply
               : r.confirmed && !recommendation
                 ? '已确认研究计划。'
-                : r.plan
-                  ? 'AI 候选方向已生成，可选择加入研究计划。'
-                  : pending
-                    ? ''
-                    : '本次回复未完成，可重试。',
+                : pending || answer
+                  ? ''
+                  : '本次回复未完成，可重试。',
           createdAt,
           recommendation,
           plan: recommendation
@@ -188,6 +197,7 @@ export class ResearchWorkspaceService {
         runId: null,
         role: 'user',
         reasoning: null,
+        answer: null,
         pending: false,
         text: String(change.text),
         createdAt: String(change.createdAt),
@@ -216,6 +226,7 @@ export class ResearchWorkspaceService {
         runId: command.runId,
         role: 'user',
         reasoning: null,
+        answer: null,
         pending: false,
         text: labels[String(payload.kind)] ?? '已调整研究。',
         createdAt: command.createdAt.toISOString(),

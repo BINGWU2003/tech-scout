@@ -3,7 +3,7 @@
 import json
 
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 
 app = FastAPI()
 
@@ -31,6 +31,8 @@ async def completions(request: Request):
             or [{"domain_id": "fixture", "name": "测试方向", "explanation": "测试范围"}]
         )
         data = {"directions": directions}
+        if "directions" not in payload:
+            data = {"reply": "结合研究需求，推荐以下技术方向。", **data}
         if "directions" in payload:
             data.update(
                 from_year=context.get("period_from_year", 1800),
@@ -52,7 +54,7 @@ async def completions(request: Request):
                 for c in payload["companies"]
             ]
         }
-    return {
+    response = {
         "id": "fixture",
         "object": "chat.completion",
         "created": 1,
@@ -69,3 +71,48 @@ async def completions(request: Request):
         ],
         "usage": {"prompt_tokens": 100, "completion_tokens": 100, "total_tokens": 200},
     }
+    if not body.get("stream"):
+        return response
+
+    async def events():
+        def chunk(delta, finish=None):
+            return (
+                "data: "
+                + json.dumps(
+                    {
+                        "id": "fixture",
+                        "object": "chat.completion.chunk",
+                        "created": 1,
+                        "model": "deepseek-fixture-v1",
+                        "choices": [
+                            {"index": 0, "delta": delta, "finish_reason": finish}
+                        ],
+                    },
+                    ensure_ascii=False,
+                )
+                + "\n\n"
+            )
+
+        if body.get("thinking", {}).get("type") == "enabled":
+            yield chunk({"reasoning_content": "测试夹具：正在选择研究方向。"})
+        content = json.dumps(data, ensure_ascii=False)
+        for offset in range(0, len(content), 40):
+            yield chunk({"content": content[offset : offset + 40]})
+        yield chunk({}, "stop")
+        yield (
+            "data: "
+            + json.dumps(
+                {
+                    "id": "fixture",
+                    "object": "chat.completion.chunk",
+                    "created": 1,
+                    "model": "deepseek-fixture-v1",
+                    "choices": [],
+                    "usage": response["usage"],
+                }
+            )
+            + "\n\n"
+        )
+        yield "data: [DONE]\n\n"
+
+    return StreamingResponse(events(), media_type="text/event-stream")

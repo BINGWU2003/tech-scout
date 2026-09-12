@@ -29,6 +29,7 @@ describe('阶段 2 输入契约', () => {
       researchConversationMessageSchema.safeParse({
         ...message,
         reasoning: null,
+        answer: null,
         pending: false,
       }).success
     ).toBe(true)

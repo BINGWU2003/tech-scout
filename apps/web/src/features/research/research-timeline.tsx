@@ -20,6 +20,7 @@ const hidden = new Set([
   'model_usage',
   'execution_stopped',
   'reasoning_progress',
+  'answer_progress',
 ])
 
 export function ResearchTimeline({

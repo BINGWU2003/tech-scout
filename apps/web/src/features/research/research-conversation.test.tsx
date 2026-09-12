@@ -71,6 +71,7 @@ it('完成后折叠过程，展开仍能回看超过 100 条的最早检索记�
     sequence: i + 1,
     kind: 'search_progress',
     reasoning: null,
+    answer: null,
     createdAt: '2026-09-10T01:00:00Z',
     status: 'running' as const,
     node: 'snapshot',
@@ -194,6 +195,7 @@ it('工作台从左侧切换项目，确认前追问保留上下文，并在手�
         runId: run.id,
         role: 'user' as const,
         reasoning: null,
+        answer: null,
         pending: false,
         text: run.question,
         createdAt: now,
@@ -207,6 +209,7 @@ it('工作台从左侧切换项目，确认前追问保留上下文，并在手�
         id: `${run.id}-reply`,
         runId: run.id,
         role: 'assistant' as const,
+        answer: null,
         reasoning: {
           id: run.id,
           status: 'completed' as const,
@@ -261,6 +264,7 @@ it('工作台从左侧切换项目，确认前追问保留上下文，并在手�
       sequence: 1,
       kind: 'planner_progress',
       reasoning: null,
+      answer: null,
       createdAt: now,
       status: 'running',
       node: 'planner',
@@ -341,7 +345,7 @@ it('工作台从左侧切换项目，确认前追问保留上下文，并在手�
     recommendation.element().getBoundingClientRect().top
   )
   await expect
-    .element(screen.getByRole('button', { name: /查看思考过程/ }))
+    .element(screen.getByRole('button', { name: /思考已完成/ }))
     .toHaveAttribute('aria-expanded', 'false')
   await expect
     .element(screen.getByRole('button', { name: '刷新状态' }))

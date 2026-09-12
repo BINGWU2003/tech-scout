@@ -7,16 +7,19 @@ export function ReasoningPanel({
 }: {
   reasoning: ResearchReasoning
 }) {
-  const active =
-    reasoning.status === 'thinking' || reasoning.status === 'answering'
+  const active = reasoning.status === 'thinking'
   const [expanded, setExpanded] = useState<{
     phase: string
     open: boolean
   } | null>(null)
   const phase = `${reasoning.id}:${active}`
-  const open = expanded?.phase === phase ? expanded.open : false
+  const open = expanded?.phase === phase ? expanded.open : active
   const contentId = useId()
-  const label = '查看思考过程'
+  const label = active
+    ? '正在思考'
+    : reasoning.status === 'interrupted'
+      ? '思考已中断'
+      : '思考已完成'
   return (
     <div>
       <button

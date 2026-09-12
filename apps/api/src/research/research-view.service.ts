@@ -4,6 +4,7 @@ import {
   researchSummaryViewSchema,
   researchProcessSchema,
   researchReasoningSchema,
+  researchAnswerSchema,
   type ResearchViewQuery,
 } from '@tech-scout/contracts'
 import { PrismaService } from '../database/prisma.service.js'
@@ -191,6 +192,7 @@ export class ResearchViewService {
         error: unknown
         process: unknown
         reasoning: unknown
+        answer: unknown
         acquisition: unknown
       }>
     >(Prisma.sql`
@@ -201,10 +203,18 @@ export class ResearchViewService {
         CASE WHEN e.kind = 'acquisition_progress'
           THEN e.data #> '{artifacts,acquisition}' END AS acquisition,
         CASE WHEN e.kind = 'reasoning_progress' OR e.data->>'status' NOT IN ('queued', 'running')
-          THEN e.data #> '{artifacts,reasoning}' END AS reasoning
+          THEN e.data #> '{artifacts,reasoning}' END AS reasoning,
+        CASE WHEN e.kind = 'answer_progress' OR e.data->>'status' NOT IN ('queued', 'running')
+          THEN e.data #> '{artifacts,answer}' END AS answer
       FROM app.research_event e WHERE e.run_id = ${id}::uuid AND e.sequence > ${after}
       ORDER BY e.sequence ASC LIMIT 100`)
     return events.map((event) => {
+      const answer = researchAnswerSchema.nullable().parse(event.answer)
+      if (
+        answer?.status === 'streaming' &&
+        !['queued', 'running'].includes(event.status)
+      )
+        answer.status = 'interrupted'
       const reasoning = researchReasoningSchema
         .nullable()
         .parse(event.reasoning)
@@ -217,6 +227,7 @@ export class ResearchViewService {
       return {
         ...event,
         reasoning,
+        answer,
         process: researchProcessSchema.safeParse(event.process).data ?? null,
         acquisition:
           researchSummaryViewSchema.shape.acquisition.safeParse(

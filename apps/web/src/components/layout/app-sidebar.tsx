@@ -19,25 +19,20 @@ import { NavUser } from './nav-user'
 export function AppSidebar() {
   const { collapsible, variant } = useLayout()
   const user = useAuthStore((state) => state.auth.user)
-  const navGroups = sidebarData.navGroups.map((group) => ({
-    ...group,
-    items: group.items.filter(
-      (item) => item.url !== '/users' || user?.role === 'admin'
-    ),
-  }))
   return (
     <Sidebar collapsible={collapsible} variant={variant}>
       <SidebarHeader>
         <AppTitle />
         <ResearchNewButton />
       </SidebarHeader>
-      <SidebarContent>
-        {navGroups.map((props) => (
+      <SidebarContent className='gap-0 overflow-hidden'>
+        {sidebarData.navGroups.map((props) => (
           <NavGroup key={props.title} {...props} />
         ))}
         <ResearchSidebar />
       </SidebarContent>
-      <SidebarFooter>
+      <SidebarFooter className='gap-0 border-t border-sidebar-border'>
+        {user?.role === 'admin' && <NavGroup {...sidebarData.adminNav} />}
         <NavUser
           user={{
             name: user?.username ?? '用户',

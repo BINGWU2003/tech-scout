@@ -484,7 +484,11 @@ def build_graph(llm, store, checkpointer, acquisition):
         validate_plan(plan, state["context"])
         for direction in plan.directions:
             await explain(direction.explanation, direction.name)
-        return {"plan": plan.model_dump(), "reply": proposal.reply, "reply_intent": "refresh_candidates"}
+        return {
+            "plan": plan.model_dump(),
+            "reply": proposal.reply,
+            "reply_intent": "refresh_candidates",
+        }
 
     async def plan_gate(state, config):
         confirmed = state.get("confirmed_plan")

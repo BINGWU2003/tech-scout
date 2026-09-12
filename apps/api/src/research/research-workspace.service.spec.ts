@@ -30,9 +30,10 @@ function run(overrides: Record<string, unknown> = {}) {
     plan,
     candidates: null,
     confirmed: null,
-    reply: null,
+    reply: '结合需求，建议从以下方向展开研究。',
     reasoning: null,
-    intent: null,
+    answer: null,
+    intent: 'refresh_candidates',
     proposal: null,
     hasResult: false,
     ...overrides,
@@ -57,7 +58,7 @@ async function workspace(runs: ReturnType<typeof run>[]) {
 }
 
 describe('多轮推荐卡片', () => {
-  it('没有意图标记的后续规划仍是最新推荐，旧推荐失效', async () => {
+  it('明确推荐意图的后续规划成为最新推荐，旧推荐失效', async () => {
     const first = run()
     const next = run({
       question: '算法相关',

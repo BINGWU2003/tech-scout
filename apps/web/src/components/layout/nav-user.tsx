@@ -28,7 +28,7 @@ type NavUserProps = {
 }
 
 export function NavUser({ user }: NavUserProps) {
-  const { isMobile } = useSidebar()
+  const { isMobile, setOpenMobile } = useSidebar()
   const [open, setOpen] = useDialogState()
 
   return (
@@ -77,13 +77,16 @@ export function NavUser({ user }: NavUserProps) {
               <DropdownMenuSeparator />
               <DropdownMenuGroup>
                 <DropdownMenuItem asChild>
-                  <Link to='/settings'>
+                  <Link to='/settings' onClick={() => setOpenMobile(false)}>
                     <BadgeCheck />
-                    账号信息
+                    账号设置
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
-                  <Link to='/settings/account'>
+                  <Link
+                    to='/settings/account'
+                    onClick={() => setOpenMobile(false)}
+                  >
                     <KeyRound />
                     修改密码
                   </Link>

@@ -192,6 +192,7 @@ class FakeLLM:
             raise ResearchError("MODEL_REQUEST_FAILED", "模型失败")
         if schema is DirectionProposal:
             return DirectionProposal(
+                reply="结合边缘推理需求，建议从以下方向展开研究。",
                 directions=[
                     {
                         "domain_id": d.domain_id,

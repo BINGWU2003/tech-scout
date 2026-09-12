@@ -337,15 +337,48 @@ describeDb('阶段 2 产品 API：所有权、幂等与持久化', () => {
       text: '',
       reasoning,
     })
+    const answer = {
+      id: reasoning.id,
+      startedAt: reasoning.startedAt,
+      status: 'streaming',
+      text: '结合需求，',
+    }
     await service.receive({
       sequence: 3,
-      kind: 'node_completed',
+      kind: 'answer_progress',
       created_at: new Date().toISOString(),
       data: {
         ...initial,
         sequence: 3,
+        status: 'running',
+        node: 'planner',
+        artifacts: {
+          reasoning: { ...reasoning, status: 'answering' },
+          answer,
+        },
+      },
+    })
+    const partial = await owner.agent.get(workspaceUrl).expect(200)
+    expect(partial.body.messages.at(-1)).toMatchObject({
+      pending: true,
+      text: '',
+      plan: null,
+      answer,
+    })
+    const answerEvents = await owner.agent
+      .get(`/api/v1/research/ui/runs/${id}/events?after=2`)
+      .expect(200)
+    expect(answerEvents.body[0].answer).toEqual(answer)
+    await service.receive({
+      sequence: 4,
+      kind: 'node_completed',
+      created_at: new Date().toISOString(),
+      data: {
+        ...initial,
+        sequence: 4,
         artifacts: {
           reply: '最终回答',
+          answer: { ...answer, text: '最终回答', status: 'completed' },
           reasoning: { ...reasoning, status: 'completed' },
         },
       },
@@ -354,6 +387,7 @@ describeDb('阶段 2 产品 API：所有权、幂等与持久化', () => {
     expect(history.body.messages.at(-1)).toMatchObject({
       pending: false,
       text: '最终回答',
+      answer: { ...answer, text: '最终回答', status: 'completed' },
       reasoning: { ...reasoning, status: 'completed' },
     })
     const other = await account()

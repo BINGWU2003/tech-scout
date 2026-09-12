@@ -91,6 +91,7 @@ it('候选加入与删除由保存提交，空计划不能执行', async () => {
       runId: null,
       role: 'assistant' as const,
       reasoning: null,
+      answer: null,
       pending: false,
       text: '推荐方向',
       createdAt: '2026-09-12T00:00:00Z',

@@ -9,8 +9,12 @@ import pytest
 import respx
 from pydantic import SecretStr
 
-from tech_scout_intelligence.llm import DeepSeek
-from tech_scout_intelligence.models import ConversationReply, ResearchError
+from tech_scout_intelligence.llm import DeepSeek, partial_reply
+from tech_scout_intelligence.models import (
+    ConversationReply,
+    DirectionProposal,
+    ResearchError,
+)
 
 
 def chunk(delta=None, finish=None, usage=None):
@@ -35,19 +39,28 @@ def chunk(delta=None, finish=None, usage=None):
 @pytest.fixture
 def setup_model():
     state = SimpleNamespace(
-        artifacts={"conversation": {"thinking": True}, "reasoning": None}
+        artifacts={
+            "conversation": {"thinking": True},
+            "reasoning": None,
+            "answer": None,
+        }
     )
     snapshots = []
+    answers = []
 
     async def publish(_run_id, **changes):
         state.artifacts = copy.deepcopy(changes["artifacts"])
-        snapshots.append(copy.deepcopy(state.artifacts["reasoning"]))
+        if changes["kind"] == "reasoning_progress":
+            snapshots.append(copy.deepcopy(state.artifacts["reasoning"]))
+        else:
+            answers.append(copy.deepcopy(state.artifacts["answer"]))
 
     store = SimpleNamespace(
         get=AsyncMock(return_value=state),
         reserve=AsyncMock(),
         usage=AsyncMock(),
         publish=publish,
+        answers=answers,
     )
     config = SimpleNamespace(
         deepseek_api_key=SecretStr("test-key"),
@@ -126,6 +139,8 @@ async def test_disabled_mode_does_not_invent_reasoning(setup_model):
     assert json.loads(route.calls[0].request.content)["thinking"]["type"] == "disabled"
     assert not snapshots
     assert state.artifacts["reasoning"] is None
+    assert state.artifacts["answer"]["text"] == "直接回答"
+    assert state.artifacts["answer"]["status"] == "completed"
 
 
 @pytest.mark.asyncio
@@ -150,6 +165,7 @@ async def test_invalid_or_truncated_answer_preserves_interrupted_reasoning(
         await model.generate(uuid4(), uuid4(), "研究助手", {}, ConversationReply)
     assert state.artifacts["reasoning"]["status"] == "interrupted"
     assert state.artifacts["reasoning"]["text"] == "已收到的思考"
+    assert state.artifacts["answer"]["status"] == "interrupted"
 
 
 @pytest.mark.asyncio
@@ -162,3 +178,51 @@ async def test_provider_failure_is_interrupted_not_success(setup_model):
     with pytest.raises(ResearchError, match="DeepSeek 请求失败"):
         await model.generate(uuid4(), uuid4(), "研究助手", {}, ConversationReply)
     assert state.artifacts["reasoning"]["status"] == "interrupted"
+    assert state.artifacts["answer"]["status"] == "interrupted"
+
+
+@pytest.mark.parametrize(
+    "content,expected",
+    [
+        ('{"reply":"先比较', "先比较"),
+        ('{"reply":"第一行\\n第二行\\"引用\\"', '第一行\n第二行"引用"'),
+        ('{"reply":"\\u4e2d\\u6587', "中文"),
+        ('{"directions":[{"reply":"不要显示"}]}', ""),
+        ('{"reply":42}', ""),
+        ("{", ""),
+    ],
+)
+def test_partial_json_only_exposes_decoded_reply(content, expected):
+    assert partial_reply(content) == expected
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_streams_intro_before_direction_cards_are_validated(setup_model):
+    model, state, _ = setup_model
+    respx.post("https://model.test/chat/completions").mock(
+        return_value=httpx.Response(
+            200,
+            headers={"content-type": "text/event-stream"},
+            text=(
+                chunk({"reasoning_content": "结合研究需求选择方向。"})
+                + chunk({"content": '{"reply":"结合需求，'})
+                + chunk({"content": '推荐以下方向。","directions":['})
+                + chunk(
+                    {
+                        "content": '{"domain_id":"d","name":"边缘推理",'
+                        '"explanation":"关注轻量化模型"}]}'
+                    },
+                    "stop",
+                )
+                + "data: [DONE]\n\n"
+            ),
+        )
+    )
+    result = await model.generate(uuid4(), uuid4(), "研究助手", {}, DirectionProposal)
+    assert result.reply == "结合需求，推荐以下方向。"
+    assert model.store.answers[1]["text"] == "结合需求，"
+    assert model.store.answers[1]["status"] == "streaming"
+    assert model.store.answers[-1]["text"] == result.reply
+    assert model.store.answers[-1]["status"] == "completed"
+    assert "directions" not in state.artifacts
