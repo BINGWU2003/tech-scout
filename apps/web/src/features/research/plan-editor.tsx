@@ -3,11 +3,13 @@ import {
   type ResearchWorkspace,
 } from '@tech-scout/contracts'
 import { createRequestId } from '@tech-scout/shared'
+import { Plus } from 'lucide-react'
 import { useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { cn } from '@/lib/utils'
 
 export function SelectedPlanEditor({
   workspace,
@@ -25,6 +27,7 @@ export function SelectedPlanEditor({
   initialPlan?: ResearchWorkspace['selectedPlan']
 }) {
   const plan = initialPlan ?? workspace.selectedPlan
+  const isEmpty = plan.directions.length === 0
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const sending = useRef(false)
@@ -67,96 +70,111 @@ export function SelectedPlanEditor({
       >
         <fieldset
           disabled={busy || submitting}
-          className='min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain p-4'
+          className='flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain p-4'
         >
-          <p className='text-sm text-muted-foreground'>
+          <p className='shrink-0 text-sm text-muted-foreground'>
             已选 {plan.directions.length} / 3 个方向 · 确认后开始检索
           </p>
-          {!plan.directions.length && (
-            <p className='text-sm text-muted-foreground'>
-              从 AI 对话中的推荐加入，或手工增加方向。
-            </p>
-          )}
-          {plan.directions.map((d, i) => {
-            const patch = (value: Partial<typeof d>) =>
-              update({
-                ...plan,
-                directions: plan.directions.map((p, index) =>
-                  index === i ? { ...p, ...value } : p
-                ),
-              })
-            return (
-              <fieldset
-                key={d.domain_id}
-                className='space-y-3 rounded-lg border p-3'
-              >
-                <div className='flex items-center justify-between gap-3'>
-                  <span className='text-sm font-medium'>已选方向 {i + 1}</span>
-                  <Button
-                    type='button'
-                    variant='ghost'
-                    size='sm'
-                    aria-label={`移除：${d.name || `方向 ${i + 1}`}`}
-                    className='text-muted-foreground hover:text-destructive'
-                    onClick={() =>
-                      update({
-                        ...plan,
-                        directions: plan.directions.filter(
-                          (p) => p.domain_id !== d.domain_id
-                        ),
-                      })
-                    }
-                  >
-                    移除
-                  </Button>
-                </div>
-                <Label htmlFor={`selected-name-${i}`}>方向名称</Label>
-                <Input
-                  id={`selected-name-${i}`}
-                  required
-                  maxLength={200}
-                  value={d.name}
-                  onChange={(e) => patch({ name: e.target.value })}
-                />
-                <Label htmlFor={`selected-description-${i}`}>方向描述</Label>
-                <Textarea
-                  id={`selected-description-${i}`}
-                  required
-                  maxLength={2000}
-                  value={d.explanation}
-                  onChange={(e) => patch({ explanation: e.target.value })}
-                />
-              </fieldset>
-            )
-          })}
-          <Button
-            type='button'
-            variant='outline'
-            disabled={plan.directions.length >= 3}
-            onClick={() =>
-              update({
-                ...plan,
-                directions: [
-                  ...plan.directions,
-                  {
-                    domain_id: `direction-${createRequestId()}`,
-                    name: '',
-                    explanation: '',
-                    keywords: [],
-                    excluded_keywords: [],
-                    cpc_prefixes: [],
-                  },
-                ],
-              })
-            }
+          <div
+            className={cn(
+              'space-y-4',
+              isEmpty &&
+                'flex flex-1 flex-col items-center justify-center gap-5 space-y-0 px-4 py-8 text-center'
+            )}
           >
-            增加方向
-          </Button>
-          {plan.directions.length >= 3 && (
-            <p className='text-xs text-muted-foreground'>
-              已达 3 个方向上限，移除后可添加新方向。
-            </p>
-          )}
+            {isEmpty && (
+              <div className='max-w-xs space-y-2'>
+                <h3 className='text-sm font-medium'>尚未选择技术方向</h3>
+                <p className='text-sm leading-6 text-muted-foreground'>
+                  从 AI 对话推荐中选择，或手动添加技术方向
+                </p>
+              </div>
+            )}
+            {plan.directions.map((d, i) => {
+              const patch = (value: Partial<typeof d>) =>
+                update({
+                  ...plan,
+                  directions: plan.directions.map((p, index) =>
+                    index === i ? { ...p, ...value } : p
+                  ),
+                })
+              return (
+                <fieldset
+                  key={d.domain_id}
+                  className='space-y-3 rounded-lg border p-3'
+                >
+                  <div className='flex items-center justify-between gap-3'>
+                    <span className='text-sm font-medium'>
+                      已选方向 {i + 1}
+                    </span>
+                    <Button
+                      type='button'
+                      variant='ghost'
+                      size='sm'
+                      aria-label={`移除：${d.name || `方向 ${i + 1}`}`}
+                      className='text-muted-foreground hover:text-destructive'
+                      onClick={() =>
+                        update({
+                          ...plan,
+                          directions: plan.directions.filter(
+                            (p) => p.domain_id !== d.domain_id
+                          ),
+                        })
+                      }
+                    >
+                      移除
+                    </Button>
+                  </div>
+                  <Label htmlFor={`selected-name-${i}`}>方向名称</Label>
+                  <Input
+                    id={`selected-name-${i}`}
+                    required
+                    maxLength={200}
+                    value={d.name}
+                    onChange={(e) => patch({ name: e.target.value })}
+                  />
+                  <Label htmlFor={`selected-description-${i}`}>方向描述</Label>
+                  <Textarea
+                    id={`selected-description-${i}`}
+                    required
+                    maxLength={2000}
+                    value={d.explanation}
+                    onChange={(e) => patch({ explanation: e.target.value })}
+                  />
+                </fieldset>
+              )
+            })}
+            <Button
+              type='button'
+              variant='outline'
+              className={cn(!isEmpty && 'ml-auto flex w-fit')}
+              disabled={plan.directions.length >= 3}
+              onClick={() =>
+                update({
+                  ...plan,
+                  directions: [
+                    ...plan.directions,
+                    {
+                      domain_id: `direction-${createRequestId()}`,
+                      name: '',
+                      explanation: '',
+                      keywords: [],
+                      excluded_keywords: [],
+                      cpc_prefixes: [],
+                    },
+                  ],
+                })
+              }
+            >
+              {isEmpty && <Plus aria-hidden='true' />}
+              增加方向
+            </Button>
+            {plan.directions.length >= 3 && (
+              <p className='text-xs text-muted-foreground'>
+                已达 3 个方向上限，移除后可添加新方向。
+              </p>
+            )}
+          </div>
         </fieldset>
         <fieldset
           disabled={busy || submitting}

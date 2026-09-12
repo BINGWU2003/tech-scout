@@ -3,11 +3,20 @@ import { Link, useRouterState } from '@tanstack/react-router'
 import {
   ChevronDown,
   ChevronUp,
+  History,
   MessageSquare,
   Plus,
   RefreshCw,
 } from 'lucide-react'
 import { useId, useState } from 'react'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import {
   SidebarGroup,
   SidebarGroupLabel,
@@ -21,7 +30,7 @@ import { resetApiErrors } from '@/lib/api-error-notifications'
 import { researchApi } from '@/lib/research-api'
 import { useResearchClient } from './research-cache'
 
-const RECENT_PROJECT_LIMIT = 8
+const RECENT_PROJECT_LIMIT = 10
 
 export function ResearchNewButton() {
   const { setOpenMobile } = useSidebar()
@@ -57,75 +66,155 @@ export function ResearchSidebar() {
   const visibleProjects = expanded
     ? projects
     : projects.slice(0, RECENT_PROJECT_LIMIT)
+  const isProjectActive = (projectId: string) =>
+    pathname === `/research/${projectId}` ||
+    pathname.startsWith(`/research/${projectId}/`)
+
   return (
-    <SidebarGroup className='min-h-0 flex-1 group-data-[collapsible=icon]:hidden'>
-      <SidebarGroupLabel>研究记录</SidebarGroupLabel>
-      <SidebarGroupContent className='min-h-0 flex-1 overflow-y-auto overscroll-contain'>
-        {query.isPending && (
-          <p
-            role='status'
-            className='px-2 py-3 text-xs group-data-[collapsible=icon]:hidden'
-          >
-            正在读取研究记录…
-          </p>
-        )}
-        {query.isError && (
+    <>
+      <SidebarGroup className='hidden shrink-0 group-data-[collapsible=icon]:flex'>
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <SidebarMenuButton
+                  tooltip='历史记录'
+                  aria-label='历史记录'
+                  isActive={projects.some((project) =>
+                    isProjectActive(project.id)
+                  )}
+                >
+                  <History />
+                  <span>历史记录</span>
+                </SidebarMenuButton>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                side='right'
+                align='start'
+                sideOffset={4}
+                className='w-72 max-w-[calc(100vw-4rem)]'
+              >
+                <DropdownMenuLabel>最近研究</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {query.isPending && (
+                  <p
+                    role='status'
+                    className='px-2 py-3 text-xs text-muted-foreground'
+                  >
+                    正在读取研究记录…
+                  </p>
+                )}
+                {query.isError && (
+                  <DropdownMenuItem
+                    onSelect={(event) => {
+                      event.preventDefault()
+                      resetApiErrors()
+                      void query.refetch()
+                    }}
+                  >
+                    <RefreshCw />
+                    刷新研究记录
+                  </DropdownMenuItem>
+                )}
+                {query.data?.length === 0 && (
+                  <p className='px-2 py-3 text-xs text-muted-foreground'>
+                    开始你的第一项研究
+                  </p>
+                )}
+                {projects.slice(0, RECENT_PROJECT_LIMIT).map((project) => (
+                  <DropdownMenuItem
+                    key={project.id}
+                    asChild
+                    className={
+                      isProjectActive(project.id)
+                        ? 'bg-accent font-medium'
+                        : undefined
+                    }
+                  >
+                    <Link
+                      to='/research/$projectId'
+                      params={{ projectId: project.id }}
+                      title={project.title}
+                      aria-current={
+                        isProjectActive(project.id) ? 'page' : undefined
+                      }
+                    >
+                      <MessageSquare />
+                      <span className='truncate'>{project.title}</span>
+                    </Link>
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarGroup>
+      <SidebarGroup className='min-h-0 flex-1 group-data-[collapsible=icon]:hidden'>
+        <SidebarGroupLabel>研究记录</SidebarGroupLabel>
+        <SidebarGroupContent className='min-h-0 flex-1 overflow-y-auto overscroll-contain'>
+          {query.isPending && (
+            <p
+              role='status'
+              className='px-2 py-3 text-xs group-data-[collapsible=icon]:hidden'
+            >
+              正在读取研究记录…
+            </p>
+          )}
+          {query.isError && (
+            <SidebarMenuButton
+              onClick={() => {
+                resetApiErrors()
+                void query.refetch()
+              }}
+            >
+              <RefreshCw />
+              <span>刷新研究记录</span>
+            </SidebarMenuButton>
+          )}
+          {query.data?.length === 0 && (
+            <p className='px-2 py-3 text-xs text-muted-foreground group-data-[collapsible=icon]:hidden'>
+              开始你的第一项研究
+            </p>
+          )}
+          <SidebarMenu id={listId}>
+            {visibleProjects.map((project) => (
+              <SidebarMenuItem key={project.id}>
+                <SidebarMenuButton
+                  asChild
+                  tooltip={project.title}
+                  isActive={isProjectActive(project.id)}
+                >
+                  <Link
+                    to='/research/$projectId'
+                    params={{ projectId: project.id }}
+                    onClick={() => setOpenMobile(false)}
+                    title={project.title}
+                  >
+                    <MessageSquare />
+                    <span>{project.title}</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            ))}
+          </SidebarMenu>
+          {expanded && projects.length >= 100 && (
+            <p className='px-2 py-3 text-xs text-muted-foreground group-data-[collapsible=icon]:hidden'>
+              显示最近 100 个项目
+            </p>
+          )}
+        </SidebarGroupContent>
+        {projects.length > RECENT_PROJECT_LIMIT && (
           <SidebarMenuButton
-            onClick={() => {
-              resetApiErrors()
-              void query.refetch()
-            }}
+            className='mt-1 shrink-0 text-muted-foreground'
+            aria-expanded={expanded}
+            aria-controls={listId}
+            onClick={() => setExpanded((value) => !value)}
           >
-            <RefreshCw />
-            <span>刷新研究记录</span>
+            {expanded ? <ChevronUp /> : <ChevronDown />}
+            <span>{expanded ? '收起记录' : '展开更多'}</span>
           </SidebarMenuButton>
         )}
-        {query.data?.length === 0 && (
-          <p className='px-2 py-3 text-xs text-muted-foreground group-data-[collapsible=icon]:hidden'>
-            开始你的第一项研究
-          </p>
-        )}
-        <SidebarMenu id={listId}>
-          {visibleProjects.map((project) => (
-            <SidebarMenuItem key={project.id}>
-              <SidebarMenuButton
-                asChild
-                tooltip={project.title}
-                isActive={
-                  pathname === `/research/${project.id}` ||
-                  pathname.startsWith(`/research/${project.id}/`)
-                }
-              >
-                <Link
-                  to='/research/$projectId'
-                  params={{ projectId: project.id }}
-                  onClick={() => setOpenMobile(false)}
-                  title={project.title}
-                >
-                  <MessageSquare />
-                  <span>{project.title}</span>
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          ))}
-        </SidebarMenu>
-        {expanded && projects.length >= 100 && (
-          <p className='px-2 py-3 text-xs text-muted-foreground group-data-[collapsible=icon]:hidden'>
-            显示最近 100 个项目
-          </p>
-        )}
-      </SidebarGroupContent>
-      {projects.length > RECENT_PROJECT_LIMIT && (
-        <SidebarMenuButton
-          className='mt-1 shrink-0 text-muted-foreground'
-          aria-expanded={expanded}
-          aria-controls={listId}
-          onClick={() => setExpanded((value) => !value)}
-        >
-          {expanded ? <ChevronUp /> : <ChevronDown />}
-          <span>{expanded ? '收起记录' : '展开更多'}</span>
-        </SidebarMenuButton>
-      )}
-    </SidebarGroup>
+      </SidebarGroup>
+    </>
   )
 }

@@ -117,7 +117,7 @@ export function ProjectConversation({
                 <div className='mt-3 space-y-3'>
                   {!message.recommendation && (
                     <p>
-                      公开年份：{message.plan.from_year}–{message.plan.to_year}
+                      专利公开年份：{message.plan.from_year}–{message.plan.to_year}
                     </p>
                   )}
                   {message.plan.directions.map((d) => (

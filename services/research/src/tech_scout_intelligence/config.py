@@ -24,7 +24,7 @@ class Settings(BaseSettings):
     research_max_seconds: int = Field(default=300, ge=1, le=3600)
     research_max_requests: int = Field(default=6, ge=1, le=100)
     research_max_cny: float = Field(default=1, gt=0, le=100)
-    research_output_tokens: int = Field(default=4096, ge=128, le=8192)
+    research_output_tokens: int = Field(default=8192, ge=128, le=8192)
     research_input_cny_per_million: float = Field(default=3, gt=0)
     research_output_cny_per_million: float = Field(default=9, gt=0)
     research_model_timeout_seconds: int = Field(default=60, ge=1, le=300)
@@ -45,7 +45,7 @@ class Settings(BaseSettings):
             "output_cny_per_million": self.research_output_cny_per_million,
             "thinking": "conversation-controlled",
             "workflow_version": "browser-v1",
-            "prompt_version": "browser-v1",
+            "prompt_version": "research-advisor-v2",
         }
 
 

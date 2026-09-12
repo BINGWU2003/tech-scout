@@ -12,6 +12,7 @@ from .models import (
     ResearchError,
     SelectedPlan,
 )
+from .prompts import CONVERSATION_PROMPT, DIRECTION_PROMPT
 from .store import validate_decisions, validate_plan
 
 
@@ -401,21 +402,7 @@ def build_graph(llm, store, checkpointer, acquisition):
             response = await llm.generate(
                 run_id,
                 lease,
-                "你是研究对话助手。question 是用户本次请求，conversation 是历史上下文。"
-                "先区分讨论与修改：解释、比较、咨询、含糊请求用 discuss，"
-                "只回复，不更新方向。明确要求重新推荐或换一批方向时，"
-                "用 refresh_candidates，"
-                "updates 给出 1–3 个候选。明确修改某个候选时用 update_candidate，"
-                "只返回该项的完整名称、描述和原 domain_id。"
-                "要求修改已选计划时用 propose_selected，只返回用户指定项的修改，"
-                "删除放在 remove_ids，"
-                "不要加入新方向，不要改变其它项。已选和候选有同名时优先理解为已选；不清楚时先询问。"
-                "只有明确调整年份才设置 from_year/to_year，否则为 null。"
-                "updates/remove_ids 在 discuss 中必须为空。回复用中文，"
-                "JSON 中先输出 reply，再输出其它字段。推荐方向时，reply 用一段简短说明"
-                "概括需求重点、推荐理由，并引出下方方向卡片，不要在正文重复卡片列表。"
-                "修改已选时说明待用户应用，"
-                "不得声称已修改或已开始检索。不要生成专利、公司等未经检索的事实。",
+                CONVERSATION_PROMPT,
                 {
                     "question": state["question"],
                     "conversation": conversation,
@@ -461,14 +448,7 @@ def build_graph(llm, store, checkpointer, acquisition):
         proposal = await llm.generate(
             run_id,
             lease,
-            "将研究需求拆成 1–3 个技术方向，包含唯一 domain_id、名称和范围描述。"
-            "JSON 中先输出 reply，再输出 directions。reply 用一段简短中文说明"
-            "概括需求重点和推荐理由，以自然的句子引出下方方向卡片；"
-            "不要在正文重复卡片列表，不得声称已经检索或验证。"
-            "不生成关键词或检索条件，也不生成公司或专利事实。"
-            "conversation 是历史需求与上一轮计划，继承未修改的要求，"
-            "以本轮 question 为准。"
-            "描述应明确技术范围及用户要求的限制。",
+            DIRECTION_PROMPT,
             {
                 "question": state["question"],
                 "context": state["context"],
