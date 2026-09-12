@@ -578,5 +578,78 @@ describe.skipIf(!enabled)(
       )
       expect(JSON.stringify(started)).not.toContain('source_path')
     })
+
+    it('仅最新推荐提供候选卡片，普通讨论不替换推荐', async () => {
+      const original = await prisma.researchRun.findUniqueOrThrow({
+        where: { id },
+        include: { project: true },
+      })
+      const project = await prisma.researchProject.create({
+        data: {
+          userId: original.project.userId,
+          question: '推荐卡片测试',
+          title: '推荐卡片测试',
+          requestKey: randomUUID(),
+          runs: {
+            create: [
+              {
+                question: '最初推荐',
+                requestKey: randomUUID(),
+                status: 'awaiting_plan',
+                createdAt: new Date('2026-09-12T00:00:00Z'),
+                state: { artifacts: { plan } },
+              },
+              {
+                question: '再推荐一次',
+                requestKey: randomUUID(),
+                status: 'awaiting_plan',
+                createdAt: new Date('2026-09-12T00:00:01Z'),
+                context: { workspace: true },
+                state: {
+                  artifacts: {
+                    plan,
+                    candidate_plan: plan,
+                    reply: '新的推荐',
+                    reply_intent: 'refresh_candidates',
+                  },
+                },
+              },
+              {
+                question: '解释一下',
+                requestKey: randomUUID(),
+                status: 'awaiting_plan',
+                createdAt: new Date('2026-09-12T00:00:02Z'),
+                context: { workspace: true },
+                state: {
+                  artifacts: {
+                    plan,
+                    candidate_plan: plan,
+                    reply: '仅解释',
+                    reply_intent: 'discuss',
+                  },
+                },
+              },
+            ],
+          },
+        },
+      })
+      const response = (
+        await owner
+          .get(`/api/v1/research/ui/projects/${project.id}/workspace`)
+          .expect(200)
+      ).body
+      const recommendations = response.messages.filter(
+        (m: { recommendation?: boolean }) => m.recommendation
+      )
+      expect(recommendations).toHaveLength(2)
+      expect(
+        recommendations.map((m: { outdated: boolean }) => m.outdated)
+      ).toEqual([true, false])
+      expect(
+        response.messages.find((m: { text: string }) => m.text === '仅解释')
+          .plan
+      ).toBeNull()
+      expect(response.selectedPlan.directions).toEqual([])
+    })
   }
 )

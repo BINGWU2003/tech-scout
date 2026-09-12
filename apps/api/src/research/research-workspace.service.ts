@@ -96,6 +96,12 @@ export class ResearchWorkspaceService {
       })
       const applied = rows(ws.changes).some((c) => c.proposalRunId === id)
       const proposal = r.proposal != null
+      const recommendation = Boolean(
+        (r.candidates ?? r.plan) &&
+        !ctx.startSearch &&
+        (!ctx.workspace ||
+          ['refresh_candidates', 'update_candidate'].includes(String(r.intent)))
+      )
       if (r.reply || r.plan || r.confirmed || r.hasResult) {
         messages.push({
           id: `${id}:reply`,
@@ -104,18 +110,21 @@ export class ResearchWorkspaceService {
           text:
             typeof r.reply === 'string'
               ? r.reply
-              : r.confirmed
+              : r.confirmed && !recommendation
                 ? '已确认研究计划。'
                 : 'AI 候选方向已生成，可选择加入研究计划。',
           createdAt,
-          plan: r.proposal
-            ? researchSelectedPlanSchema.parse(r.proposal)
-            : r.confirmed
-              ? researchSelectedPlanSchema.parse(r.confirmed)
-              : r.plan &&
-                  !['discuss', 'propose_selected'].includes(String(r.intent))
-                ? researchSelectedPlanSchema.parse(r.plan)
-                : null,
+          recommendation,
+          plan: recommendation
+            ? researchSelectedPlanSchema.parse(r.candidates ?? r.plan)
+            : r.proposal
+              ? researchSelectedPlanSchema.parse(r.proposal)
+              : r.confirmed
+                ? researchSelectedPlanSchema.parse(r.confirmed)
+                : r.plan &&
+                    !['discuss', 'propose_selected'].includes(String(r.intent))
+                  ? researchSelectedPlanSchema.parse(r.plan)
+                  : null,
           proposal,
           applied,
           outdated: proposal
@@ -125,8 +134,15 @@ export class ResearchWorkspaceService {
         })
       }
     }
+    const latestRecommendation = messages.findLast((m) => m.recommendation)?.id
     for (const message of messages) {
-      if (message.role === 'assistant' && message.plan && !message.proposal) {
+      if (message.recommendation)
+        message.outdated = message.id !== latestRecommendation
+      else if (
+        message.role === 'assistant' &&
+        message.plan &&
+        !message.proposal
+      ) {
         const r = runs.find((r) => r.id === message.runId)
         message.outdated = !same(
           scope(message.plan),

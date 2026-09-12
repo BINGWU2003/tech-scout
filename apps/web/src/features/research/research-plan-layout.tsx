@@ -40,12 +40,12 @@ export function ResearchPlanLayout({
 
   const directionPane = (
     <section
-      aria-label='技术方向'
+      aria-label='已选方向'
       className='flex h-full min-h-0 flex-col overflow-hidden rounded-xl border bg-card'
     >
       <div className='flex shrink-0 items-center gap-2 border-b px-5 py-4'>
         <Shapes className='size-4 text-muted-foreground' aria-hidden='true' />
-        <h2 className='text-sm font-semibold'>技术方向</h2>
+        <h2 className='text-sm font-semibold'>已选方向</h2>
       </div>
       <div className='min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain p-4'>
         {directions}
@@ -105,7 +105,7 @@ export function ResearchPlanLayout({
             aria-pressed={mobilePane === 'directions'}
             onClick={() => setMobilePane('directions')}
           >
-            候选与已选计划
+            已选计划
           </Button>
         </div>
         <div

@@ -7,11 +7,19 @@ export function ProjectConversation({
   projectId,
   busy,
   onApply,
+  onAdd,
+  selectedPlan,
+  dirty = false,
 }: {
   workspace: ResearchWorkspace
   projectId: string
   busy: boolean
   onApply: (id: string) => void
+  onAdd: (
+    direction: ResearchWorkspace['selectedPlan']['directions'][number]
+  ) => void
+  selectedPlan: ResearchWorkspace['selectedPlan']
+  dirty?: boolean
 }) {
   return (
     <div aria-label='研究对话记录' className='space-y-5'>
@@ -38,24 +46,56 @@ export function ProjectConversation({
           </p>
           {message.plan && (
             <details
-              open={message.proposal && !message.outdated && !message.applied}
+              open={
+                (message.recommendation || message.proposal) &&
+                !message.outdated &&
+                !message.applied
+              }
             >
               <summary className='cursor-pointer font-medium'>
-                {message.proposal ? '查看修改建议' : '查看当时的计划'}
+                {message.recommendation
+                  ? 'AI 推荐方向'
+                  : message.proposal
+                    ? '查看修改建议'
+                    : '查看当时的计划'}
               </summary>
               <div className='mt-3 space-y-3'>
-                <p>
-                  公开年份：{message.plan.from_year}–{message.plan.to_year}
-                </p>
+                {!message.recommendation && (
+                  <p>
+                    公开年份：{message.plan.from_year}–{message.plan.to_year}
+                  </p>
+                )}
                 {message.plan.directions.map((d) => (
                   <div key={d.domain_id}>
                     <p className='font-medium'>{d.name}</p>
                     <p className='whitespace-pre-wrap text-muted-foreground'>
                       {d.explanation}
                     </p>
+                    {message.recommendation && !message.outdated && (
+                      <Button
+                        type='button'
+                        size='sm'
+                        variant='outline'
+                        className='mt-2'
+                        disabled={
+                          busy ||
+                          selectedPlan.directions.length >= 3 ||
+                          selectedPlan.directions.some(
+                            (p) => p.domain_id === d.domain_id
+                          )
+                        }
+                        onClick={() => onAdd(d)}
+                      >
+                        {selectedPlan.directions.some(
+                          (p) => p.domain_id === d.domain_id
+                        )
+                          ? '已加入计划'
+                          : `加入计划：${d.name}`}
+                      </Button>
+                    )}
                   </div>
                 ))}
-                {!message.plan.directions.length && (
+                {message.proposal && !message.plan.directions.length && (
                   <p>应用后将移除全部已选方向。</p>
                 )}
               </div>
@@ -65,7 +105,7 @@ export function ProjectConversation({
             <Button
               size='sm'
               variant='outline'
-              disabled={busy || message.applied || message.outdated}
+              disabled={busy || dirty || message.applied || message.outdated}
               onClick={() => onApply(message.runId!)}
             >
               {message.applied

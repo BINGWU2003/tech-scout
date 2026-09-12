@@ -903,7 +903,32 @@ function ProjectWorkspace({
               <ProjectConversation
                 workspace={workspace.data}
                 projectId={projectId}
-                busy={editingBusy || dirty}
+                busy={editingBusy}
+                dirty={dirty}
+                selectedPlan={draft?.plan ?? workspace.data.selectedPlan}
+                onAdd={(direction) => {
+                  const plan = draft?.plan ?? workspace.data!.selectedPlan
+                  if (
+                    editingBusy ||
+                    plan.directions.length >= 3 ||
+                    plan.directions.some(
+                      (d) => d.domain_id === direction.domain_id
+                    )
+                  )
+                    return
+                  editPlan(true, {
+                    ...plan,
+                    directions: [
+                      ...plan.directions,
+                      {
+                        ...direction,
+                        keywords: [],
+                        excluded_keywords: [],
+                        cpc_prefixes: [],
+                      },
+                    ],
+                  })
+                }}
                 onApply={(proposalRunId) =>
                   void updateWorkspace({
                     kind: 'apply_proposal',

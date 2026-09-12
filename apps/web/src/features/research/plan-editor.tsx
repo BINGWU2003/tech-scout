@@ -24,11 +24,10 @@ export function SelectedPlanEditor({
   onDirty: (dirty: boolean, plan?: ResearchWorkspace['selectedPlan']) => void
   initialPlan?: ResearchWorkspace['selectedPlan']
 }) {
-  const [plan, setPlan] = useState(() => initialPlan ?? workspace.selectedPlan)
+  const plan = initialPlan ?? workspace.selectedPlan
   const [error, setError] = useState('')
   const dirty = JSON.stringify(plan) !== JSON.stringify(workspace.selectedPlan)
   const update = (next: typeof plan) => {
-    setPlan(next)
     onDirty(
       JSON.stringify(next) !== JSON.stringify(workspace.selectedPlan),
       next
@@ -50,58 +49,6 @@ export function SelectedPlanEditor({
   }
   return (
     <div className='space-y-5'>
-      <section
-        aria-label='AI 推荐方向'
-        className='space-y-3 rounded-xl border p-4'
-      >
-        <h2 className='font-semibold'>AI 推荐方向</h2>
-        <p className='text-sm text-muted-foreground'>
-          通过对话刷新候选或修改指定方向，已选计划独立保留。
-        </p>
-        {!workspace.candidates?.directions.length && (
-          <p className='text-sm text-muted-foreground'>
-            候选方向生成后会显示在这里。
-          </p>
-        )}
-        {workspace.candidates?.directions.map((d) => {
-          const included = plan.directions.some(
-            (p) => p.domain_id === d.domain_id
-          )
-          return (
-            <article
-              key={d.domain_id}
-              className='space-y-2 rounded-lg bg-muted/40 p-3'
-            >
-              <h3 className='text-sm font-medium'>{d.name}</h3>
-              <p className='text-sm whitespace-pre-wrap text-muted-foreground'>
-                {d.explanation}
-              </p>
-              <Button
-                type='button'
-                size='sm'
-                variant='outline'
-                disabled={busy || included || plan.directions.length >= 3}
-                onClick={() =>
-                  update({
-                    ...plan,
-                    directions: [
-                      ...plan.directions,
-                      {
-                        ...d,
-                        keywords: [],
-                        excluded_keywords: [],
-                        cpc_prefixes: [],
-                      },
-                    ],
-                  })
-                }
-              >
-                {included ? '已加入计划' : `加入计划：${d.name}`}
-              </Button>
-            </article>
-          )
-        })}
-      </section>
       <form
         onSubmit={(e) => {
           e.preventDefault()
@@ -119,7 +66,7 @@ export function SelectedPlanEditor({
         <fieldset disabled={busy} className='space-y-4'>
           {!plan.directions.length && (
             <p className='text-sm text-muted-foreground'>
-              从候选方向加入，或手工增加方向。
+              从 AI 对话中的推荐加入，或手工增加方向。
             </p>
           )}
           {plan.directions.map((d, i) => {

@@ -186,6 +186,7 @@ export const researchConversationMessageSchema = z.object({
   createdAt: z.string(),
   plan: researchSelectedPlanSchema.nullable(),
   proposal: z.boolean().default(false),
+  recommendation: z.boolean().optional(),
   applied: z.boolean().default(false),
   outdated: z.boolean().default(false),
   hasResult: z.boolean().default(false),

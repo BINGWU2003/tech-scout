@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { expect, it, vi } from 'vitest'
 import { render } from 'vitest-browser-react'
 import { SelectedPlanEditor } from './plan-editor'
+import { ProjectConversation } from './project-conversation'
 
 const direction = (id: string) => ({
   domain_id: id,
@@ -34,26 +35,30 @@ it('候选刷新保留已选和未保存编辑，保存后才能检索', async (
   const save = vi.fn(),
     start = vi.fn(),
     dirty = vi.fn()
-  const screen = await render(
-    <SelectedPlanEditor
-      workspace={initial}
-      busy={false}
-      onSave={save}
-      onStart={start}
-      onDirty={dirty}
-    />
-  )
+  function Editor({ workspace }: { workspace: ResearchWorkspace }) {
+    const [draft, setDraft] = useState<ResearchWorkspace['selectedPlan']>()
+    return (
+      <SelectedPlanEditor
+        workspace={workspace}
+        initialPlan={draft}
+        busy={false}
+        onSave={save}
+        onStart={start}
+        onDirty={(changed, plan) => {
+          dirty(changed)
+          setDraft(changed ? plan : undefined)
+        }}
+      />
+    )
+  }
+  const screen = await render(<Editor workspace={initial} />)
   await screen.getByRole('textbox', { name: '方向描述' }).fill('我修改的描述')
   await screen.rerender(
-    <SelectedPlanEditor
+    <Editor
       workspace={{
         ...initial,
         candidates: { ...plan, directions: [direction('刷新候选')] },
       }}
-      busy={false}
-      onSave={save}
-      onStart={start}
-      onDirty={dirty}
     />
   )
   await expect
@@ -79,25 +84,60 @@ it('候选加入与删除由保存提交，空计划不能执行', async () => {
     start = vi.fn()
   function Editor() {
     const [workspace, setWorkspace] = useState(initial)
+    const [draft, setDraft] = useState<ResearchWorkspace['selectedPlan']>()
+    const selected = draft ?? workspace.selectedPlan
+    const message = (id: string, outdated: boolean) => ({
+      id,
+      runId: null,
+      role: 'assistant' as const,
+      text: '推荐方向',
+      createdAt: '2026-09-12T00:00:00Z',
+      plan: workspace.candidates,
+      recommendation: true,
+      proposal: false,
+      applied: false,
+      outdated,
+      hasResult: false,
+    })
     return (
-      <SelectedPlanEditor
-        key={workspace.revision}
-        workspace={workspace}
-        busy={false}
-        onDirty={() => {}}
-        onStart={start}
-        onSave={async (plan) => {
-          save(plan)
-          setWorkspace({
+      <>
+        <ProjectConversation
+          workspace={{
             ...workspace,
-            selectedPlan: plan,
-            revision: workspace.revision + 1,
-          })
-        }}
-      />
+            messages: [message('old', true), message('latest', false)],
+          }}
+          projectId={crypto.randomUUID()}
+          busy={false}
+          selectedPlan={selected}
+          onApply={() => {}}
+          onAdd={(d) =>
+            setDraft({ ...selected, directions: [...selected.directions, d] })
+          }
+        />
+        <SelectedPlanEditor
+          initialPlan={draft}
+          key={workspace.revision}
+          workspace={workspace}
+          busy={false}
+          onDirty={(changed, plan) => setDraft(changed ? plan : undefined)}
+          onStart={start}
+          onSave={async (plan) => {
+            save(plan)
+            setDraft(undefined)
+            setWorkspace({
+              ...workspace,
+              selectedPlan: plan,
+              revision: workspace.revision + 1,
+            })
+          }}
+        />
+      </>
     )
   }
   const screen = await render(<Editor />)
+  expect(
+    screen.getByRole('button', { name: '加入计划：候选方向' }).all()
+  ).toHaveLength(1)
   await screen.getByRole('button', { name: '加入计划：候选方向' }).click()
   expect(save).not.toHaveBeenCalled()
   await screen.getByRole('button', { name: '保存调整', exact: true }).click()
