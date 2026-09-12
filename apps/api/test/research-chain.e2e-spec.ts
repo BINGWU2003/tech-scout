@@ -51,7 +51,7 @@ describeChain(
         .post('/api/v1/research/projects')
         .set('Origin', 'http://localhost:5173')
         .set('x-csrf-token', csrf)
-        .send({ requestKey: randomUUID(), question })
+        .send({ thinking: true, requestKey: randomUUID(), question })
         .expect(201)
       return { agent, csrf, id: project.body.runs[0].id }
     }

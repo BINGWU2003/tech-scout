@@ -3,6 +3,7 @@ import {
   researchPlanSchema,
   researchSummaryViewSchema,
   researchProcessSchema,
+  researchReasoningSchema,
   type ResearchViewQuery,
 } from '@tech-scout/contracts'
 import { PrismaService } from '../database/prisma.service.js'
@@ -189,6 +190,7 @@ export class ResearchViewService {
         node: string | null
         error: unknown
         process: unknown
+        reasoning: unknown
         acquisition: unknown
       }>
     >(Prisma.sql`
@@ -197,16 +199,30 @@ export class ResearchViewService {
         CASE WHEN e.kind IN ('planner_progress', 'search_progress')
           THEN e.data #> '{artifacts,process}' END AS process,
         CASE WHEN e.kind = 'acquisition_progress'
-          THEN e.data #> '{artifacts,acquisition}' END AS acquisition
+          THEN e.data #> '{artifacts,acquisition}' END AS acquisition,
+        CASE WHEN e.kind = 'reasoning_progress' OR e.data->>'status' NOT IN ('queued', 'running')
+          THEN e.data #> '{artifacts,reasoning}' END AS reasoning
       FROM app.research_event e WHERE e.run_id = ${id}::uuid AND e.sequence > ${after}
       ORDER BY e.sequence ASC LIMIT 100`)
-    return events.map((event) => ({
-      ...event,
-      process: researchProcessSchema.safeParse(event.process).data ?? null,
-      acquisition:
-        researchSummaryViewSchema.shape.acquisition.safeParse(event.acquisition)
-          .data ?? null,
-    }))
+    return events.map((event) => {
+      const reasoning =
+        researchReasoningSchema.nullable().parse(event.reasoning)
+      if (
+        reasoning &&
+        !['queued', 'running'].includes(event.status) &&
+        ['thinking', 'answering'].includes(reasoning.status)
+      )
+        reasoning.status = 'interrupted'
+      return {
+        ...event,
+        reasoning,
+        process: researchProcessSchema.safeParse(event.process).data ?? null,
+        acquisition:
+          researchSummaryViewSchema.shape.acquisition.safeParse(
+            event.acquisition
+          ).data ?? null,
+      }
+    })
   }
 
   private async artifacts(userId: string, id: string) {

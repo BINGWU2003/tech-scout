@@ -70,6 +70,7 @@ it('完成后折叠过程，展开仍能回看超过 100 条的最早检索记�
   const events = Array.from({ length: 120 }, (_, i) => ({
     sequence: i + 1,
     kind: 'search_progress',
+    reasoning: null,
     createdAt: '2026-09-10T01:00:00Z',
     status: 'running' as const,
     node: 'snapshot',
@@ -191,6 +192,8 @@ it('工作台从左侧切换项目，确认前追问保留上下文，并在手�
       id: run.id,
       runId: run.id,
       role: 'user' as const,
+      reasoning: null,
+      pending: false,
       text: run.question,
       createdAt: now,
       plan: null,
@@ -203,6 +206,10 @@ it('工作台从左侧切换项目，确认前追问保留上下文，并在手�
   const workspaceAction = vi
     .spyOn(researchApi, 'workspaceAction')
     .mockImplementation(async (_id, input) => {
+      if (input.kind === 'save_plan') {
+        workspace.selectedPlan = input.plan
+        workspace.revision += 1
+      }
       if (input.kind === 'start_search') {
         advanced = true
         workspace.activeRunId = secondId
@@ -229,6 +236,7 @@ it('工作台从左侧切换项目，确认前追问保留上下文，并在手�
     {
       sequence: 1,
       kind: 'planner_progress',
+      reasoning: null,
       createdAt: now,
       status: 'running',
       node: 'planner',
@@ -297,20 +305,36 @@ it('工作台从左侧切换项目，确认前追问保留上下文，并在手�
     .getByRole('link', { name: '固态电池技术研究', exact: true })
     .click()
   await expect
-    .element(screen.getByRole('button', { name: '确认计划并开始检索' }))
+    .element(screen.getByRole('button', { name: '开始研究' }))
     .toBeVisible()
   expect(action).not.toHaveBeenCalled()
   await page.screenshot({ path: '__screenshots__/research-desktop.png' })
+  await screen.getByRole('textbox', { name: '方向描述' }).fill('修改后的范围')
+  await screen.getByRole('button', { name: '深度思考' }).click()
   await screen.getByRole('textbox', { name: '继续研究' }).fill('只看近五年')
   await screen.getByRole('button', { name: '发送研究需求' }).click()
   await expect.poll(() => followup.mock.calls.length).toBe(1)
   expect(followup.mock.calls[0]).toEqual([
     projectId,
-    expect.objectContaining({ question: '只看近五年', parentRunId: firstId }),
+    expect.objectContaining({
+      question: '只看近五年',
+      parentRunId: firstId,
+      thinking: false,
+    }),
   ])
   await expect
     .element(screen.getByRole('combobox', { name: '研究轮次' }))
     .not.toBeInTheDocument()
+  expect(workspaceAction).toHaveBeenCalledWith(
+    projectId,
+    expect.objectContaining({
+      kind: 'save_plan',
+      revision: 0,
+      plan: expect.objectContaining({
+        directions: [expect.objectContaining({ explanation: '修改后的范围' })],
+      }),
+    })
+  )
   expect(router.state.location.pathname).toBe(`/research/${projectId}/plan`)
   await page.viewport(390, 844)
   await expect
@@ -324,15 +348,20 @@ it('工作台从左侧切换项目，确认前追问保留上下文，并在手�
   expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(390)
   await page.screenshot({ path: '__screenshots__/research-mobile.png' })
   await page.viewport(1280, 900)
-  await screen.getByRole('button', { name: '确认计划并开始检索' }).click()
+  await screen.getByRole('textbox', { name: '方向描述' }).fill('最终检索范围')
+  await screen.getByRole('button', { name: '保存并开始研究' }).click()
   await expect
     .element(screen.getByRole('heading', { name: '专利检索', exact: true }))
     .toBeVisible()
+  expect(workspaceAction).toHaveBeenLastCalledWith(
+    projectId,
+    expect.objectContaining({ kind: 'start_search', revision: 2 })
+  )
   expect(router.state.location.pathname).toBe(`/research/${projectId}/patents`)
   await expect
     .element(screen.getByRole('button', { name: '开始企业发现 →' }))
     .toBeVisible()
-  expect(workspaceAction).toHaveBeenCalledOnce()
+  expect(workspaceAction).toHaveBeenCalledTimes(3)
   await expect
     .element(screen.getByRole('textbox', { name: '继续研究' }))
     .not.toBeInTheDocument()
@@ -341,13 +370,13 @@ it('工作台从左侧切换项目，确认前追问保留上下文，并在手�
     .not.toBeInTheDocument()
   await page.screenshot({ path: '__screenshots__/research-patents.png' })
   await screen.getByRole('link', { name: '3. 企业发现与核验' }).click()
-  expect(workspaceAction).toHaveBeenCalledOnce()
+  expect(workspaceAction).toHaveBeenCalledTimes(3)
   await expect
     .element(screen.getByText('请先在专利检索页点击“开始企业发现”。'))
     .toBeVisible()
   await screen.getByRole('link', { name: '1. 技术方向与计划' }).click()
   await expect
-    .element(screen.getByRole('button', { name: '确认计划并开始检索' }))
+    .element(screen.getByRole('button', { name: '开始研究' }))
     .toBeVisible()
   // A fresh route mount uses the address, without resetting to the current execution stage.
   await router.navigate({

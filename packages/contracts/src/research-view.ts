@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import {
   researchPlanSchema,
+  researchReasoningSchema,
   researchStateSchema,
   researchStatusSchema,
 } from './research.js'
@@ -87,6 +88,7 @@ export const researchProgressViewSchema = z.object({
   node: z.string().nullable(),
   error: researchStateSchema.shape.error,
   process: researchProcessSchema.nullable().optional(),
+  reasoning: researchReasoningSchema.nullable(),
   acquisition: researchSummaryViewSchema.shape.acquisition.optional(),
 })
 export const researchCompanyViewSchema = z.object({

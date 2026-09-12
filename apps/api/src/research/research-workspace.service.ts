@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common'
 import {
   researchWorkspaceSchema,
+  researchReasoningSchema,
   researchSelectedPlanSchema,
   type ResearchWorkspaceAction,
   type ResearchWorkspace,
@@ -64,6 +65,7 @@ export class ResearchWorkspaceService {
         state #> '{artifacts,candidate_plan}' AS candidates,
         state #> '{artifacts,confirmed_plan}' AS confirmed,
         state #> '{artifacts,reply}' AS reply,
+        state #> '{artifacts,reasoning}' AS reasoning,
         state #>> '{artifacts,reply_intent}' AS intent,
         state #> '{artifacts,proposal_plan}' AS proposal,
         state #> '{artifacts,result}' IS NOT NULL AS "hasResult"
@@ -86,6 +88,8 @@ export class ResearchWorkspaceService {
         id: `${id}:question`,
         runId: id,
         role: 'user',
+        reasoning: null,
+        pending: false,
         text: String(r.question),
         createdAt,
         plan: null,
@@ -102,17 +106,42 @@ export class ResearchWorkspaceService {
         (!ctx.workspace ||
           ['refresh_candidates', 'update_candidate'].includes(String(r.intent)))
       )
-      if (r.reply || r.plan || r.confirmed || r.hasResult) {
+      const pending =
+        !ctx.startSearch &&
+        !r.reply &&
+        !r.plan &&
+        ['queued', 'running'].includes(String(r.status))
+      const reasoning = researchReasoningSchema.nullable().parse(r.reasoning)
+      if (
+        reasoning &&
+        !['queued', 'running'].includes(String(r.status)) &&
+        ['thinking', 'answering'].includes(reasoning.status)
+      )
+        reasoning.status = 'interrupted'
+      if (
+        r.reply ||
+        r.plan ||
+        r.confirmed ||
+        r.hasResult ||
+        pending ||
+        reasoning
+      ) {
         messages.push({
           id: `${id}:reply`,
           runId: id,
           role: 'assistant',
+          reasoning,
+          pending,
           text:
             typeof r.reply === 'string'
               ? r.reply
               : r.confirmed && !recommendation
                 ? '已确认研究计划。'
-                : 'AI 候选方向已生成，可选择加入研究计划。',
+                : r.plan
+                  ? 'AI 候选方向已生成，可选择加入研究计划。'
+                  : pending
+                    ? ''
+                    : '本次回复未完成，可重试。',
           createdAt,
           recommendation,
           plan: recommendation
@@ -155,6 +184,8 @@ export class ResearchWorkspaceService {
         id: String(change.id),
         runId: null,
         role: 'user',
+        reasoning: null,
+        pending: false,
         text: String(change.text),
         createdAt: String(change.createdAt),
         plan: researchSelectedPlanSchema.parse(change.plan),
@@ -181,6 +212,8 @@ export class ResearchWorkspaceService {
         id: command.id,
         runId: command.runId,
         role: 'user',
+        reasoning: null,
+        pending: false,
         text: labels[String(payload.kind)] ?? '已调整研究。',
         createdAt: command.createdAt.toISOString(),
         plan: payload.plan
@@ -228,6 +261,7 @@ export class ResearchWorkspaceService {
         projectId,
         {
           question: '确认已选研究计划并开始检索',
+          thinking: false,
           requestKey: input.requestKey,
         },
         input.revision

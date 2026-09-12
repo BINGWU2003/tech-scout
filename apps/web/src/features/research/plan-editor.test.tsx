@@ -31,7 +31,7 @@ const initial: ResearchWorkspace = {
   blocked: false,
 }
 
-it('候选刷新保留已选和未保存编辑，保存后才能检索', async () => {
+it('候选刷新保留未保存编辑，可直接保存或开始研究', async () => {
   const save = vi.fn(),
     start = vi.fn(),
     dirty = vi.fn()
@@ -68,8 +68,8 @@ it('候选刷新保留已选和未保存编辑，保存后才能检索', async (
     .element(screen.getByRole('textbox', { name: '方向描述' }))
     .toHaveValue('我修改的描述')
   await expect
-    .element(screen.getByRole('button', { name: '确认计划并开始检索' }))
-    .toBeDisabled()
+    .element(screen.getByRole('button', { name: '保存并开始研究' }))
+    .toBeEnabled()
   await screen.getByRole('button', { name: '保存调整', exact: true }).click()
   expect(save).toHaveBeenCalledWith(
     expect.objectContaining({
@@ -90,6 +90,8 @@ it('候选加入与删除由保存提交，空计划不能执行', async () => {
       id,
       runId: null,
       role: 'assistant' as const,
+      reasoning: null,
+      pending: false,
       text: '推荐方向',
       createdAt: '2026-09-12T00:00:00Z',
       plan: workspace.candidates,
@@ -148,7 +150,7 @@ it('候选加入与删除由保存提交，空计划不能执行', async () => {
   await screen.getByRole('button', { name: '移除：候选方向' }).click()
   await screen.getByRole('button', { name: '保存调整', exact: true }).click()
   await expect
-    .element(screen.getByRole('button', { name: '确认计划并开始检索' }))
+    .element(screen.getByRole('button', { name: '开始研究' }))
     .toBeDisabled()
   expect(save.mock.lastCall?.[0].directions).toEqual([])
 })

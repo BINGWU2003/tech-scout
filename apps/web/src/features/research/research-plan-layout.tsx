@@ -47,9 +47,7 @@ export function ResearchPlanLayout({
         <Shapes className='size-4 text-muted-foreground' aria-hidden='true' />
         <h2 className='text-sm font-semibold'>已选方向</h2>
       </div>
-      <div className='min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain p-4'>
-        {directions}
-      </div>
+      <div className='min-h-0 flex-1 overflow-hidden'>{directions}</div>
     </section>
   )
   const conversationPane = (

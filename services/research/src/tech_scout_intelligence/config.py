@@ -46,7 +46,7 @@ class Settings(BaseSettings):
             "timeout_seconds": self.research_model_timeout_seconds,
             "input_cny_per_million": self.research_input_cny_per_million,
             "output_cny_per_million": self.research_output_cny_per_million,
-            "thinking": "disabled",
+            "thinking": "conversation-controlled",
             "workflow_version": "browser-v1",
             "prompt_version": "browser-v1",
         }

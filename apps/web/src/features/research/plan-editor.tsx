@@ -3,7 +3,7 @@ import {
   type ResearchWorkspace,
 } from '@tech-scout/contracts'
 import { createRequestId } from '@tech-scout/shared'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -20,12 +20,14 @@ export function SelectedPlanEditor({
   workspace: ResearchWorkspace
   busy: boolean
   onSave: (plan: ResearchWorkspace['selectedPlan']) => Promise<unknown>
-  onStart: () => void
+  onStart: (plan: ResearchWorkspace['selectedPlan']) => Promise<unknown> | void
   onDirty: (dirty: boolean, plan?: ResearchWorkspace['selectedPlan']) => void
   initialPlan?: ResearchWorkspace['selectedPlan']
 }) {
   const plan = initialPlan ?? workspace.selectedPlan
   const [error, setError] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const sending = useRef(false)
   const dirty = JSON.stringify(plan) !== JSON.stringify(workspace.selectedPlan)
   const update = (next: typeof plan) => {
     onDirty(
@@ -33,37 +35,43 @@ export function SelectedPlanEditor({
       next
     )
   }
-  const save = async () => {
+  const save = async (start = false) => {
+    if (busy || sending.current) return
     const parsed = researchSelectedPlanSchema.safeParse(plan)
     if (!parsed.success || plan.directions.some((d) => !d.explanation.trim())) {
       setError('请检查研究计划，并填写有效的方向名称和描述。')
       return
     }
     setError('')
+    sending.current = true
+    setSubmitting(true)
     try {
-      await onSave(parsed.data)
-      onDirty(false)
+      if (start) await onStart(parsed.data)
+      else await onSave(parsed.data)
     } catch {
       /* Parent displays the request error. */
+    } finally {
+      sending.current = false
+      setSubmitting(false)
     }
   }
   return (
-    <div className='space-y-5'>
+    <div className='flex h-full min-h-0 flex-col'>
       <form
         onSubmit={(e) => {
           e.preventDefault()
           void save()
         }}
-        className='space-y-4 rounded-xl border p-4'
+        className='flex min-h-0 flex-1 flex-col'
         aria-label='已选研究计划'
       >
-        <div>
-          <h2 className='font-semibold'>已选研究计划</h2>
-          <p className='mt-1 text-sm text-muted-foreground'>
-            最多选择 3 个方向。保存调整后，确认计划才会开始检索。
+        <fieldset
+          disabled={busy || submitting}
+          className='min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain p-4'
+        >
+          <p className='text-sm text-muted-foreground'>
+            已选 {plan.directions.length} / 3 个方向 · 确认后开始检索
           </p>
-        </div>
-        <fieldset disabled={busy} className='space-y-4'>
           {!plan.directions.length && (
             <p className='text-sm text-muted-foreground'>
               从 AI 对话中的推荐加入，或手工增加方向。
@@ -82,7 +90,26 @@ export function SelectedPlanEditor({
                 key={d.domain_id}
                 className='space-y-3 rounded-lg border p-3'
               >
-                <legend className='px-1 text-sm'>已选方向 {i + 1}</legend>
+                <div className='flex items-center justify-between gap-3'>
+                  <span className='text-sm font-medium'>已选方向 {i + 1}</span>
+                  <Button
+                    type='button'
+                    variant='ghost'
+                    size='sm'
+                    aria-label={`移除：${d.name || `方向 ${i + 1}`}`}
+                    className='text-muted-foreground hover:text-destructive'
+                    onClick={() =>
+                      update({
+                        ...plan,
+                        directions: plan.directions.filter(
+                          (p) => p.domain_id !== d.domain_id
+                        ),
+                      })
+                    }
+                  >
+                    移除
+                  </Button>
+                </div>
                 <Label htmlFor={`selected-name-${i}`}>方向名称</Label>
                 <Input
                   id={`selected-name-${i}`}
@@ -99,21 +126,6 @@ export function SelectedPlanEditor({
                   value={d.explanation}
                   onChange={(e) => patch({ explanation: e.target.value })}
                 />
-                <Button
-                  type='button'
-                  variant='ghost'
-                  size='sm'
-                  onClick={() =>
-                    update({
-                      ...plan,
-                      directions: plan.directions.filter(
-                        (p) => p.domain_id !== d.domain_id
-                      ),
-                    })
-                  }
-                >
-                  移除：{d.name || `方向 ${i + 1}`}
-                </Button>
               </fieldset>
             )
           })}
@@ -140,6 +152,16 @@ export function SelectedPlanEditor({
           >
             增加方向
           </Button>
+          {plan.directions.length >= 3 && (
+            <p className='text-xs text-muted-foreground'>
+              已达 3 个方向上限，移除后可添加新方向。
+            </p>
+          )}
+        </fieldset>
+        <fieldset
+          disabled={busy || submitting}
+          className='shrink-0 space-y-3 border-t bg-background p-4'
+        >
           {error && (
             <p role='alert' className='text-sm text-destructive'>
               {error}
@@ -147,28 +169,31 @@ export function SelectedPlanEditor({
           )}
           {dirty && (
             <p className='text-sm text-muted-foreground'>
-              有未保存调整，请保存后继续对话或检索。
+              有未保存调整，开始研究或发送消息时将自动保存。
             </p>
           )}
-          <div className='flex flex-wrap gap-2'>
+          <div className='flex flex-wrap items-center gap-2'>
             {dirty && (
               <Button
                 type='button'
                 variant='ghost'
                 onClick={() => update(workspace.selectedPlan)}
               >
-                撤销未保存调整
+                撤销调整
               </Button>
             )}
-            <Button type='submit' variant='outline' disabled={!dirty}>
-              保存调整
-            </Button>
+            {dirty && (
+              <Button type='submit' variant='outline'>
+                保存调整
+              </Button>
+            )}
             <Button
               type='button'
-              disabled={dirty || !plan.directions.length}
-              onClick={onStart}
+              className='ml-auto'
+              disabled={!plan.directions.length}
+              onClick={() => void save(true)}
             >
-              确认计划并开始检索
+              {submitting ? '正在提交…' : dirty ? '保存并开始研究' : '开始研究'}
             </Button>
           </div>
         </fieldset>

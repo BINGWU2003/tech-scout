@@ -15,7 +15,12 @@ const stages: Record<string, string> = {
   companies: '查询企业',
   snapshot: '保存研究快照',
 }
-const hidden = new Set(['model_reserved', 'model_usage', 'execution_stopped'])
+const hidden = new Set([
+  'model_reserved',
+  'model_usage',
+  'execution_stopped',
+  'reasoning_progress',
+])
 
 export function ResearchTimeline({
   events,

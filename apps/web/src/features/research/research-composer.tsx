@@ -1,4 +1,4 @@
-import { ArrowUp, LoaderCircle } from 'lucide-react'
+import { ArrowUp, Brain, LoaderCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 
@@ -10,6 +10,9 @@ export function ResearchComposer({
   blocked,
   blockedReason,
   followUp = false,
+  thinking = true,
+  onThinkingChange,
+  autoSave = false,
 }: {
   value: string
   onChange: (value: string) => void
@@ -18,6 +21,9 @@ export function ResearchComposer({
   blocked?: boolean
   blockedReason?: string
   followUp?: boolean
+  thinking?: boolean
+  onThinkingChange?: (value: boolean) => void
+  autoSave?: boolean
 }) {
   return (
     <form
@@ -54,12 +60,28 @@ export function ResearchComposer({
           }}
         />
         <div className='flex items-center justify-between gap-3 px-1'>
-          <span className='text-xs text-muted-foreground'>
+          {onThinkingChange && (
+            <Button
+              type='button'
+              size='sm'
+              variant={thinking ? 'secondary' : 'ghost'}
+              className='rounded-full'
+              aria-pressed={thinking}
+              disabled={busy}
+              onClick={() => onThinkingChange(!thinking)}
+            >
+              <Brain className='size-4' aria-hidden='true' />
+              深度思考
+            </Button>
+          )}
+          <span className='hidden flex-1 text-xs text-muted-foreground sm:inline'>
             {blocked
               ? (blockedReason ?? '研究执行中，可先编辑；结束或停止后发送')
-              : followUp
-                ? '延续当前研究 · 确认计划后开始检索'
-                : '先生成技术方向，再由你确认检索'}
+              : autoSave
+                ? '发送时自动保存计划调整'
+                : followUp
+                  ? '延续当前研究 · 确认计划后开始检索'
+                  : '先生成技术方向，再由你确认检索'}
           </span>
           <Button
             type='submit'

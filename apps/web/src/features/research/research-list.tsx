@@ -10,16 +10,19 @@ import { ResearchShell } from './shared'
 
 export function ResearchList() {
   const [question, setQuestion] = useState('')
+  const [thinking, setThinking] = useState(true)
   const key = useRef({ question: '', id: createRequestId() })
   const navigate = useNavigate(),
     client = useQueryClient()
   const create = useMutation({
     mutationFn: () => {
-      if (key.current.question !== question.trim())
-        key.current = { question: question.trim(), id: createRequestId() }
+      const signature = JSON.stringify([question.trim(), thinking])
+      if (key.current.question !== signature)
+        key.current = { question: signature, id: createRequestId() }
       return researchApi.create({
         requestKey: key.current.id,
         question: question.trim(),
+        thinking,
       })
     },
     onSuccess: (project) => {
@@ -38,6 +41,8 @@ export function ResearchList() {
           onChange={setQuestion}
           onSubmit={() => create.mutate()}
           busy={create.isPending}
+          thinking={thinking}
+          onThinkingChange={setThinking}
         />
       }
     >

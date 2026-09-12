@@ -25,6 +25,7 @@ export const researchCreateSchema = z
     requestKey: z.uuid(),
     question: z.string().trim().min(1).max(2000),
     parentRunId: z.uuid().optional(),
+    thinking: z.boolean(),
   })
   .strict()
 export const researchActionSchema = z
@@ -178,11 +179,22 @@ export const researchWorkspaceActionSchema = z.discriminatedUnion('kind', [
     })
     .strict(),
 ])
+export const researchReasoningSchema = z.object({
+  id: z.uuid(),
+  status: z.enum(['thinking', 'answering', 'completed', 'interrupted']),
+  text: z.string().max(64000),
+  startedAt: z.string(),
+  durationMs: z.number().nonnegative(),
+  truncated: z.boolean(),
+})
+export type ResearchReasoning = z.infer<typeof researchReasoningSchema>
 export const researchConversationMessageSchema = z.object({
   id: z.string(),
   runId: z.uuid().nullable(),
   role: z.enum(['user', 'assistant']),
   text: z.string(),
+  reasoning: researchReasoningSchema.nullable(),
+  pending: z.boolean(),
   createdAt: z.string(),
   plan: researchSelectedPlanSchema.nullable(),
   proposal: z.boolean().default(false),

@@ -62,7 +62,11 @@ export class ResearchService implements OnModuleInit, OnModuleDestroy {
           question: input.question,
           title: input.question.slice(0, 200),
           runs: {
-            create: { question: input.question, requestKey: input.requestKey },
+            create: {
+              question: input.question,
+              requestKey: input.requestKey,
+              context: { thinking: input.thinking },
+            },
           },
         },
         include: { runs: { orderBy: { createdAt: 'asc' } } },
@@ -80,7 +84,11 @@ export class ResearchService implements OnModuleInit, OnModuleDestroy {
           include: { runs: { orderBy: { createdAt: 'asc' } } },
         })
       })
-    if (project.question !== input.question)
+    if (
+      project.question !== input.question ||
+      object(project.runs[0].context).thinking !==
+        (input.thinking)
+    )
       throw new ConflictException({
         code: 'IDEMPOTENCY_CONFLICT',
         message: '请求键已用于不同问题',
@@ -146,6 +154,8 @@ export class ResearchService implements OnModuleInit, OnModuleDestroy {
       if (existing) {
         if (
           existing.question !== input.question ||
+          object(existing.context).thinking !==
+            (input.thinking) ||
           Boolean(object(existing.context).startSearch) !==
             (searchRevision !== undefined) ||
           (searchRevision !== undefined &&
@@ -212,6 +222,7 @@ export class ResearchService implements OnModuleInit, OnModuleDestroy {
           question: input.question,
           context: json({
             workspace: true,
+            thinking: input.thinking,
             selectedPlan: selected,
             selectedRevision: revision(workspace),
             messages: messages.reverse(),

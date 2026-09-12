@@ -1,9 +1,24 @@
+import asyncio
 import json
+import time
+from contextlib import suppress
+from datetime import UTC, datetime
+from typing import Any, TypedDict
+from uuid import uuid4
 
 from openai import AsyncOpenAI
 from pydantic import ValidationError
 
-from .models import ResearchError
+from .models import ConversationReply, DirectionProposal, ResearchError
+
+
+class Reasoning(TypedDict):
+    id: str
+    status: str
+    text: str
+    startedAt: str
+    durationMs: int
+    truncated: bool
 
 
 class DeepSeek:
@@ -35,6 +50,31 @@ class DeepSeek:
             + policy["output_tokens"] * policy["output_cny_per_million"]
         ) / 1_000_000
         await self.store.reserve(run_id, lease, reservation)
+        visible = schema in (ConversationReply, DirectionProposal)
+        thinking = visible and state.artifacts["conversation"]["thinking"]
+        started = time.monotonic()
+        reasoning: Reasoning = {
+            "id": str(uuid4()),
+            "status": "thinking" if thinking else "answering",
+            "text": "",
+            "startedAt": datetime.now(UTC).isoformat(),
+            "durationMs": 0,
+            "truncated": False,
+        }
+
+        async def publish(status):
+            reasoning["status"] = status
+            reasoning["durationMs"] = round((time.monotonic() - started) * 1000)
+            current = await self.store.get(run_id)
+            await self.store.publish(
+                run_id,
+                lease=lease,
+                kind="reasoning_progress",
+                artifacts={**current.artifacts, "reasoning": dict(reasoning)},
+            )
+
+        if thinking:
+            await publish(reasoning["status"])
         try:
             async with AsyncOpenAI(
                 api_key=key,
@@ -42,24 +82,90 @@ class DeepSeek:
                 max_retries=0,
                 timeout=policy["timeout_seconds"],
             ) as client:
-                response = await client.chat.completions.create(
+                options: dict[str, Any] = dict(
                     model=policy["model"],
                     messages=messages,
                     response_format={"type": "json_object"},
                     max_tokens=policy["output_tokens"],
-                    extra_body={"thinking": {"type": "disabled"}},
+                    extra_body={
+                        "thinking": {"type": "enabled" if thinking else "disabled"}
+                    },
                 )
-        except Exception as exc:
+                if visible:
+                    content = ""
+                    finish_reason = None
+                    last_publish = time.monotonic()
+                    stream = await client.chat.completions.create(
+                        **options,
+                        stream=True,
+                        stream_options={"include_usage": True},
+                    )
+                    async with stream:
+                        async for chunk in stream:
+                            if chunk.usage:
+                                await self.store.usage(
+                                    run_id, lease, chunk.usage, chunk.model
+                                )
+                            if not chunk.choices:
+                                continue
+                            choice = chunk.choices[0]
+                            delta = choice.delta
+                            text = getattr(delta, "reasoning_content", None)
+                            changed = False
+                            first_reasoning = not reasoning["text"]
+                            if thinking and isinstance(text, str) and text:
+                                combined = reasoning["text"] + text
+                                reasoning["truncated"] |= len(combined) > 64000
+                                reasoning["text"] = combined[:64000]
+                                changed = True
+                            if delta.content:
+                                content += delta.content
+                                if reasoning["status"] == "thinking":
+                                    await publish("answering")
+                                    last_publish = time.monotonic()
+                            if changed and (
+                                first_reasoning
+                                or time.monotonic() - last_publish >= 0.5
+                            ):
+                                await publish(reasoning["status"])
+                                last_publish = time.monotonic()
+                            if choice.finish_reason:
+                                finish_reason = choice.finish_reason
+                else:
+                    response = await client.chat.completions.create(**options)
+                    if response.usage:
+                        await self.store.usage(
+                            run_id, lease, response.usage, response.model
+                        )
+                    finish_reason = (
+                        response.choices[0].finish_reason if response.choices else None
+                    )
+                    content = (
+                        response.choices[0].message.content or ""
+                        if response.choices
+                        else ""
+                    )
+        except (Exception, asyncio.CancelledError) as exc:
+            if thinking:
+                with suppress(Exception):
+                    await publish("interrupted")
+            if isinstance(exc, (ResearchError, asyncio.CancelledError)):
+                raise
             raise ResearchError(
                 "MODEL_REQUEST_FAILED", "DeepSeek 请求失败，请主动重试"
             ) from exc
-        if response.usage:
-            await self.store.usage(run_id, lease, response.usage, response.model)
-        if not response.choices or response.choices[0].finish_reason != "stop":
+        if finish_reason != "stop":
+            if thinking:
+                await publish("interrupted")
             raise ResearchError("MODEL_OUTPUT_INVALID", "模型输出未完整结束")
         try:
-            return schema.model_validate_json(response.choices[0].message.content or "")
+            result = schema.model_validate_json(content)
         except ValidationError as exc:
+            if thinking:
+                await publish("interrupted")
             raise ResearchError(
                 "MODEL_OUTPUT_INVALID", "模型输出不符合结构化契约"
             ) from exc
+        if thinking:
+            await publish("completed")
+        return result

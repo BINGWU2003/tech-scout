@@ -1,6 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, Navigate, useNavigate } from '@tanstack/react-router'
 import {
+  researchSelectedPlanSchema,
+  type ResearchProgressView,
   type ResearchAction,
   type ResearchSummaryView,
   type ResearchWorkspace,
@@ -237,7 +239,7 @@ function RunWorkspace({
   readOnly?: boolean
   composer?: ReactNode
   directions?: ReactNode
-  conversation?: ReactNode
+  conversation?: (events: ResearchProgressView[]) => ReactNode
   previousResultId?: string | null
 }) {
   const navigate = useNavigate()
@@ -447,7 +449,7 @@ function RunWorkspace({
             directions={directions}
             conversation={
               <>
-                {conversation}
+                {conversation?.(events.data ?? [])}
                 {statusContent}
                 {timeline}
               </>
@@ -699,19 +701,21 @@ function ProjectWorkspace({
       : workspace.data
 
   const [question, setQuestion] = useState('')
+  const [thinking, setThinking] = useState(true)
   const requestKey = useRef({ signature: '', id: createRequestId() })
   const client = useQueryClient(),
     navigate = useNavigate()
   const create = useMutation({
-    mutationFn: () => {
-      if (dirty) throw new Error('请先保存已选计划的调整')
-      const signature = JSON.stringify([question.trim(), latest?.id])
+    mutationFn: async () => {
+      if (draft) await savePlan(draft.plan)
+      const signature = JSON.stringify([question.trim(), latest?.id, thinking])
       if (requestKey.current.signature !== signature)
         requestKey.current = { signature, id: createRequestId() }
       return researchApi.newRun(projectId, {
         question: question.trim(),
         requestKey: requestKey.current.id,
         parentRunId: latest?.id,
+        thinking,
       })
     },
     onSuccess: async (run) => {
@@ -769,13 +773,17 @@ function ProjectWorkspace({
     workspace.isError ||
     workspace.data.blocked
   const editingBusy = blocked || change.isPending || create.isPending
-  const savePlan = (plan: ResearchWorkspace['selectedPlan']) =>
-    updateWorkspace({
+  const savePlan = (plan: ResearchWorkspace['selectedPlan']) => {
+    const parsed = researchSelectedPlanSchema.safeParse(plan)
+    if (!parsed.success || plan.directions.some((d) => !d.explanation.trim()))
+      throw new Error('请先填写有效的方向名称和描述，再继续操作。')
+    return updateWorkspace({
       kind: 'save_plan',
       plan,
       requestKey: createRequestId(),
       revision: draft?.revision ?? workspace.data!.revision,
     })
+  }
   return (
     <ResearchShell
       title={project.data?.title ?? '研究工作台'}
@@ -869,23 +877,25 @@ function ProjectWorkspace({
                 busy={editingBusy}
                 onDirty={editPlan}
                 onSave={savePlan}
-                onStart={() =>
-                  void updateWorkspace({
+                onStart={async (plan) => {
+                  const saved = dirty ? await savePlan(plan) : workspace.data!
+                  await updateWorkspace({
                     kind: 'start_search',
                     requestKey: createRequestId(),
-                    revision: workspace.data!.revision,
-                  }).catch(() => undefined)
-                }
+                    revision: saved.revision,
+                  })
+                }}
               />
             )
           }
-          conversation={
+          conversation={(events) =>
             workspace.data && (
               <ProjectConversation
                 workspace={workspace.data}
                 projectId={projectId}
                 busy={editingBusy}
                 dirty={dirty}
+                events={events}
                 selectedPlan={draft?.plan ?? workspace.data.selectedPlan}
                 onAdd={(direction) => {
                   const plan = draft?.plan ?? workspace.data!.selectedPlan
@@ -930,10 +940,10 @@ function ProjectWorkspace({
                 onChange={setQuestion}
                 onSubmit={() => create.mutate()}
                 busy={create.isPending}
-                blocked={blocked || dirty || change.isPending}
-                blockedReason={
-                  dirty ? '请先保存已选计划的调整，再继续对话' : undefined
-                }
+                blocked={blocked || change.isPending}
+                autoSave={dirty}
+                thinking={thinking}
+                onThinkingChange={setThinking}
                 followUp
               />
             )

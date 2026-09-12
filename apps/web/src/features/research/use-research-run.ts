@@ -69,6 +69,17 @@ export function useResearchRun(id: string) {
       const parsed = researchProgressViewSchema.safeParse(value)
       if (!parsed.success || parsed.data.sequence <= cursor.current) return
       const progress = parsed.data
+      if (!isExecuting(progress.status) || progress.kind === 'node_completed') {
+        const projectId = client.getQueryData<{ projectId: string }>([
+          'research',
+          id,
+          'summary',
+        ])?.projectId
+        if (projectId)
+          void client.invalidateQueries({
+            queryKey: ['research', projectId, 'workspace'],
+          })
+      }
       cursor.current = progress.sequence
       client.setQueryData<ResearchProgressView[]>(
         ['research', id, 'events'],
