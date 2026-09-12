@@ -197,6 +197,16 @@ describeDb('阶段 2 产品 API：所有权、幂等与持久化', () => {
       .get(`/api/v1/research/runs/${id}`)
       .expect(200)
     expect(fetched.body.status).toBe('failed')
+    const list = await owner.agent.get('/api/v1/research/projects').expect(200)
+    expect(
+      list.body.find((p: { id: string }) => p.id === created.body.id).activity
+    ).toMatchObject({
+      runId: id,
+      status: 'failed',
+      sequence: 3,
+      label: '执行失败',
+    })
+
     const events = await owner.agent
       .get(`/api/v1/research/runs/${id}/events?after=1`)
       .expect(200)

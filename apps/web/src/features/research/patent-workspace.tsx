@@ -81,15 +81,10 @@ export function PatentWorkspace({
   )
   return (
     <div className='flex min-h-0 flex-1 flex-col gap-3'>
-      <section
-        aria-label='研究状态与下一步'
-        className='max-h-[45%] shrink-0 space-y-3 overflow-y-auto rounded-xl border bg-card p-4'
-      >
-        {controls}
-        {actions}
-      </section>
+      {controls}
       <ResearchPlanLayout
         variant='patents'
+        headingActions={actions}
         directions={
           <div className='h-full space-y-5 overflow-y-auto overscroll-contain p-4'>
             <dl className='grid grid-cols-2 gap-3'>

@@ -8,17 +8,26 @@ import {
   type ResearchWorkspaceAction,
 } from '@tech-scout/contracts'
 import { createRequestId } from '@tech-scout/shared'
-import { ArrowRight, LoaderCircle, RefreshCw } from 'lucide-react'
+import {
+  ArrowRight,
+  LoaderCircle,
+  MoreHorizontal,
+  RefreshCw,
+} from 'lucide-react'
 import { useRef, useState, type ReactNode } from 'react'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { resetApiErrors } from '@/lib/api-error-notifications'
 import { researchApi } from '@/lib/research-api'
 import { CompanyWorkspace } from './company-workspace'
-import { nodeLabels, statusLabels } from './labels'
+import { nodeLabels } from './labels'
 import { PatentWorkspace } from './patent-workspace'
 import { SelectedPlanEditor } from './plan-editor'
-import { PlanRunFeedback } from './plan-run-feedback'
 import { ProjectConversation } from './project-conversation'
 import { ReportWorkspace } from './report-workspace'
 import { ResearchComposer } from './research-composer'
@@ -100,183 +109,181 @@ function RunWorkspace({
   }
   const run = summary.data
   const inCurrentStage = run ? stageForRun(run) === stage : false
-  const statusContent = run && (
-    <div className='space-y-3'>
-      <div className='flex flex-wrap items-center gap-2'>
-        <span className='text-sm font-medium'>当前研究</span>
-        <Badge variant={run.status === 'failed' ? 'destructive' : 'secondary'}>
-          {run.status === 'recoverable' && !run.error
-            ? '已暂停'
-            : statusLabels[run.status]}
-        </Badge>
-        {stage !== 'patents' && stage !== 'companies' && (
-          <span className='text-sm text-muted-foreground'>
-            研究快照：
-            {run.releaseId ?? '采集完成后生成'}
-          </span>
-        )}
-        <Button
-          variant='ghost'
-          size='sm'
-          className='ml-auto'
-          disabled={summary.isFetching}
-          onClick={() => {
-            resetApiErrors()
-            void summary.refetch()
-          }}
-        >
-          <RefreshCw
-            className={summary.isFetching ? 'animate-spin' : ''}
-            aria-hidden='true'
-          />
-          {summary.isFetching ? '刷新中' : '刷新状态'}
-        </Button>
-      </div>
-      {!run.ready && (
-        <p role='status' className='text-sm'>
-          请求已提交，正在等待开始。进度会自动更新。
-        </p>
-      )}
-      {stage !== 'patents' &&
-        stage !== 'companies' &&
-        inCurrentStage &&
-        run.acquisition && (
-          <div role='status' className='rounded-lg border p-4 text-sm'>
-            <p className='font-medium'>
-              数据采集：
-              {(
-                {
-                  search: '检索专利',
-                  patents: '读取专利详情',
-                  companies: '补全企业信息',
-                  snapshot: '保存研究快照',
-                } as Record<string, string>
-              )[run.acquisition.stage ?? ''] ?? '等待采集'}
-            </p>
-            {run.acquisition.total != null && (
-              <p>
-                {run.acquisition.completed ?? 0} / {run.acquisition.total}
+  const failed =
+    run?.status === 'failed' || (run?.status === 'recoverable' && !!run.error)
+  const statusContent =
+    run && inCurrentStage && failed ? (
+      <section aria-label='研究异常' className='shrink-0'>
+        {run.error ? (
+          <div
+            role='alert'
+            className='space-y-1 rounded-lg bg-destructive/10 p-3 text-sm'
+          >
+            <p className='font-medium'>{run.error.message}</p>
+            <p>当前步骤已停止。可重试此步骤，或取消研究。</p>
+            <details className='text-muted-foreground'>
+              <summary className='cursor-pointer py-1'>查看错误详情</summary>
+              <p className='break-words'>
+                出错步骤：
+                {nodeLabels[run.error.node ?? run.node ?? ''] ?? '未知'} ·
+                错误码：
+                {run.error.code}
               </p>
+            </details>
+          </div>
+        ) : (
+          <p role='alert' className='rounded-lg bg-destructive/10 p-3 text-sm'>
+            当前步骤执行失败，请重试。
+          </p>
+        )}
+      </section>
+    ) : null
+  const header = (
+    <div className='mb-4 shrink-0 space-y-3'>
+      <div className='flex flex-wrap items-start justify-between gap-3'>
+        <div className='min-w-0'>
+          <h1 className='text-2xl font-semibold tracking-tight'>
+            {researchStages[stage].title}
+          </h1>
+          <p className='mt-2 text-sm leading-6 text-muted-foreground'>
+            {researchStages[stage].description}
+          </p>
+        </div>
+        {run && (
+          <div
+            className='flex flex-wrap items-center gap-2'
+            aria-label='研究操作'
+          >
+            {!readOnly && inCurrentStage && (
+              <div className='flex flex-wrap items-center gap-2'>
+                {isExecuting(run.status) && (
+                  <Button
+                    variant='ghost'
+                    size='sm'
+                    disabled={mutation.isPending}
+                    onClick={() =>
+                      void submit({
+                        action_id: createRequestId(),
+                        kind: 'pause',
+                        decisions: [],
+                      }).catch(() => undefined)
+                    }
+                  >
+                    {mutation.isPending && mutation.variables?.kind === 'pause'
+                      ? '正在暂停…'
+                      : '暂停研究'}
+                  </Button>
+                )}
+                {['failed', 'recoverable'].includes(run.status) && (
+                  <Button
+                    disabled={mutation.isPending}
+                    onClick={() =>
+                      void submit({
+                        action_id: createRequestId(),
+                        kind: 'retry',
+                        decisions: [],
+                      }).catch(() => undefined)
+                    }
+                  >
+                    {mutation.isPending && mutation.variables?.kind === 'retry'
+                      ? '正在恢复…'
+                      : run.status === 'recoverable' && !run.error
+                        ? '继续研究'
+                        : '重试此步骤'}
+                  </Button>
+                )}
+                {!['completed', 'empty', 'cancelled'].includes(run.status) && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant='ghost'
+                        size='icon'
+                        aria-label='更多研究操作'
+                        disabled={mutation.isPending}
+                      >
+                        <MoreHorizontal aria-hidden='true' />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align='end'>
+                      <DropdownMenuItem
+                        disabled={cancelConfirm}
+                        onSelect={() => setCancelConfirm(true)}
+                        className='text-destructive'
+                      >
+                        取消本次研究
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
+              </div>
             )}
-            <p className='mt-1 text-muted-foreground'>
-              已完成的数据会保存，中断后可重试继续。
-            </p>
+            <Button
+              variant='ghost'
+              size='icon'
+              aria-label='刷新状态'
+              title='刷新状态'
+              disabled={summary.isFetching}
+              onClick={() => {
+                resetApiErrors()
+                void summary.refetch()
+              }}
+            >
+              <RefreshCw
+                className={summary.isFetching ? 'animate-spin' : ''}
+                aria-hidden='true'
+              />
+            </Button>
           </div>
         )}
-      {isExecuting(run.status) && disconnected && (
+      </div>
+      {run && (
+        <>
+          {cancelConfirm &&
+            !readOnly &&
+            inCurrentStage &&
+            !['completed', 'empty', 'cancelled'].includes(run.status) && (
+              <div
+                role='region'
+                aria-label='确认取消研究'
+                className='rounded-lg border border-destructive/20 bg-destructive/5 p-3 text-sm'
+              >
+                <p className='mb-1 font-medium'>确定取消本次研究？</p>
+                <p>取消后本次不能继续执行，已有记录和已发生费用保留。</p>
+                <div className='mt-2 flex gap-2'>
+                  <Button
+                    size='sm'
+                    variant='outline'
+                    disabled={mutation.isPending}
+                    onClick={() => setCancelConfirm(false)}
+                  >
+                    暂不取消
+                  </Button>
+                  <Button
+                    size='sm'
+                    variant='destructive'
+                    disabled={mutation.isPending}
+                    onClick={() =>
+                      void submit({
+                        action_id: createRequestId(),
+                        kind: 'cancel',
+                        decisions: [],
+                      }).catch(() => undefined)
+                    }
+                  >
+                    {mutation.isPending && mutation.variables?.kind === 'cancel'
+                      ? '正在取消…'
+                      : '确认取消'}
+                  </Button>
+                </div>
+              </div>
+            )}
+        </>
+      )}
+      {run && isExecuting(run.status) && disconnected && (
         <p role='status' className='text-sm text-muted-foreground'>
           实时连接暂时中断，正在重连。进度仍会自动更新，无需重复提交。
         </p>
       )}
-      {inCurrentStage && run.error && (
-        <div
-          role='alert'
-          className='space-y-1 rounded-lg bg-destructive/10 p-3 text-sm'
-        >
-          <p className='font-medium'>{run.error.message}</p>
-          <p>当前步骤已停止。可重试此步骤，或取消研究。</p>
-          <details className='text-muted-foreground'>
-            <summary className='cursor-pointer py-1'>查看错误详情</summary>
-            <p className='break-words'>
-              出错步骤：
-              {nodeLabels[run.error.node ?? run.node ?? ''] ?? '未知'} ·
-              错误码：
-              {run.error.code}
-            </p>
-          </details>
-        </div>
-      )}
-
-      {!readOnly && inCurrentStage && (
-        <div className='flex flex-wrap items-center gap-2 border-t pt-3'>
-          {isExecuting(run.status) && (
-            <Button
-              variant='ghost'
-              size='sm'
-              disabled={mutation.isPending}
-              onClick={() =>
-                void submit({
-                  action_id: createRequestId(),
-                  kind: 'pause',
-                  decisions: [],
-                }).catch(() => undefined)
-              }
-            >
-              {mutation.isPending && mutation.variables?.kind === 'pause'
-                ? '正在暂停…'
-                : '暂停研究'}
-            </Button>
-          )}
-          {['failed', 'recoverable'].includes(run.status) && (
-            <Button
-              disabled={mutation.isPending}
-              onClick={() =>
-                void submit({
-                  action_id: createRequestId(),
-                  kind: 'retry',
-                  decisions: [],
-                }).catch(() => undefined)
-              }
-            >
-              {mutation.isPending && mutation.variables?.kind === 'retry'
-                ? '正在恢复…'
-                : run.status === 'recoverable' && !run.error
-                  ? '继续研究'
-                  : '重试此步骤'}
-            </Button>
-          )}
-          {!['completed', 'empty', 'cancelled'].includes(run.status) && (
-            <Button
-              variant='ghost'
-              size='sm'
-              className='text-muted-foreground'
-              disabled={mutation.isPending || cancelConfirm}
-              onClick={() => setCancelConfirm(true)}
-            >
-              取消本次研究
-            </Button>
-          )}
-        </div>
-      )}
-      {cancelConfirm &&
-        !readOnly &&
-        inCurrentStage &&
-        !['completed', 'empty', 'cancelled'].includes(run.status) && (
-          <div
-            role='region'
-            aria-label='确认取消研究'
-            className='rounded-lg border border-destructive/20 bg-destructive/5 p-3 text-sm'
-          >
-            <p className='mb-1 font-medium'>确定取消本次研究？</p>
-            <p>取消后本次不能继续执行，已有记录和已发生费用保留。</p>
-            <div className='mt-2 flex gap-2'>
-              <Button
-                size='sm'
-                variant='outline'
-                disabled={mutation.isPending}
-                onClick={() => setCancelConfirm(false)}
-              >
-                暂不取消
-              </Button>
-              <Button
-                size='sm'
-                variant='destructive'
-                disabled={mutation.isPending}
-                onClick={() =>
-                  void submit({
-                    action_id: createRequestId(),
-                    kind: 'cancel',
-                    decisions: [],
-                  }).catch(() => undefined)
-                }
-              >
-                {mutation.isPending && mutation.variables?.kind === 'cancel'
-                  ? '正在取消…'
-                  : '确认取消'}
-              </Button>
-            </div>
-          </div>
-        )}
     </div>
   )
   const timeline = run && (
@@ -293,6 +300,7 @@ function RunWorkspace({
   if (stage === 'plan')
     return (
       <div className='flex min-h-0 flex-1 flex-col'>
+        {header}
         {summary.isPending && <p role='status'>正在读取运行状态…</p>}
         {run && (
           <ResearchPlanLayout
@@ -300,18 +308,7 @@ function RunWorkspace({
             conversation={conversation?.(events.data ?? [])}
             composer={
               <>
-                <PlanRunFeedback
-                  run={run}
-                  busy={mutation.isPending}
-                  readOnly={readOnly}
-                  onAction={(kind) =>
-                    void submit({
-                      action_id: createRequestId(),
-                      kind,
-                      decisions: [],
-                    }).catch(() => undefined)
-                  }
-                />
+                {statusContent}
                 {composer}
               </>
             }
@@ -322,6 +319,7 @@ function RunWorkspace({
   if (stage === 'patents')
     return (
       <div className='flex min-h-0 flex-1 flex-col'>
+        {header}
         {summary.isPending && <p role='status'>正在读取运行状态…</p>}
         {summary.isError && (
           <p role='alert'>运行状态加载失败，请刷新页面重试。</p>
@@ -339,15 +337,7 @@ function RunWorkspace({
             actions={
               <>
                 {!readOnly && run.status === 'awaiting_companies' && (
-                  <div className='flex flex-col gap-3 border-t pt-3 sm:flex-row sm:items-center sm:justify-between'>
-                    <div>
-                      <p className='text-sm font-medium'>
-                        下一步：查询相关企业
-                      </p>
-                      <p className='mt-1 text-xs text-muted-foreground'>
-                        专利已采集完成，可根据专利查询相关企业。
-                      </p>
-                    </div>
+                  <div className='flex items-center gap-2'>
                     <Button
                       disabled={mutation.isPending}
                       onClick={() =>
@@ -377,7 +367,7 @@ function RunWorkspace({
                   </div>
                 )}
                 {run.hasCompanies && (
-                  <div className='flex flex-wrap items-center justify-between gap-3 border-t pt-3'>
+                  <div className='flex flex-wrap items-center gap-2'>
                     <Button asChild>
                       <Link
                         to='/research/$projectId/$stage'
@@ -399,6 +389,7 @@ function RunWorkspace({
   if (stage === 'companies')
     return (
       <div className='flex min-h-0 flex-1 flex-col'>
+        {header}
         {summary.isPending && <p role='status'>正在读取运行状态…</p>}
         {summary.isError && (
           <p role='alert'>运行状态加载失败，请刷新页面重试。</p>
@@ -438,6 +429,7 @@ function RunWorkspace({
   const resultId = run?.hasResult ? run.id : (previousResultId ?? undefined)
   return (
     <div className='flex min-h-0 flex-1 flex-col'>
+      {header}
       {summary.isPending && <p role='status'>正在读取运行状态…</p>}
       {summary.isError && (
         <p role='alert'>
@@ -766,15 +758,6 @@ function ProjectWorkspace({
         </div>
       }
     >
-      <div>
-        <h1 className='text-2xl font-semibold tracking-tight'>
-          {researchStages[stage].title}
-        </h1>
-        <p className='mt-2 text-sm leading-6 text-muted-foreground'>
-          {researchStages[stage].description}
-        </p>
-      </div>
-
       {project.isPending && <p role='status'>正在读取研究…</p>}
       {project.data && !selected && (
         <p role='alert'>此记录不属于当前项目，请从左侧重新打开研究。</p>
@@ -867,7 +850,16 @@ function ProjectWorkspace({
             composer={
               stage === 'plan' &&
               selected &&
-              !readOnly && (
+              !readOnly &&
+              (workspace.data?.executionRunId ||
+              workspace.data?.researchCompleted ? (
+                <p
+                  role='status'
+                  className='px-4 py-3 text-sm text-muted-foreground'
+                >
+                  技术方向已确认，无法继续追问。
+                </p>
+              ) : (
                 <ResearchComposer
                   value={question}
                   onChange={setQuestion}
@@ -879,7 +871,7 @@ function ProjectWorkspace({
                   onThinkingChange={setThinking}
                   followUp
                 />
-              )
+              ))
             }
           />
         )}

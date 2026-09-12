@@ -18,12 +18,14 @@ import { useIsMobile } from '@/hooks/use-mobile'
 
 export function ResearchPlanLayout({
   directions,
+  headingActions,
   conversation,
   composer,
   variant = 'plan',
   detailKey,
   autoFollow = true,
 }: {
+  headingActions?: ReactNode
   directions: ReactNode
   conversation: ReactNode
   composer?: ReactNode
@@ -86,9 +88,14 @@ export function ResearchPlanLayout({
       aria-label={leftTitle}
       className='flex h-full min-h-0 flex-col overflow-hidden rounded-xl border bg-card'
     >
-      <div className='flex shrink-0 items-center gap-2 border-b px-5 py-4'>
+      <div className='flex shrink-0 flex-wrap items-center gap-2 border-b px-5 py-4'>
         <LeftIcon className='size-4 text-muted-foreground' aria-hidden='true' />
         <h2 className='text-sm font-semibold'>{leftTitle}</h2>
+        {headingActions && (
+          <div className='ml-auto flex flex-wrap items-center gap-2'>
+            {headingActions}
+          </div>
+        )}
       </div>
       <div className='min-h-0 flex-1 overflow-hidden'>{directions}</div>
     </section>

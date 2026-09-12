@@ -220,10 +220,12 @@ export class ResearchWorkspaceService {
     })
     for (const command of commands) {
       const payload = object(command.payload)
+      if (
+        ['start_companies', 'resolve_entities'].includes(String(payload.kind))
+      )
+        continue
       const labels: Record<string, string> = {
         confirm_plan: '已确认计划并开始检索。',
-        start_companies: '开始企业发现。',
-        resolve_entities: '已提交主体核验并生成报告。',
         retry: '重试当前步骤。',
         pause: '已暂停研究。',
         cancel: '已取消执行。',

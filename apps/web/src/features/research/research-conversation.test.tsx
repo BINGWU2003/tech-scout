@@ -372,7 +372,7 @@ it('工作台从左侧切换项目，确认前追问保留上下文，并在手�
     .toHaveAttribute('aria-expanded', 'false')
   await expect
     .element(screen.getByRole('button', { name: '刷新状态' }))
-    .not.toBeInTheDocument()
+    .toBeVisible()
   await expect
     .element(screen.getByRole('button', { name: '取消本次研究' }))
     .not.toBeInTheDocument()

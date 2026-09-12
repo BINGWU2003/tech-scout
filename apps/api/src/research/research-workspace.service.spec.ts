@@ -40,14 +40,17 @@ function run(overrides: Record<string, unknown> = {}) {
   }
 }
 
-async function workspace(runs: ReturnType<typeof run>[]) {
+async function workspace(
+  runs: ReturnType<typeof run>[],
+  commands: Record<string, unknown>[] = []
+) {
   const prisma = {
     researchProject: {
       findFirst: vi.fn().mockResolvedValue({ workspace: {} }),
     },
     $queryRaw: vi.fn().mockResolvedValue(runs),
     researchCommand: {
-      findMany: vi.fn().mockResolvedValue([]),
+      findMany: vi.fn().mockResolvedValue(commands),
       count: vi.fn().mockResolvedValue(0),
     },
   }
@@ -58,6 +61,24 @@ async function workspace(runs: ReturnType<typeof run>[]) {
 }
 
 describe('多轮推荐卡片', () => {
+  it.each([
+    ['start_companies', 'companies'],
+    ['resolve_entities', 'report'],
+  ])('隐藏 %s 操作消息但保留阶段进度', async (kind, stage) => {
+    const current = run({ status: 'awaiting_companies', confirmed: plan })
+    const command = {
+      id: randomUUID(),
+      runId: current.id,
+      payload: { kind },
+      createdAt: new Date(),
+    }
+    const result = await workspace([current], [command])
+    expect(result.messages.some((message) => message.id === command.id)).toBe(
+      false
+    )
+    expect(result.messages.length).toBeGreaterThan(0)
+    expect(result.reachedStage).toBe(stage)
+  })
   it.each(['completed', 'empty'])(
     '历史 %s 后继续对话不会解锁研究',
     async (status) => {

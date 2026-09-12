@@ -79,19 +79,10 @@ export function CompanyWorkspace({
         remaining,
       }) => (
         <div className='flex min-h-0 flex-1 flex-col gap-3'>
-          <section
-            aria-label='研究状态与下一步'
-            className='max-h-[45%] shrink-0 space-y-3 overflow-y-auto rounded-xl border bg-card p-4'
-          >
-            {controls}
-            {report && (
-              <div className='flex flex-wrap items-center justify-between gap-3 border-t pt-3'>
-                {report}
-              </div>
-            )}
-          </section>
+          {controls}
           <ResearchPlanLayout
             variant='companies'
+            headingActions={report}
             detailKey={selected}
             autoFollow={!selected}
             directions={

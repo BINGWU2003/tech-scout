@@ -9,6 +9,8 @@ import {
 } from '@nestjs/common'
 import {
   researchPlanSchema,
+  researchActivityLabel,
+  type ResearchSummaryView,
   type ResearchAction,
   type ResearchCreate,
   type ResearchEvent,
@@ -112,29 +114,38 @@ export class ResearchService implements OnModuleInit, OnModuleDestroy {
         status: string | null
         node: string | null
         reasoning: string | null
+        error: unknown
+        acquisition: ResearchSummaryView['acquisition']
       }[]
     >(Prisma.sql`
       SELECT p.id, p.title, p.question, p.created_at AS "createdAt",
         r.id AS "runId", r.status, r.sequence, r.state ->> 'node' AS node,
-        r.state #>> '{artifacts,reasoning,status}' AS reasoning
+        r.state #>> '{artifacts,reasoning,status}' AS reasoning,
+        r.state -> 'error' AS error,
+        r.state #> '{artifacts,acquisition}' AS acquisition
       FROM app.research_project p
       LEFT JOIN LATERAL (
         SELECT id, status, sequence, state FROM app.research_run
-        WHERE project_id = p.id AND status IN ('queued', 'running')
-        ORDER BY created_at DESC, id DESC LIMIT 1
+        WHERE project_id = p.id
+        ORDER BY (status IN ('queued', 'running')) DESC, created_at DESC, id DESC LIMIT 1
       ) r ON true
       WHERE p.user_id = ${userId}::uuid
       ORDER BY p.created_at DESC, p.id ASC LIMIT 100`)
     return projects.map(
-      ({ runId, status, sequence, node, reasoning, ...p }) => {
-        const label =
-          status === 'queued'
-            ? '正在准备回复…'
-            : node && !['context', 'planner', 'plan_gate'].includes(node)
-              ? '正在研究…'
-              : ['answering', 'completed'].includes(reasoning ?? '')
-                ? '正在生成回答…'
-                : '正在思考…'
+      ({
+        runId,
+        status,
+        sequence,
+        node,
+        reasoning,
+        error,
+        acquisition,
+        ...p
+      }) => {
+        const label = researchActivityLabel(
+          { status, node, error, acquisition },
+          reasoning
+        )
         return {
           ...p,
           createdAt: p.createdAt.toISOString(),
@@ -227,8 +238,26 @@ export class ResearchService implements OnModuleInit, OnModuleDestroy {
       if (active || pending)
         throw new ConflictException('请等待当前研究结束或停止后再发送')
       // Check completion after active runs: a run may finish between these reads.
-      if (searchRevision !== undefined)
-        await assertResearchNotCompleted(tx, projectId)
+      await assertResearchNotCompleted(tx, projectId)
+      if (searchRevision === undefined) {
+        const execution = await tx.researchRun.findFirst({
+          where: {
+            projectId,
+            OR: [
+              { context: { path: ['startSearch'], equals: true } },
+              {
+                state: {
+                  path: ['artifacts', 'confirmed_plan'],
+                  not: Prisma.DbNull,
+                },
+              },
+            ],
+          },
+          select: { id: true },
+        })
+        if (execution)
+          throw new ConflictException('技术方向已确认，无法继续追问。')
+      }
       const previousContext = object(previous?.context)
       const artifacts = object(object(previous?.state).artifacts)
       const confirmed = await tx.researchRun.findFirst({

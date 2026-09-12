@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { Link, useRouterState } from '@tanstack/react-router'
+import { researchActivityLabel } from '@tech-scout/contracts'
 import {
   ChevronDown,
   ChevronUp,
@@ -71,18 +72,12 @@ export function ResearchTaskLabel({
   const reasoning = [...(events.data ?? [])]
     .reverse()
     .find((event) => event.reasoning)?.reasoning
-  const label = connection.data
-    ? '连接恢复中…'
-    : !run
-      ? project.activity?.label
-      : run.status === 'queued' || !run.ready
-        ? '正在准备回复…'
-        : run.node && !['context', 'planner', 'plan_gate'].includes(run.node)
-          ? '正在研究…'
-          : reasoning?.status === 'answering' ||
-              reasoning?.status === 'completed'
-            ? '正在生成回答…'
-            : '正在思考…'
+  const label =
+    active && connection.data
+      ? '连接恢复中…'
+      : run
+        ? researchActivityLabel(run, reasoning?.status)
+        : project.activity?.label
   return (
     <>
       {active ? (
@@ -95,7 +90,7 @@ export function ResearchTaskLabel({
       )}
       <span className='min-w-0 flex-1'>
         <span className='block truncate'>{project.title}</span>
-        {active && (
+        {label && (
           <span
             role='status'
             className='block truncate text-[11px] font-normal text-muted-foreground'

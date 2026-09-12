@@ -6,6 +6,46 @@ import { ResearchWorkspaceService } from './research-workspace.service.js'
 import { ResearchService } from './research.service.js'
 
 describe('研究完成后的服务端保护', () => {
+  it('已开始检索但尚未完成时也不能创建追问', async () => {
+    const projectId = randomUUID()
+    const tx = {
+      $queryRaw: vi.fn().mockResolvedValue([]),
+      researchProject: {
+        findUniqueOrThrow: vi.fn().mockResolvedValue({ workspace: {} }),
+      },
+      researchRun: {
+        findUnique: vi.fn().mockResolvedValue(null),
+        findFirst: vi
+          .fn()
+          .mockImplementation(async ({ where }) =>
+            where.OR ? { id: randomUUID() } : null
+          ),
+        create: vi.fn(),
+      },
+      researchCommand: { findFirst: vi.fn().mockResolvedValue(null) },
+    }
+    const research = new ResearchService(
+      {
+        $transaction: (callback: (value: typeof tx) => unknown) => callback(tx),
+      } as unknown as PrismaService,
+      {} as IntelligenceClient
+    )
+    vi.spyOn(research, 'project').mockResolvedValue({
+      id: projectId,
+      title: '',
+      question: '',
+      createdAt: new Date().toISOString(),
+      runs: [],
+    })
+    await expect(
+      research.newRun(randomUUID(), projectId, {
+        requestKey: randomUUID(),
+        question: '继续追问',
+        thinking: false,
+      })
+    ).rejects.toThrow('技术方向已确认')
+    expect(tx.researchRun.create).not.toHaveBeenCalled()
+  })
   it.each(['completed', 'empty'])(
     '%s 后新请求不能启动、保存或应用计划',
     async (status) => {
@@ -57,6 +97,13 @@ describe('研究完成后的服务端保护', () => {
           0
         )
       ).rejects.toThrow('此任务已完成研究')
+      await expect(
+        research.newRun(userId, projectId, {
+          requestKey: randomUUID(),
+          question: '继续追问',
+          thinking: false,
+        })
+      ).rejects.toThrow('此任务已完成研究')
       const workspace = new ResearchWorkspaceService(
         prisma as unknown as PrismaService,
         research
@@ -81,7 +128,7 @@ describe('研究完成后的服务端保护', () => {
         where: { projectId, status: { in: ['completed', 'empty'] } },
         select: { id: true },
       })
-      expect(tx.$queryRaw).toHaveBeenCalledTimes(3)
+      expect(tx.$queryRaw).toHaveBeenCalledTimes(4)
       expect(tx.researchRun.create).not.toHaveBeenCalled()
       expect(tx.researchProject.update).not.toHaveBeenCalled()
     }
