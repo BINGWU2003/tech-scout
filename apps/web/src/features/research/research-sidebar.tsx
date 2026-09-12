@@ -5,6 +5,7 @@ import {
   ChevronUp,
   History,
   MessageSquare,
+  LoaderCircle,
   Plus,
   RefreshCw,
 } from 'lucide-react'
@@ -29,6 +30,83 @@ import {
 import { resetApiErrors } from '@/lib/api-error-notifications'
 import { researchApi } from '@/lib/research-api'
 import { useResearchClient } from './research-cache'
+import { isExecuting } from './use-research-run'
+
+export function ResearchTaskLabel({
+  project,
+}: {
+  project: Awaited<ReturnType<typeof researchApi.projects>>[number]
+}) {
+  const client = useResearchClient()
+  const id = project.activity?.runId
+  const summary = useQuery(
+    {
+      queryKey: ['research', id, 'summary'],
+      queryFn: () => researchApi.summary(id!),
+      enabled: false,
+    },
+    client
+  )
+  const events = useQuery(
+    {
+      queryKey: ['research', id, 'events'],
+      queryFn: () => researchApi.events(id!),
+      enabled: false,
+    },
+    client
+  )
+  const connection = useQuery(
+    {
+      queryKey: ['research', id, 'disconnected'],
+      queryFn: () => false,
+      enabled: false,
+    },
+    client
+  )
+  const run =
+    summary.data && summary.data.sequence >= (project.activity?.sequence ?? 0)
+      ? summary.data
+      : undefined
+  const active = id && isExecuting(run?.status ?? project.activity?.status)
+  const reasoning = [...(events.data ?? [])]
+    .reverse()
+    .find((event) => event.reasoning)?.reasoning
+  const label = connection.data
+    ? '连接恢复中…'
+    : !run
+      ? project.activity?.label
+      : run.status === 'queued' || !run.ready
+        ? '正在准备回复…'
+        : run.node && !['context', 'planner', 'plan_gate'].includes(run.node)
+          ? '正在研究…'
+          : reasoning?.status === 'answering' ||
+              reasoning?.status === 'completed'
+            ? '正在生成回答…'
+            : '正在思考…'
+  return (
+    <>
+      {active ? (
+        <LoaderCircle
+          className='size-4 shrink-0 motion-safe:animate-spin'
+          aria-hidden='true'
+        />
+      ) : (
+        <MessageSquare className='size-4 shrink-0' aria-hidden='true' />
+      )}
+      <span className='min-w-0 flex-1'>
+        <span className='block truncate'>{project.title}</span>
+        {active && (
+          <span
+            role='status'
+            className='block truncate text-[11px] font-normal text-muted-foreground'
+          >
+            {label}
+          </span>
+        )}
+      </span>
+    </>
+  )
+}
 
 const RECENT_PROJECT_LIMIT = 10
 
@@ -57,7 +135,11 @@ export function ResearchSidebar() {
   const listId = useId()
   const client = useResearchClient()
   const query = useQuery(
-    { queryKey: ['research', 'projects'], queryFn: researchApi.projects },
+    {
+      queryKey: ['research', 'projects'],
+      queryFn: researchApi.projects,
+      refetchInterval: 5000,
+    },
     client
   )
   const pathname = useRouterState({ select: (s) => s.location.pathname })
@@ -139,8 +221,7 @@ export function ResearchSidebar() {
                         isProjectActive(project.id) ? 'page' : undefined
                       }
                     >
-                      <MessageSquare />
-                      <span className='truncate'>{project.title}</span>
+                      <ResearchTaskLabel project={project} />
                     </Link>
                   </DropdownMenuItem>
                 ))}
@@ -182,6 +263,7 @@ export function ResearchSidebar() {
                 <SidebarMenuButton
                   asChild
                   tooltip={project.title}
+                  className={project.activity ? 'h-12' : undefined}
                   isActive={isProjectActive(project.id)}
                 >
                   <Link
@@ -190,8 +272,7 @@ export function ResearchSidebar() {
                     onClick={() => setOpenMobile(false)}
                     title={project.title}
                   >
-                    <MessageSquare />
-                    <span>{project.title}</span>
+                    <ResearchTaskLabel project={project} />
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>

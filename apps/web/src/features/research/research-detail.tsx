@@ -4,7 +4,6 @@ import {
   researchSelectedPlanSchema,
   type ResearchProgressView,
   type ResearchAction,
-  type ResearchSummaryView,
   type ResearchWorkspace,
   type ResearchWorkspaceAction,
 } from '@tech-scout/contracts'
@@ -16,11 +15,12 @@ import { Button } from '@/components/ui/button'
 import { resetApiErrors } from '@/lib/api-error-notifications'
 import { researchApi } from '@/lib/research-api'
 import { CompanyWorkspace } from './company-workspace'
-import { countryName, nodeLabels, statusLabels } from './labels'
+import { nodeLabels, statusLabels } from './labels'
 import { PatentWorkspace } from './patent-workspace'
 import { SelectedPlanEditor } from './plan-editor'
 import { PlanRunFeedback } from './plan-run-feedback'
 import { ProjectConversation } from './project-conversation'
+import { ReportWorkspace } from './report-workspace'
 import { ResearchComposer } from './research-composer'
 import { ResearchPlanLayout } from './research-plan-layout'
 import {
@@ -30,200 +30,8 @@ import {
   type ResearchStage,
 } from './research-stage'
 import { ResearchTimeline } from './research-timeline'
-import { Pager, ResearchShell } from './shared'
-import { CompanySnapshot, PatentList, PatentSnapshot } from './snapshot-details'
+import { ResearchShell } from './shared'
 import { isExecuting, useResearchRun } from './use-research-run'
-
-function ResultPanel({ run }: { run: ResearchSummaryView }) {
-  const query = useQuery({
-    queryKey: ['research', run.id, 'result'],
-    queryFn: () => researchApi.result(run.id),
-  })
-  const [company, setCompany] = useState<string | null>(null)
-  const [patent, setPatent] = useState<string | null>(null)
-  const selected = query.data?.companies.find((c) => c.id === company)
-  return (
-    <section className='space-y-4'>
-      <h2 className='text-lg font-semibold'>本次研究结果</h2>
-
-      {query.isPending && <p role='status'>正在读取结果…</p>}
-      {query.data && (
-        <>
-          <div className='rounded-lg bg-muted p-4 text-sm'>
-            <p>
-              快照 {query.data.releaseId} · {query.data.patentCount} 条去重专利
-              · {query.data.companies.length} 个候选主体 ·{' '}
-              {query.data.unverifiedCount} 个隔离条目
-            </p>
-            <p className='mt-2'>
-              结果保留程序原始排序。现阶段可能包含非商业主体或宽泛硬件相关项；模型解释仅为标题/IPC
-              推断，不证明产品能力。
-            </p>
-            {query.data.conflictCount > 0 && (
-              <p className='mt-2'>
-                身份依据存在 {query.data.conflictCount}{' '}
-                项差异或冲突，需结合来源与观察时间复核。
-              </p>
-            )}
-            <p className='mt-2 text-muted-foreground'>
-              数据缺失：{query.data.missing.join('、')}
-            </p>
-          </div>
-          {query.data.emptyReason && (
-            <div role='status' className='rounded-xl border border-dashed p-6'>
-              <h3 className='font-semibold'>本次没有可输出的匹配名单</h3>
-              <p className='mt-2 text-sm'>{query.data.emptyReason}</p>
-              <p className='mt-2 text-sm text-muted-foreground'>
-                可点击“调整研究”，在对话中修改要求并确认计划。
-              </p>
-            </div>
-          )}
-          {query.data.companies.map((c, i) => (
-            <article
-              key={c.id}
-              className='space-y-3 rounded-xl border bg-card p-5'
-            >
-              <div className='flex flex-wrap items-start justify-between gap-3'>
-                <div className='min-w-0'>
-                  <h3 className='font-semibold break-words'>
-                    {i + 1}. {c.name}
-                  </h3>
-                  <p className='mt-1 text-xs text-muted-foreground'>
-                    企业注册地：{countryName(c.country)} ·{' '}
-                    {c.identity === 'user_confirmed'
-                      ? '本次人工确认身份'
-                      : '来源身份匹配'}{' '}
-                    · {c.patentCount} 条相关专利 · 规则分 {c.ruleScore}
-                  </p>
-                </div>
-                <Button
-                  variant='outline'
-                  size='sm'
-                  onClick={() => setCompany(c.id)}
-                >
-                  查看快照与依据
-                </Button>
-              </div>
-              <p className='text-sm leading-relaxed'>
-                <span className='font-medium'>模型推断：</span>
-                {c.explanation ?? '无解释'}
-              </p>
-              <div className='flex flex-wrap gap-2 text-xs'>
-                <span className='py-1 text-muted-foreground'>引用专利：</span>
-                {c.citationIds.map((pid) => (
-                  <button
-                    key={pid}
-                    className='rounded border px-2 py-1 hover:bg-accent focus-visible:outline-2'
-                    onClick={() => setPatent(pid)}
-                  >
-                    {pid}
-                  </button>
-                ))}
-              </div>
-              <p className='text-xs text-muted-foreground'>
-                公开年份统计：
-                {Object.entries(c.trend)
-                  .sort(([a], [b]) => a.localeCompare(b))
-                  .map(([y, n]) => `${y} 年 ${n} 件`)
-                  .join(' · ')}
-              </p>
-            </article>
-          ))}
-          <details className='rounded-xl border p-4'>
-            <summary className='cursor-pointer font-medium'>
-              查看本次专利工作集
-            </summary>
-            <LazyPatents runId={run.id} />
-          </details>
-          {query.data.conflictCount > 0 && <ConflictList runId={run.id} />}
-        </>
-      )}
-      {selected && (
-        <CompanySnapshot
-          key={selected.id}
-          runId={run.id}
-          companyId={selected.id}
-          citations={selected.citationIds}
-          close={() => setCompany(null)}
-        />
-      )}
-      {patent && (
-        <PatentSnapshot
-          key={patent}
-          runId={run.id}
-          patentId={patent}
-          close={() => setPatent(null)}
-        />
-      )}
-    </section>
-  )
-}
-function PreviousResult({ id }: { id: string }) {
-  const summary = useQuery({
-    queryKey: ['research', id, 'summary'],
-    queryFn: () => researchApi.summary(id),
-  })
-  return (
-    <section className='space-y-4'>
-      <p role='status' className='rounded-lg bg-muted p-3 text-sm'>
-        新结果尚未生成，以下结果基于此前确认的计划。
-      </p>
-
-      {summary.data && <ResultPanel key={id} run={summary.data} />}
-    </section>
-  )
-}
-function ConflictList({ runId }: { runId: string }) {
-  const [page, setPage] = useState(1),
-    [open, setOpen] = useState(false)
-  const query = useQuery({
-    queryKey: ['research', runId, 'conflicts', page],
-    queryFn: () => researchApi.conflicts(runId, page),
-    enabled: open,
-  })
-  return (
-    <details
-      className='rounded-xl border p-4'
-      onToggle={(event) => setOpen(event.currentTarget.open)}
-    >
-      <summary className='cursor-pointer font-medium'>
-        查看身份差异与冲突
-      </summary>
-      <div className='mt-3 space-y-3'>
-        {open && query.isPending && <p role='status'>读取冲突记录…</p>}
-        {query.data?.items.map((c, i) => (
-          <div key={i} className='rounded-md bg-muted p-3 text-sm'>
-            <p className='font-medium break-all'>{c.name}</p>
-            <p>{c.note}</p>
-            {c.identifierType && <p>标识类型：{c.identifierType}</p>}
-            {Object.entries(c.values).map(([value, ids]) => (
-              <p key={value} className='text-xs break-all'>
-                {value} · 证据：{ids.join('、')}
-              </p>
-            ))}
-          </div>
-        ))}
-        {query.data && (
-          <Pager page={page} total={query.data.total} onChange={setPage} />
-        )}
-      </div>
-    </details>
-  )
-}
-function LazyPatents({ runId }: { runId: string }) {
-  const [show, setShow] = useState(false)
-  return (
-    <div className='mt-4'>
-      {show ? (
-        <PatentList runId={runId} />
-      ) : (
-        <Button variant='outline' onClick={() => setShow(true)}>
-          加载专利列表
-        </Button>
-      )}
-    </div>
-  )
-}
 
 function RunWorkspace({
   id,
@@ -254,13 +62,13 @@ function RunWorkspace({
   const sending = useRef(false)
   const mutation = useMutation({
     mutationFn: (input: ResearchAction) => researchApi.action(id, input),
-    onSuccess: (run) => {
+    onSuccess: async (run) => {
       client.setQueryData(['research', id, 'summary'], run)
       void client.invalidateQueries({ queryKey: ['research', id] })
       void client.invalidateQueries({
         queryKey: ['research', run.projectId, 'project'],
       })
-      void client.invalidateQueries({
+      await client.invalidateQueries({
         queryKey: ['research', run.projectId, 'workspace'],
       })
       actionKey.current = null
@@ -494,8 +302,6 @@ function RunWorkspace({
               <>
                 <PlanRunFeedback
                   run={run}
-                  events={events.data ?? []}
-                  disconnected={disconnected}
                   busy={mutation.isPending}
                   readOnly={readOnly}
                   onAction={(kind) =>
@@ -629,37 +435,52 @@ function RunWorkspace({
         )}
       </div>
     )
+  const resultId = run?.hasResult ? run.id : (previousResultId ?? undefined)
   return (
-    <div className='space-y-6'>
+    <div className='flex min-h-0 flex-1 flex-col'>
       {summary.isPending && <p role='status'>正在读取运行状态…</p>}
+      {summary.isError && (
+        <p role='alert'>
+          运行状态加载失败。
+          <Button variant='link' onClick={() => void summary.refetch()}>
+            重新加载
+          </Button>
+        </p>
+      )}
       {run && (
-        <>
-          {statusContent}
-          {timeline}
-          {stage === 'report' &&
-            (run.hasResult ? (
-              <ResultPanel run={run} />
-            ) : previousResultId ? (
-              <PreviousResult id={previousResultId} />
-            ) : (
-              <p className='rounded-xl border border-dashed p-5 text-sm text-muted-foreground'>
+        <ReportWorkspace
+          key={resultId ?? id}
+          runId={resultId}
+          controls={statusContent}
+          records={timeline}
+          notice={
+            !run.hasResult && previousResultId ? (
+              <p role='status' className='rounded-lg bg-muted p-3 text-sm'>
+                新结果尚未生成，以下结果基于此前确认的计划。
+              </p>
+            ) : undefined
+          }
+          empty={
+            <div className='space-y-4 rounded-xl border border-dashed p-5 text-sm'>
+              <p>
                 {inCurrentStage && isExecuting(run.status)
                   ? '正在分析证据并生成报告，完成后将在这里显示。'
                   : '请先在企业发现与核验页确认主体并生成报告。'}
               </p>
-            ))}
-          {!inCurrentStage && !run.hasResult && (
-            <Button asChild variant='outline'>
-              <Link
-                to='/research/$projectId/$stage'
-                params={{ projectId, stage: stageForRun(run) }}
-                search={{ runId: id }}
-              >
-                前往{researchStages[stageForRun(run)].title}
-              </Link>
-            </Button>
-          )}
-        </>
+              {!inCurrentStage && (
+                <Button asChild variant='outline'>
+                  <Link
+                    to='/research/$projectId/$stage'
+                    params={{ projectId, stage: stageForRun(run) }}
+                    search={{ runId: id }}
+                  >
+                    前往{researchStages[stageForRun(run)].title}
+                  </Link>
+                </Button>
+              )}
+            </div>
+          }
+        />
       )}
     </div>
   )
@@ -762,11 +583,12 @@ function ProjectWorkspace({
   const readOnly =
     stage !== 'plan' &&
     selected?.id !== (workspace.data?.executionRunId ?? latest?.id)
-  const [draft, setDraft] = useState<{
+  const [pendingDraft, setDraft] = useState<{
     revision: number
     baseline: ResearchWorkspace['selectedPlan']
     plan: ResearchWorkspace['selectedPlan']
   } | null>(null)
+  const draft = workspace.data?.researchCompleted ? null : pendingDraft
   const dirty = draft !== null
   const editPlan = (
     dirty: boolean,
@@ -863,7 +685,11 @@ function ProjectWorkspace({
     !workspace.data ||
     workspace.isError ||
     workspace.data.blocked
-  const editingBusy = blocked || change.isPending || create.isPending
+  const editingBusy =
+    blocked ||
+    change.isPending ||
+    create.isPending ||
+    !!workspace.data?.researchCompleted
   const savePlan = (plan: ResearchWorkspace['selectedPlan']) => {
     const parsed = researchSelectedPlanSchema.safeParse(plan)
     if (!parsed.success || plan.directions.some((d) => !d.explanation.trim()))
@@ -875,14 +701,23 @@ function ProjectWorkspace({
       revision: draft?.revision ?? workspace.data!.revision,
     })
   }
+  const stages = Object.keys(researchStages) as ResearchStage[]
+  const reached = stages.indexOf(workspace.data?.reachedStage ?? 'plan')
+  if (workspace.data && stages.indexOf(stage) > reached)
+    return (
+      <Navigate
+        to='/research/$projectId/$stage'
+        params={{ projectId, stage: workspace.data.reachedStage }}
+        search={{ runId: workspace.data.executionRunId ?? undefined }}
+        replace
+      />
+    )
   return (
     <ResearchShell
       title={project.data?.title ?? '研究工作台'}
-      split={stage === 'plan' || stage === 'patents' || stage === 'companies'}
+      split
       navigation={
-        <div
-          className={`mx-auto space-y-3 ${stage === 'plan' || stage === 'patents' || stage === 'companies' ? 'w-full' : 'max-w-4xl'}`}
-        >
+        <div className='mx-auto w-full space-y-3'>
           <nav
             aria-label='研究流程'
             className='grid grid-cols-2 gap-2 sm:grid-cols-4'
@@ -892,23 +727,41 @@ function ProjectWorkspace({
                 ResearchStage,
                 { title: string },
               ][]
-            ).map(([key, item], index) => (
-              <Link
-                key={key}
-                to='/research/$projectId/$stage'
-                params={{ projectId, stage: key }}
-                search={{
-                  runId:
-                    key === 'plan'
-                      ? latest?.id
-                      : (workspace.data?.executionRunId ?? latest?.id),
-                }}
-                aria-current={stage === key ? 'page' : undefined}
-                className={`rounded-lg px-3 py-2.5 text-center text-xs transition-colors sm:text-sm ${stage === key ? 'bg-primary text-primary-foreground' : 'bg-muted/40 text-muted-foreground hover:bg-muted'}`}
-              >
-                {index + 1}. {item.title}
-              </Link>
-            ))}
+            ).map(([key, item], index) =>
+              index > reached ? (
+                <button
+                  key={key}
+                  type='button'
+                  disabled
+                  title='尚未进行到此步骤'
+                  className='cursor-not-allowed rounded-lg bg-muted/20 px-3 py-2.5 text-center text-xs text-muted-foreground/50 sm:text-sm'
+                >
+                  {index + 1}. {item.title}
+                  <span className='mt-1 block text-[11px]'>未开始</span>
+                </button>
+              ) : (
+                <Link
+                  key={key}
+                  to='/research/$projectId/$stage'
+                  params={{ projectId, stage: key }}
+                  search={{
+                    runId:
+                      key === 'plan'
+                        ? latest?.id
+                        : (workspace.data?.executionRunId ?? latest?.id),
+                  }}
+                  aria-current={stage === key ? 'page' : undefined}
+                  className={`rounded-lg px-3 py-2.5 text-center text-xs transition-colors sm:text-sm ${stage === key ? 'bg-primary text-primary-foreground' : 'bg-muted/40 text-muted-foreground hover:bg-muted'}`}
+                >
+                  {index + 1}. {item.title}
+                  <span className='mt-1 block text-[11px]'>
+                    {index < reached || workspace.data?.researchCompleted
+                      ? '已完成 · 可回看'
+                      : '当前步骤'}
+                  </span>
+                </Link>
+              )
+            )}
           </nav>
         </div>
       }
@@ -938,96 +791,98 @@ function ProjectWorkspace({
             以下结果基于调整前的计划，确认当前计划并检索后将更新。
           </p>
         )}
-      {selected && (
-        <RunWorkspace
-          key={`${selected.id}-${stage}`}
-          id={selected.id}
-          projectId={projectId}
-          stage={stage}
-          readOnly={readOnly}
-          previousResultId={workspace.data?.latestResultRunId}
-          directions={
-            editorWorkspace && (
-              <SelectedPlanEditor
-                key={editorWorkspace.revision}
-                workspace={editorWorkspace}
-                initialPlan={draft?.plan}
-                busy={editingBusy}
-                onDirty={editPlan}
-                onSave={savePlan}
-                onStart={async (plan) => {
-                  const saved = dirty ? await savePlan(plan) : workspace.data!
-                  await updateWorkspace({
-                    kind: 'start_search',
-                    requestKey: createRequestId(),
-                    revision: saved.revision,
-                  })
-                }}
-              />
-            )
-          }
-          conversation={(events) =>
-            workspace.data && (
-              <ProjectConversation
-                workspace={workspace.data}
-                projectId={projectId}
-                busy={editingBusy}
-                dirty={dirty}
-                events={events}
-                selectedPlan={draft?.plan ?? workspace.data.selectedPlan}
-                onAdd={(direction) => {
-                  const plan = draft?.plan ?? workspace.data!.selectedPlan
-                  if (
-                    editingBusy ||
-                    plan.directions.length >= 3 ||
-                    plan.directions.some(
-                      (d) => d.domain_id === direction.domain_id
+      {selected &&
+        (stage === 'plan' ||
+          (workspace.data && stages.indexOf(stage) <= reached)) && (
+          <RunWorkspace
+            key={`${selected.id}-${stage}`}
+            id={selected.id}
+            projectId={projectId}
+            stage={stage}
+            readOnly={readOnly}
+            previousResultId={workspace.data?.latestResultRunId}
+            directions={
+              editorWorkspace && (
+                <SelectedPlanEditor
+                  key={editorWorkspace.revision}
+                  workspace={editorWorkspace}
+                  initialPlan={draft?.plan}
+                  busy={editingBusy}
+                  onDirty={editPlan}
+                  onSave={savePlan}
+                  onStart={async (plan) => {
+                    const saved = dirty ? await savePlan(plan) : workspace.data!
+                    await updateWorkspace({
+                      kind: 'start_search',
+                      requestKey: createRequestId(),
+                      revision: saved.revision,
+                    })
+                  }}
+                />
+              )
+            }
+            conversation={(events) =>
+              workspace.data && (
+                <ProjectConversation
+                  workspace={workspace.data}
+                  projectId={projectId}
+                  busy={editingBusy}
+                  dirty={dirty}
+                  events={events}
+                  selectedPlan={draft?.plan ?? workspace.data.selectedPlan}
+                  onAdd={(direction) => {
+                    const plan = draft?.plan ?? workspace.data!.selectedPlan
+                    if (
+                      editingBusy ||
+                      plan.directions.length >= 3 ||
+                      plan.directions.some(
+                        (d) => d.domain_id === direction.domain_id
+                      )
                     )
-                  )
-                    return
-                  editPlan(true, {
-                    ...plan,
-                    directions: [
-                      ...plan.directions,
-                      {
-                        ...direction,
-                        keywords: [],
-                        excluded_keywords: [],
-                        cpc_prefixes: [],
-                      },
-                    ],
-                  })
-                }}
-                onApply={(proposalRunId) =>
-                  void updateWorkspace({
-                    kind: 'apply_proposal',
-                    proposalRunId,
-                    requestKey: createRequestId(),
-                    revision: workspace.data!.revision,
-                  }).catch(() => undefined)
-                }
-              />
-            )
-          }
-          composer={
-            stage === 'plan' &&
-            selected &&
-            !readOnly && (
-              <ResearchComposer
-                value={question}
-                onChange={setQuestion}
-                onSubmit={() => create.mutate()}
-                busy={create.isPending}
-                blocked={blocked || change.isPending}
-                autoSave={dirty}
-                thinking={thinking}
-                onThinkingChange={setThinking}
-                followUp
-              />
-            )
-          }
-        />
-      )}
+                      return
+                    editPlan(true, {
+                      ...plan,
+                      directions: [
+                        ...plan.directions,
+                        {
+                          ...direction,
+                          keywords: [],
+                          excluded_keywords: [],
+                          cpc_prefixes: [],
+                        },
+                      ],
+                    })
+                  }}
+                  onApply={(proposalRunId) =>
+                    void updateWorkspace({
+                      kind: 'apply_proposal',
+                      proposalRunId,
+                      requestKey: createRequestId(),
+                      revision: workspace.data!.revision,
+                    }).catch(() => undefined)
+                  }
+                />
+              )
+            }
+            composer={
+              stage === 'plan' &&
+              selected &&
+              !readOnly && (
+                <ResearchComposer
+                  value={question}
+                  onChange={setQuestion}
+                  onSubmit={() => create.mutate()}
+                  busy={create.isPending}
+                  blocked={blocked || change.isPending}
+                  autoSave={dirty}
+                  thinking={thinking}
+                  onThinkingChange={setThinking}
+                  followUp
+                />
+              )
+            }
+          />
+        )}
     </ResearchShell>
   )
 }

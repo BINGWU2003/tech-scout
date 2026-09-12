@@ -19,7 +19,11 @@ import { type Action } from '../generated/intelligence/types.gen.js'
 import { Prisma, type ResearchRun } from '../generated/prisma/client.js'
 import { IntelligenceClient } from './intelligence.client.js'
 import { object } from './research-view.service.js'
-import { revision, selectedPlan } from './workspace-state.js'
+import {
+  assertResearchNotCompleted,
+  revision,
+  selectedPlan,
+} from './workspace-state.js'
 
 const json = (value: unknown) =>
   JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue
@@ -97,13 +101,47 @@ export class ResearchService implements OnModuleInit, OnModuleDestroy {
   }
 
   async list(userId: string) {
-    const projects = await this.prisma.researchProject.findMany({
-      where: { userId },
-      orderBy: [{ createdAt: 'desc' }, { id: 'asc' }],
-      take: 100,
-      select: { id: true, title: true, question: true, createdAt: true },
-    })
-    return projects.map((p) => ({ ...p, createdAt: p.createdAt.toISOString() }))
+    const projects = await this.prisma.$queryRaw<
+      {
+        id: string
+        title: string
+        question: string
+        createdAt: Date
+        runId: string | null
+        sequence: number | null
+        status: string | null
+        node: string | null
+        reasoning: string | null
+      }[]
+    >(Prisma.sql`
+      SELECT p.id, p.title, p.question, p.created_at AS "createdAt",
+        r.id AS "runId", r.status, r.sequence, r.state ->> 'node' AS node,
+        r.state #>> '{artifacts,reasoning,status}' AS reasoning
+      FROM app.research_project p
+      LEFT JOIN LATERAL (
+        SELECT id, status, sequence, state FROM app.research_run
+        WHERE project_id = p.id AND status IN ('queued', 'running')
+        ORDER BY created_at DESC, id DESC LIMIT 1
+      ) r ON true
+      WHERE p.user_id = ${userId}::uuid
+      ORDER BY p.created_at DESC, p.id ASC LIMIT 100`)
+    return projects.map(
+      ({ runId, status, sequence, node, reasoning, ...p }) => {
+        const label =
+          status === 'queued'
+            ? '正在准备回复…'
+            : node && !['context', 'planner', 'plan_gate'].includes(node)
+              ? '正在研究…'
+              : ['answering', 'completed'].includes(reasoning ?? '')
+                ? '正在生成回答…'
+                : '正在思考…'
+        return {
+          ...p,
+          createdAt: p.createdAt.toISOString(),
+          activity: runId ? { runId, status, sequence, label } : null,
+        }
+      }
+    )
   }
 
   async project(userId: string, projectId: string) {
@@ -188,6 +226,9 @@ export class ResearchService implements OnModuleInit, OnModuleDestroy {
       })
       if (active || pending)
         throw new ConflictException('请等待当前研究结束或停止后再发送')
+      // Check completion after active runs: a run may finish between these reads.
+      if (searchRevision !== undefined)
+        await assertResearchNotCompleted(tx, projectId)
       const previousContext = object(previous?.context)
       const artifacts = object(object(previous?.state).artifacts)
       const confirmed = await tx.researchRun.findFirst({
@@ -322,6 +363,23 @@ export class ResearchService implements OnModuleInit, OnModuleDestroy {
         })
         if (otherActive)
           throw new ConflictException('请等待当前研究结束或停止后再操作')
+      }
+      if (
+        [
+          'confirm_plan',
+          'start_companies',
+          'resolve_entities',
+          'retry',
+        ].includes(input.kind)
+      ) {
+        // Follow-up chat retries remain available; execution cannot restart a completed task.
+        const artifacts = object(object(owned.state).artifacts)
+        if (
+          input.kind !== 'retry' ||
+          object(owned.context).startSearch ||
+          artifacts.confirmed_plan
+        )
+          await assertResearchNotCompleted(tx, owned.projectId)
       }
       return tx.researchCommand.create({
         data: { id: input.action_id, runId, payload: json(payload) },

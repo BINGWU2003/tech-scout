@@ -15,7 +15,12 @@ import { PrismaService } from '../database/prisma.service.js'
 import { Prisma } from '../generated/prisma/client.js'
 import { object, rows } from './research-view.service.js'
 import { ResearchService } from './research.service.js'
-import { revision, selectedPlan } from './workspace-state.js'
+import {
+  assertResearchNotCompleted,
+  reachedResearchStage,
+  revision,
+  selectedPlan,
+} from './workspace-state.js'
 
 const json = (v: unknown) =>
   JSON.parse(JSON.stringify(v)) as Prisma.InputJsonValue
@@ -62,6 +67,8 @@ export class ResearchWorkspaceService {
       Record<string, unknown>[]
     >(Prisma.sql`
       SELECT id, question, status, created_at AS "createdAt", context,
+        state ->> 'node' AS node,
+        state #>> '{error,node}' AS "errorNode",
         state #> '{artifacts,plan}' AS plan,
         state #> '{artifacts,candidate_plan}' AS candidates,
         state #> '{artifacts,confirmed_plan}' AS confirmed,
@@ -245,6 +252,19 @@ export class ResearchWorkspaceService {
       where: { run: { projectId }, status: 'pending' },
     })
     return researchWorkspaceSchema.parse({
+      researchCompleted: runs.some((r) =>
+        ['completed', 'empty'].includes(String(r.status))
+      ),
+      reachedStage: reachedResearchStage([
+        ...runs,
+        ...commands.flatMap((command) => {
+          const kind = object(command.payload).kind
+          if (kind === 'start_companies') return [{ node: 'company_snapshot' }]
+          if (kind === 'resolve_entities') return [{ node: 'evidence' }]
+          if (kind === 'confirm_plan') return [{ node: 'patent' }]
+          return []
+        }),
+      ]),
       revision: revision(ws),
       selectedPlan: selected,
       candidates,
@@ -305,6 +325,7 @@ export class ResearchWorkspaceService {
       })
       if (active || pending)
         throw new ConflictException('请等待当前研究结束或停止后再调整')
+      await assertResearchNotCompleted(tx, projectId)
       let next: unknown
       if (input.kind === 'save_plan') next = input.plan
       else {

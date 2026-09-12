@@ -36,6 +36,15 @@ export function useResearchRun(id: string) {
   const status = summary.data?.status
   const sequence = summary.data?.sequence
   useEffect(() => {
+    client.setQueryData(['research', id, 'disconnected'], disconnected)
+    return () => {
+      client.setQueryData(['research', id, 'disconnected'], false)
+    }
+  }, [client, id, disconnected])
+  useEffect(() => {
+    void client.invalidateQueries({ queryKey: ['research', 'projects'] })
+  }, [client, id, status])
+  useEffect(() => {
     // Capture final events even when the summary reaches a terminal state before SSE.
     if (status && !isExecuting(status))
       void client.invalidateQueries({ queryKey: ['research', id, 'events'] })

@@ -53,6 +53,8 @@ it('先思考，再流式说明，最后展示方向卡片，正文顺序保持�
     ],
   }
   const workspace: ResearchWorkspace = {
+    researchCompleted: false,
+    reachedStage: 'plan',
     revision: 0,
     selectedPlan: { ...plan, directions: [] },
     candidates: null,
@@ -184,6 +186,8 @@ it('事件补充消息内实时思考，但旧事件不能覆盖刷新后已完�
   const runId = crypto.randomUUID()
   const plan = { directions: [], from_year: 2020, to_year: 2026, risks: [] }
   const workspace: ResearchWorkspace = {
+    researchCompleted: false,
+    reachedStage: 'plan',
     revision: 0,
     selectedPlan: plan,
     candidates: null,

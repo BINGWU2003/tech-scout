@@ -37,9 +37,7 @@ it('生成时可停止，停止后不误显示失败重试；待确认与历史�
     onAction,
   }
   const screen = await render(<PlanRunFeedback {...props} />)
-  await expect
-    .element(screen.getByRole('status'))
-    .toHaveTextContent('正在思考…')
+  await expect.element(screen.getByRole('status')).not.toBeInTheDocument()
   await screen.getByRole('button', { name: '停止', exact: true }).click()
   expect(onAction).toHaveBeenCalledWith('pause')
   await screen.rerender(<PlanRunFeedback {...props} busy />)
@@ -59,7 +57,7 @@ it('生成时可停止，停止后不误显示失败重试；待确认与历史�
   await expect.element(screen.getByRole('button')).not.toBeInTheDocument()
 })
 
-it('失败才提供重试，断线复用同一条进度提示', async () => {
+it('失败才提供重试，运行与断线状态不在内容区显示', async () => {
   const onAction = vi.fn()
   const props = {
     run,
@@ -70,9 +68,7 @@ it('失败才提供重试，断线复用同一条进度提示', async () => {
     onAction,
   }
   const screen = await render(<PlanRunFeedback {...props} />)
-  await expect
-    .element(screen.getByRole('status'))
-    .toHaveTextContent('连接恢复中…')
+  await expect.element(screen.getByRole('status')).not.toBeInTheDocument()
   await screen.rerender(
     <PlanRunFeedback {...props} run={{ ...run, status: 'failed' }} />
   )

@@ -58,6 +58,38 @@ async function workspace(runs: ReturnType<typeof run>[]) {
 }
 
 describe('多轮推荐卡片', () => {
+  it.each(['completed', 'empty'])(
+    '历史 %s 后继续对话不会解锁研究',
+    async (status) => {
+      const completed = run({ status, confirmed: plan, hasResult: true })
+      const result = await workspace([
+        completed,
+        run({ createdAt: new Date('2026-09-12T00:01:00Z') }),
+      ])
+      expect(result.researchCompleted).toBe(true)
+      expect(result.reachedStage).toBe('report')
+    }
+  )
+  it.each(['failed', 'cancelled', 'recoverable'])(
+    '%s 保留已到达的步骤并允许重试',
+    async (status) => {
+      const result = await workspace([
+        run({ status, node: 'company', confirmed: plan }),
+      ])
+      expect(result.researchCompleted).toBe(false)
+      expect(result.reachedStage).toBe('companies')
+    }
+  )
+  it('专利已完成仍需显式开始企业发现', async () => {
+    const result = await workspace([
+      run({
+        status: 'awaiting_companies',
+        node: 'company_gate',
+        confirmed: plan,
+      }),
+    ])
+    expect(result.reachedStage).toBe('patents')
+  })
   it('明确推荐意图的后续规划成为最新推荐，旧推荐失效', async () => {
     const first = run()
     const next = run({

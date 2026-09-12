@@ -1,0 +1,89 @@
+import { randomUUID } from 'node:crypto'
+import { describe, expect, it, vi } from 'vitest'
+import type { PrismaService } from '../database/prisma.service.js'
+import type { IntelligenceClient } from './intelligence.client.js'
+import { ResearchWorkspaceService } from './research-workspace.service.js'
+import { ResearchService } from './research.service.js'
+
+describe('研究完成后的服务端保护', () => {
+  it.each(['completed', 'empty'])(
+    '%s 后新请求不能启动、保存或应用计划',
+    async (status) => {
+      const projectId = randomUUID(),
+        userId = randomUUID()
+      const tx = {
+        $queryRaw: vi.fn().mockResolvedValue([]),
+        researchRun: {
+          findUnique: vi.fn().mockResolvedValue(null),
+          findFirst: vi
+            .fn()
+            .mockImplementation(
+              async ({ where }: { where: { status?: { in: string[] } } }) =>
+                where.status?.in.includes('completed')
+                  ? { id: randomUUID(), status }
+                  : null
+            ),
+          count: vi.fn().mockResolvedValue(0),
+          create: vi.fn(),
+        },
+        researchCommand: {
+          findFirst: vi.fn().mockResolvedValue(null),
+          count: vi.fn().mockResolvedValue(0),
+        },
+        researchProject: {
+          findUniqueOrThrow: vi.fn().mockResolvedValue({ workspace: {} }),
+          update: vi.fn(),
+        },
+      }
+      const prisma = {
+        $transaction: (callback: (value: typeof tx) => unknown) => callback(tx),
+      }
+      const research = new ResearchService(
+        prisma as unknown as PrismaService,
+        {} as IntelligenceClient
+      )
+      vi.spyOn(research, 'project').mockResolvedValue({
+        id: projectId,
+        title: '',
+        question: '',
+        createdAt: new Date().toISOString(),
+        runs: [],
+      })
+      await expect(
+        research.newRun(
+          userId,
+          projectId,
+          { requestKey: randomUUID(), question: '开始研究', thinking: false },
+          0
+        )
+      ).rejects.toThrow('此任务已完成研究')
+      const workspace = new ResearchWorkspaceService(
+        prisma as unknown as PrismaService,
+        research
+      )
+      await expect(
+        workspace.action(userId, projectId, {
+          kind: 'save_plan',
+          requestKey: randomUUID(),
+          revision: 0,
+          plan: { from_year: 2020, to_year: 2026, directions: [], risks: [] },
+        })
+      ).rejects.toThrow('此任务已完成研究')
+      await expect(
+        workspace.action(userId, projectId, {
+          kind: 'apply_proposal',
+          requestKey: randomUUID(),
+          revision: 0,
+          proposalRunId: randomUUID(),
+        })
+      ).rejects.toThrow('此任务已完成研究')
+      expect(tx.researchRun.findFirst).toHaveBeenCalledWith({
+        where: { projectId, status: { in: ['completed', 'empty'] } },
+        select: { id: true },
+      })
+      expect(tx.$queryRaw).toHaveBeenCalledTimes(3)
+      expect(tx.researchRun.create).not.toHaveBeenCalled()
+      expect(tx.researchProject.update).not.toHaveBeenCalled()
+    }
+  )
+})

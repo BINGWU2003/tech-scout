@@ -1,6 +1,7 @@
 import {
   ChartNoAxesCombined,
   GripVertical,
+  FileText,
   MessageSquare,
   Search,
   Shapes,
@@ -26,26 +27,31 @@ export function ResearchPlanLayout({
   directions: ReactNode
   conversation: ReactNode
   composer?: ReactNode
-  variant?: 'plan' | 'patents' | 'companies'
+  variant?: 'plan' | 'patents' | 'companies' | 'report'
   detailKey?: string | null
   autoFollow?: boolean
 }) {
   const mobile = useIsMobile()
   const patents = variant === 'patents'
   const companies = variant === 'companies'
-  const results = patents || companies
-  const leftTitle = companies
-    ? '企业概览与核验'
-    : patents
-      ? '专利概览'
-      : '已选方向'
-  const rightTitle = companies
-    ? '发现记录与主体依据'
-    : patents
-      ? '专利搜索记录'
-      : 'AI 对话'
+  const report = variant === 'report'
+  const results = patents || companies || report
+  const leftTitle = report
+    ? '报告概览与企业名单'
+    : companies
+      ? '企业概览与核验'
+      : patents
+        ? '专利概览'
+        : '已选方向'
+  const rightTitle = report
+    ? '企业分析与依据'
+    : companies
+      ? '发现记录与主体依据'
+      : patents
+        ? '专利搜索记录'
+        : 'AI 对话'
   const LeftIcon = results ? ChartNoAxesCombined : Shapes
-  const RightIcon = results ? Search : MessageSquare
+  const RightIcon = report ? FileText : results ? Search : MessageSquare
   const [mobilePane, setMobilePane] = useState<'conversation' | 'directions'>(
     results ? 'directions' : 'conversation'
   )
@@ -140,7 +146,7 @@ export function ResearchPlanLayout({
             aria-pressed={mobilePane === 'conversation'}
             onClick={() => setMobilePane('conversation')}
           >
-            {patents ? '搜索记录' : rightTitle}
+            {report ? '依据' : patents ? '搜索记录' : rightTitle}
           </Button>
           <Button
             size='sm'
@@ -148,7 +154,7 @@ export function ResearchPlanLayout({
             aria-pressed={mobilePane === 'directions'}
             onClick={() => setMobilePane('directions')}
           >
-            {results ? leftTitle : '已选计划'}
+            {report ? '报告' : results ? leftTitle : '已选计划'}
           </Button>
         </div>
         <div
@@ -178,11 +184,13 @@ export function ResearchPlanLayout({
       </Panel>
       <Separator
         aria-label={
-          companies
-            ? '调整企业概览与主体依据宽度'
-            : patents
-              ? '调整专利概览与搜索记录宽度'
-              : '调整方向与 AI 对话宽度'
+          report
+            ? '调整报告与分析依据宽度'
+            : companies
+              ? '调整企业概览与主体依据宽度'
+              : patents
+                ? '调整专利概览与搜索记录宽度'
+                : '调整方向与 AI 对话宽度'
         }
         className='group flex w-4 shrink-0 items-center justify-center rounded focus-visible:outline-2 focus-visible:outline-ring'
       >

@@ -132,6 +132,15 @@ export const researchProjectSummarySchema = z.object({
   title: z.string(),
   question: z.string(),
   createdAt: z.iso.datetime(),
+  activity: z
+    .object({
+      runId: z.uuid(),
+      status: researchStatusSchema,
+      sequence: z.number().int().nonnegative(),
+      label: z.string(),
+    })
+    .nullable()
+    .optional(),
 })
 export const researchProjectSchema = researchProjectSummarySchema.extend({
   runs: z.array(researchRunSummarySchema),
@@ -212,6 +221,10 @@ export const researchConversationMessageSchema = z.object({
   hasResult: z.boolean().default(false),
 })
 export const researchWorkspaceSchema = z.object({
+  researchCompleted: z.boolean().default(false),
+  reachedStage: z
+    .enum(['plan', 'patents', 'companies', 'report'])
+    .default('plan'),
   revision: z.number().int().nonnegative(),
   selectedPlan: researchSelectedPlanSchema,
   candidates: researchSelectedPlanSchema.nullable(),

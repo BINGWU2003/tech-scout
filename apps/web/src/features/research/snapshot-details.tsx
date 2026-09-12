@@ -401,10 +401,6 @@ export function CompanySnapshot({
   citations: string[]
   close: () => void
 }) {
-  const query = useQuery({
-    queryKey: ['research', runId, 'company', companyId],
-    queryFn: () => researchApi.company(runId, companyId),
-  })
   return (
     <Sheet
       open
@@ -414,103 +410,140 @@ export function CompanySnapshot({
     >
       <SheetContent className='w-full overflow-y-auto p-6 sm:max-w-3xl'>
         <SheetHeader>
-          <SheetTitle>{query.data?.name ?? '主体快照'}</SheetTitle>
+          <SheetTitle>主体快照</SheetTitle>
           <SheetDescription>
             这里展示本次研究保存的依据，不随目录更新而改变。
           </SheetDescription>
         </SheetHeader>
-
-        {query.isPending && <p role='status'>读取快照…</p>}
-        {query.data && (
-          <div className='space-y-5'>
-            <div className='space-y-2 text-sm'>
-              <p>
-                法律名称：{query.data.legalName ?? '缺失'} · 国家：
-                {query.data.country ?? '缺失'}
-              </p>
-              <p className='break-words'>
-                别名：{query.data.aliases.join('、') || '无'}
-              </p>
-              <p className='break-all'>
-                外部标识：
-                {query.data.identifiers
-                  .map((i) => `${i.type}: ${i.value}`)
-                  .join('；') || '无'}
-              </p>
-              {Object.entries(query.data.businessInfo).map(([label, value]) => (
-                <p key={label}>
-                  {label}：{value}
-                </p>
-              ))}
-              <SourceReference source={query.data.source} />
-              <Button asChild variant='outline' size='sm'>
-                <Link
-                  to='/companies'
-                  search={{}}
-                  state={withLibraryDetail('companies', companyId)}
-                >
-                  查看企业库资料
-                </Link>
-              </Button>
-              <p className='text-xs text-muted-foreground'>
-                企业库会持续更新，本次研究快照保持不变。
-              </p>
-            </div>
-            <section className='space-y-3'>
-              <h3 className='font-semibold'>本次相关专利</h3>
-              <PatentList
-                runId={runId}
-                companyId={companyId}
-                citations={citations}
-              />
-            </section>
-            <details className='rounded-lg border p-3'>
-              <summary className='cursor-pointer font-medium'>
-                关联依据（{query.data.relations.length} 条）
-              </summary>
-              <ul className='mt-3 max-h-60 space-y-1 overflow-y-auto text-xs'>
-                {query.data.relations.map((r, i) => (
-                  <li key={i}>
-                    {r.patentId} · {r.method} · {r.decision ?? '本次人工确认'}
-                  </li>
-                ))}
-              </ul>
-            </details>
-            {query.data.confirmations.map((c, i) => (
-              <div key={i} className='rounded-lg border p-3 text-sm'>
-                <p className='font-medium'>本次人工确认记录</p>
-                <p>
-                  {c.confirmedAt} · 确认者 {c.actorId}
-                </p>
-                <p>{c.note || '未填写说明'}</p>
-                <p className='text-xs break-all'>
-                  证据：{c.evidenceIds.join('、')}
-                </p>
-              </div>
-            ))}
-            <details className='rounded-lg border p-3'>
-              <summary className='cursor-pointer font-medium'>
-                身份来源（{query.data.evidence.length} 条）
-              </summary>
-              <p className='my-2 text-xs text-muted-foreground'>
-                身份依据不证明产品能力；来源正文当前不可用。
-              </p>
-              {query.data.evidence.map((e) => (
-                <div key={e.id} className='my-3 border-t pt-3 text-sm'>
-                  <p>
-                    {e.publisher ?? '未知发布者'} · {e.legalName ?? e.id}
-                  </p>
-                  <p>
-                    {e.identifierType}: {e.identifierValue ?? '无标识'} ·{' '}
-                    {e.observedAt ?? '观察时间缺失'}
-                  </p>
-                  <SourceReference source={e.source} />
-                </div>
-              ))}
-            </details>
-          </div>
-        )}
+        <CompanySnapshotDetails
+          runId={runId}
+          companyId={companyId}
+          citations={citations}
+        />
       </SheetContent>
     </Sheet>
+  )
+}
+
+export function CompanySnapshotDetails({
+  runId,
+  companyId,
+  citations,
+}: {
+  runId: string
+  companyId: string
+  citations: string[]
+}) {
+  const query = useQuery({
+    queryKey: ['research', runId, 'company', companyId],
+    queryFn: () => researchApi.company(runId, companyId),
+  })
+  return (
+    <section aria-label='企业快照与来源' className='space-y-4'>
+      <h3 className='text-sm font-semibold'>
+        {query.data?.name ?? '主体快照'}
+      </h3>
+      <p className='text-xs text-muted-foreground'>
+        本次研究保存的依据，不随企业库更新而改变。
+      </p>
+      {query.isError && (
+        <p role='alert' className='text-sm'>
+          企业快照加载失败。
+          <Button variant='link' size='sm' onClick={() => void query.refetch()}>
+            重新加载
+          </Button>
+        </p>
+      )}
+      {query.isPending && <p role='status'>读取快照…</p>}
+      {query.data && (
+        <div className='space-y-5'>
+          <div className='space-y-2 text-sm'>
+            <p>
+              法律名称：{query.data.legalName ?? '缺失'} · 国家：
+              {query.data.country ?? '缺失'}
+            </p>
+            <p className='break-words'>
+              别名：{query.data.aliases.join('、') || '无'}
+            </p>
+            <p className='break-all'>
+              外部标识：
+              {query.data.identifiers
+                .map((i) => `${i.type}: ${i.value}`)
+                .join('；') || '无'}
+            </p>
+            {Object.entries(query.data.businessInfo).map(([label, value]) => (
+              <p key={label}>
+                {label}：{value}
+              </p>
+            ))}
+            <SourceReference source={query.data.source} />
+            <Button asChild variant='outline' size='sm'>
+              <Link
+                to='/companies'
+                search={{}}
+                state={withLibraryDetail('companies', companyId)}
+              >
+                查看企业库资料
+              </Link>
+            </Button>
+            <p className='text-xs text-muted-foreground'>
+              企业库会持续更新，本次研究快照保持不变。
+            </p>
+          </div>
+          <section className='space-y-3'>
+            <h3 className='font-semibold'>本次相关专利</h3>
+            <PatentList
+              runId={runId}
+              companyId={companyId}
+              citations={citations}
+            />
+          </section>
+          <details className='rounded-lg border p-3'>
+            <summary className='cursor-pointer font-medium'>
+              关联依据（{query.data.relations.length} 条）
+            </summary>
+            <ul className='mt-3 max-h-60 space-y-1 overflow-y-auto text-xs'>
+              {query.data.relations.map((r, i) => (
+                <li key={i}>
+                  {r.patentId} · {r.method} · {r.decision ?? '本次人工确认'}
+                </li>
+              ))}
+            </ul>
+          </details>
+          {query.data.confirmations.map((c, i) => (
+            <div key={i} className='rounded-lg border p-3 text-sm'>
+              <p className='font-medium'>本次人工确认记录</p>
+              <p>
+                {c.confirmedAt} · 确认者 {c.actorId}
+              </p>
+              <p>{c.note || '未填写说明'}</p>
+              <p className='text-xs break-all'>
+                证据：{c.evidenceIds.join('、')}
+              </p>
+            </div>
+          ))}
+          <details className='rounded-lg border p-3'>
+            <summary className='cursor-pointer font-medium'>
+              身份来源（{query.data.evidence.length} 条）
+            </summary>
+            <p className='my-2 text-xs text-muted-foreground'>
+              身份依据不证明产品能力；来源正文当前不可用。
+            </p>
+            {query.data.evidence.map((e) => (
+              <div key={e.id} className='my-3 border-t pt-3 text-sm'>
+                <p>
+                  {e.publisher ?? '未知发布者'} · {e.legalName ?? e.id}
+                </p>
+                <p>
+                  {e.identifierType}: {e.identifierValue ?? '无标识'} ·{' '}
+                  {e.observedAt ?? '观察时间缺失'}
+                </p>
+                <SourceReference source={e.source} />
+              </div>
+            ))}
+          </details>
+        </div>
+      )}
+    </section>
   )
 }

@@ -26,6 +26,7 @@ export function SelectedPlanEditor({
   onDirty: (dirty: boolean, plan?: ResearchWorkspace['selectedPlan']) => void
   initialPlan?: ResearchWorkspace['selectedPlan']
 }) {
+  const locked = workspace.researchCompleted
   const plan = initialPlan ?? workspace.selectedPlan
   const isEmpty = plan.directions.length === 0
   const [error, setError] = useState('')
@@ -39,7 +40,7 @@ export function SelectedPlanEditor({
     )
   }
   const save = async (start = false) => {
-    if (busy || sending.current) return
+    if (locked || busy || sending.current) return
     const parsed = researchSelectedPlanSchema.safeParse(plan)
     if (!parsed.success || plan.directions.some((d) => !d.explanation.trim())) {
       setError('请检查研究计划，并填写有效的方向名称和描述。')
@@ -69,11 +70,12 @@ export function SelectedPlanEditor({
         aria-label='已选研究计划'
       >
         <fieldset
-          disabled={busy || submitting}
+          disabled={locked || busy || submitting}
           className='flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain p-4'
         >
           <p className='shrink-0 text-sm text-muted-foreground'>
-            已选 {plan.directions.length} / 3 个方向 · 确认后开始检索
+            已选 {plan.directions.length} / 3 个方向 ·{' '}
+            {locked ? '研究已完成，计划已锁定' : '确认后开始检索'}
           </p>
           <div
             className={cn(
@@ -177,9 +179,14 @@ export function SelectedPlanEditor({
           </div>
         </fieldset>
         <fieldset
-          disabled={busy || submitting}
+          disabled={locked || busy || submitting}
           className='shrink-0 space-y-3 border-t bg-background p-4'
         >
+          {locked && (
+            <p className='text-sm text-muted-foreground'>
+              此任务已完成研究（包括无匹配结果），不能重复执行。如需调整方向，请新建研究。
+            </p>
+          )}
           {error && (
             <p role='alert' className='text-sm text-destructive'>
               {error}
@@ -211,7 +218,13 @@ export function SelectedPlanEditor({
               disabled={!plan.directions.length}
               onClick={() => void save(true)}
             >
-              {submitting ? '正在提交…' : dirty ? '保存并开始研究' : '开始研究'}
+              {locked
+                ? '研究已完成'
+                : submitting
+                  ? '正在提交…'
+                  : dirty
+                    ? '保存并开始研究'
+                    : '开始研究'}
             </Button>
           </div>
         </fieldset>

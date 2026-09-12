@@ -177,6 +177,8 @@ it('工作台从左侧切换项目，确认前追问保留上下文，并在手�
       hasResult: false,
     })
   const workspace: ResearchWorkspace = {
+    researchCompleted: false,
+    reachedStage: 'plan',
     revision: 0,
     selectedPlan: plan,
     candidates: plan,
@@ -238,6 +240,7 @@ it('工作台从左侧切换项目，确认前追问保留上下文，并在手�
         workspace.revision += 1
       }
       if (input.kind === 'start_search') {
+        workspace.reachedStage = 'patents'
         advanced = true
         workspace.activeRunId = secondId
         workspace.executionRunId = secondId
@@ -340,6 +343,19 @@ it('工作台从左侧切换项目，确认前追问保留上下文，并在手�
     .getByRole('link', { name: '固态电池技术研究', exact: true })
     .click()
   await expect
+    .element(screen.getByRole('button', { name: /2\. 专利检索/ }))
+    .toBeDisabled()
+  await expect
+    .element(screen.getByRole('button', { name: /4\. 研究报告/ }))
+    .toBeDisabled()
+  await router.navigate({
+    to: '/research/$projectId/$stage',
+    params: { projectId, stage: 'report' },
+  })
+  await expect
+    .poll(() => router.state.location.pathname)
+    .toBe(`/research/${projectId}/plan`)
+  await expect
     .element(screen.getByRole('button', { name: '开始研究' }))
     .toBeVisible()
   expect(action).not.toHaveBeenCalled()
@@ -414,7 +430,7 @@ it('工作台从左侧切换项目，确认前追问保留上下文，并在手�
   )
   expect(router.state.location.pathname).toBe(`/research/${projectId}/patents`)
   await expect
-    .element(screen.getByRole('button', { name: '开始企业发现 →' }))
+    .element(screen.getByRole('button', { name: /开始企业查询/ }))
     .toBeVisible()
   expect(workspaceAction).toHaveBeenCalledTimes(3)
   await expect
@@ -432,12 +448,18 @@ it('工作台从左侧切换项目，确认前追问保留上下文，并在手�
   expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(390)
   await page.screenshot({ path: '__screenshots__/research-patents-mobile.png' })
   await page.viewport(1280, 900)
-  await screen.getByRole('link', { name: '3. 企业发现与核验' }).click()
-  expect(workspaceAction).toHaveBeenCalledTimes(3)
   await expect
-    .element(screen.getByText('请先在专利检索页点击“开始企业发现”。'))
-    .toBeVisible()
-  await screen.getByRole('link', { name: '1. 技术方向与计划' }).click()
+    .element(screen.getByRole('button', { name: /3\. 企业发现与核验/ }))
+    .toBeDisabled()
+  await router.navigate({
+    to: '/research/$projectId/$stage',
+    params: { projectId, stage: 'companies' },
+  })
+  await expect
+    .poll(() => router.state.location.pathname)
+    .toBe(`/research/${projectId}/patents`)
+  expect(workspaceAction).toHaveBeenCalledTimes(3)
+  await screen.getByRole('link', { name: /1\. 技术方向与计划/ }).click()
   await expect
     .element(screen.getByRole('button', { name: '开始研究' }))
     .toBeVisible()

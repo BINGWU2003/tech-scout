@@ -592,6 +592,91 @@ describe.skipIf(!enabled)(
       expect(JSON.stringify(started)).not.toContain('source_path')
     })
 
+    it.each(['completed', 'empty'] as const)(
+      '%s 任务禁止重复研究和修改计划，后续聊天不解除锁定',
+      async (status) => {
+        const original = await prisma.researchRun.findUniqueOrThrow({
+          where: { id },
+          include: { project: true },
+        })
+        const project = await prisma.researchProject.create({
+          data: {
+            userId: original.project.userId,
+            question: '禁止重复研究',
+            title: '禁止重复研究',
+            requestKey: randomUUID(),
+            workspace: { revision: 0, selectedPlan: plan },
+            runs: {
+              create: [
+                {
+                  question: '已执行研究',
+                  requestKey: randomUUID(),
+                  status,
+                  context: { startSearch: true },
+                  state: {
+                    node: 'finish',
+                    artifacts: { confirmed_plan: plan },
+                  },
+                  createdAt: new Date('2026-09-12T00:00:00Z'),
+                },
+                {
+                  question: '后续讨论',
+                  requestKey: randomUUID(),
+                  status: 'awaiting_plan',
+                  createdAt: new Date('2026-09-12T00:01:00Z'),
+                },
+              ],
+            },
+          },
+          include: { runs: { orderBy: { createdAt: 'asc' } } },
+        })
+        const url = `/api/v1/research/ui/projects/${project.id}/workspace`
+        const post = (body: object) =>
+          owner
+            .post(url)
+            .set('Origin', 'http://localhost:5173')
+            .set('x-csrf-token', csrf)
+            .send(body)
+        const workspace = (await owner.get(url).expect(200)).body
+        expect(workspace).toMatchObject({
+          researchCompleted: true,
+          reachedStage: 'report',
+        })
+        await post({
+          kind: 'start_search',
+          requestKey: randomUUID(),
+          revision: 0,
+        }).expect(409)
+        await post({
+          kind: 'save_plan',
+          requestKey: randomUUID(),
+          revision: 0,
+          plan,
+        }).expect(409)
+        await post({
+          kind: 'apply_proposal',
+          requestKey: randomUUID(),
+          revision: 0,
+          proposalRunId: project.runs[1].id,
+        }).expect(409)
+        for (const retryable of ['failed', 'cancelled'] as const) {
+          await prisma.researchRun.updateMany({
+            where: { projectId: project.id },
+            data: { status: retryable },
+          })
+          const input = {
+            kind: 'start_search',
+            requestKey: randomUUID(),
+            revision: 0,
+          }
+          const started = (await post(input).expect(201)).body
+          expect((await post(input).expect(201)).body.activeRunId).toBe(
+            started.activeRunId
+          )
+        }
+      }
+    )
+
     it('仅最新推荐提供候选卡片，普通讨论不替换推荐', async () => {
       const original = await prisma.researchRun.findUniqueOrThrow({
         where: { id },
