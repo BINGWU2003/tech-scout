@@ -26,15 +26,20 @@ const hidden = new Set([
 export function ResearchTimeline({
   events,
   active,
+  title,
+  initiallyOpen = false,
 }: {
   events: ResearchProgressView[]
+  title?: string
+  initiallyOpen?: boolean
   active: boolean
 }) {
   const [expanded, setExpanded] = useState<{
     active: boolean
     open: boolean
   } | null>(null)
-  const open = expanded?.active === active ? expanded.open : active
+  const open =
+    expanded?.active === active ? expanded.open : active || initiallyOpen
   const visible = events.filter((event) => !hidden.has(event.kind))
   return (
     <section className='rounded-2xl border bg-muted/20'>
@@ -50,7 +55,7 @@ export function ResearchTimeline({
           <Sparkles className='size-4 text-muted-foreground' />
         )}
         <span className='flex-1 font-medium'>
-          {active ? '正在研究' : '研究过程与依据'}
+          {title ?? (active ? '正在研究' : '研究过程与依据')}
         </span>
         <span className='text-xs text-muted-foreground'>
           {visible.length} 条记录

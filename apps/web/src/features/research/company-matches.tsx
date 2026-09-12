@@ -17,10 +17,18 @@ export function CompanyMatches({ runId }: { runId: string }) {
     <section className='space-y-4'>
       <h2 className='text-lg font-semibold'>已匹配企业</h2>
 
+      {query.isError && (
+        <p role='alert'>
+          企业列表加载失败。
+          <Button variant='link' onClick={() => void query.refetch()}>
+            重试
+          </Button>
+        </p>
+      )}
       {query.isPending && <p role='status'>正在读取匹配企业…</p>}
       {query.data?.total === 0 && (
         <p className='rounded-xl border border-dashed p-6 text-sm text-muted-foreground'>
-          尚无已匹配企业，可在下方核验候选主体或生成报告。
+          尚无已匹配企业，可切换到核验列表处理候选主体。
         </p>
       )}
       {query.data?.items.map((company) => (
@@ -28,13 +36,14 @@ export function CompanyMatches({ runId }: { runId: string }) {
           key={company.id}
           className='flex items-start justify-between gap-3 rounded-xl border p-4'
         >
-          <div>
+          <div className='min-w-0 flex-1'>
             <h3 className='font-medium break-words'>{company.name}</h3>
             <p className='mt-2 text-xs text-muted-foreground'>
               {countryName(company.country)} · {company.patentCount} 条相关专利
             </p>
           </div>
           <Button
+            className='shrink-0'
             variant='outline'
             size='sm'
             onClick={() => setSelected(company.id)}

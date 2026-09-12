@@ -21,6 +21,8 @@ export default defineConfig({
   ],
   optimizeDeps: {
     include: [
+      '@radix-ui/react-tabs',
+      '@radix-ui/react-direction',
       '@tanstack/react-query',
       'vitest-browser-react',
       '@tanstack/react-query-devtools',

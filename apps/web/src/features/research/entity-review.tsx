@@ -5,23 +5,18 @@ import {
   type ResearchSummaryView,
 } from '@tech-scout/contracts'
 import { createRequestId } from '@tech-scout/shared'
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-} from '@/components/ui/sheet'
 import { Textarea } from '@/components/ui/textarea'
 import { researchApi } from '@/lib/research-api'
+import { useAuthStore } from '@/stores/auth-store'
+import { loadReviewDraft } from './company-review-data'
 import { candidateCountryLabel, countryName, decisionLabels } from './labels'
 import { Pager, SourceReference } from './shared'
 
 type Decision = ResearchAction['decisions'][number]
-function CandidateEditor({
+export function CandidateEditor({
   detail,
   initial,
   editable,
@@ -57,7 +52,7 @@ function CandidateEditor({
         <p className='rounded-md bg-muted p-3 text-sm'>{detail.reviewNote}</p>
       )}
       <p className='text-xs text-muted-foreground'>
-        以下均为本次快照中的身份依据，不证明产品能力，来源正文未提供。
+        请根据名称、注册地和标识信息核对主体身份。身份匹配不代表产品能力已核实。
       </p>
       {editable && (
         <div className='space-y-2'>
@@ -98,13 +93,13 @@ function CandidateEditor({
                 ))}
               </select>
               <p className='text-xs text-muted-foreground'>
-                必须勾选至少一条支持所选公司标识或法律名称与国家的依据。服务端会再次校验。
+                请选择至少一条支持所选公司身份的依据。
               </p>
             </>
           )}
         </div>
       )}
-      <div className='max-h-72 space-y-3 overflow-y-auto'>
+      <div className='space-y-3'>
         {detail.evidence.length === 0 && (
           <p className='text-sm text-muted-foreground'>
             当前没有保存的身份依据。
@@ -142,12 +137,17 @@ function CandidateEditor({
               {e.identifierValue ?? '未提供'} · 注册国家：
               {countryName(e.country)}
             </p>
-            <p className='text-xs'>
-              观察时间：{e.observedAt ?? '缺失'} ·{' '}
-              {e.preserved ? '已存档' : '未存档'} ·{' '}
-              {e.contentHash ? '有内容哈希' : '无内容哈希'}
-            </p>
-            <SourceReference source={e.source} />
+            <details className='mt-2 text-xs'>
+              <summary className='cursor-pointer text-muted-foreground'>
+                来源与存档信息
+              </summary>
+              <p>
+                观察时间：{e.observedAt ?? '缺失'} ·{' '}
+                {e.preserved ? '已存档' : '未存档'} ·{' '}
+                {e.contentHash ? '有内容哈希' : '无内容哈希'}
+              </p>
+              <SourceReference source={e.source} />
+            </details>
           </div>
         ))}
       </div>
@@ -163,7 +163,10 @@ function CandidateEditor({
           <Button
             disabled={
               !choice ||
-              (choice === 'confirm' && (!supported || evidence.length > 30))
+              (choice === 'confirm' &&
+                (detail.terminalExclusion ||
+                  !supported ||
+                  evidence.length > 30))
             }
             onClick={() => {
               if (choice)
@@ -176,7 +179,7 @@ function CandidateEditor({
                 })
             }}
           >
-            暂存此项决定
+            暂存并继续核验
           </Button>
         </>
       )}
@@ -184,7 +187,7 @@ function CandidateEditor({
   )
 }
 
-function CandidateSheet({
+function CandidatePanel({
   runId,
   id,
   editable,
@@ -204,31 +207,32 @@ function CandidateSheet({
     queryFn: () => researchApi.candidate(runId, id),
   })
   return (
-    <Sheet
-      open
-      onOpenChange={(open) => {
-        if (!open) close()
-      }}
-    >
-      <SheetContent className='w-full overflow-y-auto p-6 sm:max-w-2xl'>
-        <SheetHeader>
-          <SheetTitle>{query.data?.name ?? '主体依据'}</SheetTitle>
-          <SheetDescription>
-            核对决定保存在本次研究中，保留原始网页证据。
-          </SheetDescription>
-        </SheetHeader>
-
-        {query.isPending && <p role='status'>读取身份依据…</p>}
-        {query.data && (
-          <CandidateEditor
-            detail={query.data}
-            initial={initial}
-            editable={editable}
-            save={save}
-          />
-        )}
-      </SheetContent>
-    </Sheet>
+    <section className='space-y-4'>
+      <Button size='sm' variant='ghost' onClick={close}>
+        返回发现记录
+      </Button>
+      <h3 className='text-base font-semibold break-words'>
+        {query.data?.name ?? '主体依据'}
+      </h3>
+      {query.isPending && <p role='status'>读取身份依据…</p>}
+      {query.isError && (
+        <p role='alert'>
+          身份依据加载失败。
+          <Button variant='link' onClick={() => void query.refetch()}>
+            重试
+          </Button>
+        </p>
+      )}
+      {query.data && (
+        <CandidateEditor
+          key={id}
+          detail={query.data}
+          initial={initial}
+          editable={editable}
+          save={save}
+        />
+      )}
+    </section>
   )
 }
 
@@ -237,45 +241,96 @@ export function EntityReview({
   busy,
   onSubmit,
   readOnly = false,
+  renderWorkspace,
 }: {
   run: ResearchSummaryView
   busy: boolean
   onSubmit: (a: ResearchAction) => Promise<void>
   readOnly?: boolean
+  renderWorkspace: (parts: {
+    list: ReactNode
+    detail: ReactNode
+    footer: ReactNode
+    selected: string | null
+    saved: number
+    remaining: number
+  }) => ReactNode
 }) {
   const editable = !readOnly && run.status === 'awaiting_entities'
   const [page, setPage] = useState(1),
     [selected, setSelected] = useState<string | null>(null)
-  const [draft, setDraft] = useState<Record<string, Decision>>({})
+  const userId = useAuthStore((state) => state.auth.user?.id)
+  const storageKey = userId ? `research-review-v1:${userId}:${run.id}` : null
+  const [draft, updateDraft] = useState<Record<string, Decision>>(() =>
+    editable ? loadReviewDraft(storageKey, run.pendingCandidateIds) : {}
+  )
+  const [storageError, setStorageError] = useState(false)
+  const setDraft = (
+    value:
+      | Record<string, Decision>
+      | ((old: Record<string, Decision>) => Record<string, Decision>)
+  ) => {
+    const next = typeof value === 'function' ? value(draft) : value
+    updateDraft(next)
+    try {
+      if (!storageKey) throw new Error('No user')
+      if (Object.keys(next).length)
+        localStorage.setItem(storageKey, JSON.stringify(Object.values(next)))
+      else localStorage.removeItem(storageKey)
+      setStorageError(false)
+    } catch {
+      setStorageError(true)
+    }
+  }
   const [skipConfirm, setSkipConfirm] = useState(false)
   const query = useQuery({
     queryKey: ['research', run.id, 'candidates', page, editable],
     queryFn: () => researchApi.candidates(run.id, page, editable),
+    enabled: run.hasCompanies,
   })
   const remaining = run.pendingCandidateIds.filter((id) => !draft[id])
+  const [submitError, setSubmitError] = useState(false)
   const submit = async () => {
+    if (!editable || busy || remaining.length) return
+    setSubmitError(false)
     await onSubmit({
       action_id: createRequestId(),
       kind: 'resolve_entities',
       decisions: run.pendingCandidateIds.map((id) => draft[id]),
     })
       .then(() => setDraft({}))
-      .catch(() => undefined)
+      .catch(() => setSubmitError(true))
   }
-  return (
-    <section className='space-y-4 rounded-xl border p-5'>
+  const list = (
+    <section className='space-y-4'>
       <div>
         <h2 className='text-lg font-semibold'>
           {editable ? '确认待核验主体' : '未核验主体与处理记录'}
         </h2>
         <p className='mt-1 text-sm text-muted-foreground'>
           {editable
-            ? `共 ${run.pendingCandidateIds.length} 项，尚有 ${remaining.length} 项未选择。草稿翻页保留，离开本页不保存；全部处理后统一提交。`
+            ? `共 ${run.pendingCandidateIds.length} 项，尚有 ${remaining.length} 项未选择。暂存后可在本浏览器恢复，全部处理后统一提交。`
             : '保留证据不足、非公司与已拒绝条目，避免把未核验主体算入名单。'}
         </p>
       </div>
 
+      {storageError && (
+        <p role='alert' className='text-sm text-destructive'>
+          本地保存失败，当前决定仅保留在本页，请勿刷新或离开。
+        </p>
+      )}
+      {query.isError && (
+        <p role='alert'>
+          主体列表加载失败。
+          <Button variant='link' onClick={() => void query.refetch()}>
+            重试
+          </Button>
+        </p>
+      )}
       {query.isPending && <p role='status'>读取主体列表…</p>}
+      {query.data?.total === 0 && (
+        <p className='text-sm text-muted-foreground'>暂无需要核验的主体。</p>
+      )}
       <div className='divide-y'>
         {query.data?.items.map((u) => (
           <div
@@ -308,6 +363,16 @@ export function EntityReview({
       {query.data && (
         <Pager page={page} total={query.data.total} onChange={setPage} />
       )}
+    </section>
+  )
+  const footer = (
+    <>
+      {storageError && (
+        <p role='alert' className='text-sm text-destructive'>
+          本地保存失败，请在离开前完成提交。
+        </p>
+      )}
+      {submitError && <p role='alert'>提交失败，草稿已保留，请重试。</p>}
       {editable && (
         <div className='space-y-3'>
           <div className='flex flex-wrap gap-3'>
@@ -373,20 +438,29 @@ export function EntityReview({
           )}
         </div>
       )}
-      {selected && (
-        <CandidateSheet
-          key={selected}
-          runId={run.id}
-          id={selected}
-          editable={editable && !busy}
-          initial={draft[selected]}
-          close={() => setSelected(null)}
-          save={(value) => {
-            setDraft((d) => ({ ...d, [value.candidate_id]: value }))
-            setSelected(null)
-          }}
-        />
-      )}
-    </section>
+    </>
   )
+  const detail = selected ? (
+    <CandidatePanel
+      key={selected}
+      runId={run.id}
+      id={selected}
+      editable={editable && !busy}
+      initial={draft[selected]}
+      close={() => setSelected(null)}
+      save={(value) => {
+        const next = { ...draft, [value.candidate_id]: value }
+        setDraft(next)
+        setSelected(run.pendingCandidateIds.find((id) => !next[id]) ?? null)
+      }}
+    />
+  ) : null
+  return renderWorkspace({
+    list,
+    detail,
+    footer,
+    selected,
+    saved: run.pendingCandidateIds.filter((id) => Boolean(draft[id])).length,
+    remaining: remaining.length,
+  })
 }

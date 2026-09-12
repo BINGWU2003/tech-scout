@@ -247,3 +247,14 @@ export type ResearchCandidateDetailView = z.infer<
 >
 export type ResearchSourceView = z.infer<typeof researchSourceViewSchema>
 export type ResearchViewQuery = z.infer<typeof researchViewQuerySchema>
+
+export const researchCompanyStatsSchema = z.object({
+  total: z.number().int().nonnegative(),
+  ranking: z.array(
+    z.object({
+      id: z.string(),
+      name: z.string(),
+      patentCount: z.number().int().nonnegative(),
+    })
+  ),
+})

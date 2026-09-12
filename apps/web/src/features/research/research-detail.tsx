@@ -14,8 +14,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { resetApiErrors } from '@/lib/api-error-notifications'
 import { researchApi } from '@/lib/research-api'
-import { CompanyMatches } from './company-matches'
-import { EntityReview } from './entity-review'
+import { CompanyWorkspace } from './company-workspace'
 import { countryName, nodeLabels, statusLabels } from './labels'
 import { PatentWorkspace } from './patent-workspace'
 import { SelectedPlanEditor } from './plan-editor'
@@ -298,7 +297,7 @@ function RunWorkspace({
         <Badge variant={run.status === 'failed' ? 'destructive' : 'secondary'}>
           {statusLabels[run.status]}
         </Badge>
-        {stage !== 'patents' && (
+        {stage !== 'patents' && stage !== 'companies' && (
           <span className='text-sm text-muted-foreground'>
             研究快照：
             {run.releaseId ?? '采集完成后生成'}
@@ -320,29 +319,32 @@ function RunWorkspace({
           等待研究服务接收请求，状态将自动刷新。
         </p>
       )}
-      {stage !== 'patents' && inCurrentStage && run.acquisition && (
-        <div role='status' className='rounded-lg border p-4 text-sm'>
-          <p className='font-medium'>
-            数据采集：
-            {(
-              {
-                search: '检索专利',
-                patents: '读取专利详情',
-                companies: '补全企业信息',
-                snapshot: '保存研究快照',
-              } as Record<string, string>
-            )[run.acquisition.stage ?? ''] ?? '等待采集'}
-          </p>
-          {run.acquisition.total != null && (
-            <p>
-              {run.acquisition.completed ?? 0} / {run.acquisition.total}
+      {stage !== 'patents' &&
+        stage !== 'companies' &&
+        inCurrentStage &&
+        run.acquisition && (
+          <div role='status' className='rounded-lg border p-4 text-sm'>
+            <p className='font-medium'>
+              数据采集：
+              {(
+                {
+                  search: '检索专利',
+                  patents: '读取专利详情',
+                  companies: '补全企业信息',
+                  snapshot: '保存研究快照',
+                } as Record<string, string>
+              )[run.acquisition.stage ?? ''] ?? '等待采集'}
             </p>
-          )}
-          <p className='mt-1 text-muted-foreground'>
-            已完成的数据会保存，中断后可重试继续。
-          </p>
-        </div>
-      )}
+            {run.acquisition.total != null && (
+              <p>
+                {run.acquisition.completed ?? 0} / {run.acquisition.total}
+              </p>
+            )}
+            <p className='mt-1 text-muted-foreground'>
+              已完成的数据会保存，中断后可重试继续。
+            </p>
+          </div>
+        )}
       {isExecuting(run.status) && disconnected && (
         <p role='status' className='text-sm text-muted-foreground'>
           实时连接中断，正在重连；当前每 5 秒读取状态。不会自动重试模型。
@@ -533,34 +535,29 @@ function RunWorkspace({
         )}
       </div>
     )
-  return (
-    <div className='space-y-6'>
-      {summary.isPending && <p role='status'>正在读取运行状态…</p>}
-      {run && (
-        <>
-          {statusContent}
-          {timeline}
-          {stage === 'companies' && (
-            <>
-              {run.hasCompanies ? (
-                <>
-                  <CompanyMatches runId={id} />
-                  <EntityReview
-                    key={`${run.id}-${run.status}-${readOnly}`}
-                    run={run}
-                    busy={mutation.isPending}
-                    onSubmit={submit}
-                    readOnly={readOnly}
-                  />
-                </>
-              ) : (
-                <p className='rounded-xl border border-dashed p-5 text-sm text-muted-foreground'>
-                  {inCurrentStage && isExecuting(run.status)
-                    ? '正在查询企业信息，完成后会显示匹配结果与待核验主体。'
-                    : '请先在专利检索页点击“开始企业发现”。'}
-                </p>
-              )}
-              {run.hasResult && (
+  if (stage === 'companies')
+    return (
+      <div className='flex min-h-0 flex-1 flex-col'>
+        {summary.isPending && <p role='status'>正在读取运行状态…</p>}
+        {summary.isError && (
+          <p role='alert'>运行状态加载失败，请刷新页面重试。</p>
+        )}
+        {run && (
+          <CompanyWorkspace
+            key={`${run.id}-${run.status}-${readOnly}`}
+            run={run}
+            events={(events.data ?? []).filter(
+              (event) => stageForEvent(event) === 'companies'
+            )}
+            active={inCurrentStage && isExecuting(run.status)}
+            readOnly={readOnly}
+            busy={mutation.isPending}
+            onSubmit={submit}
+            controls={statusContent}
+            recordsError={events.isError}
+            retryRecords={() => void events.refetch()}
+            report={
+              run.hasResult && (
                 <Button asChild variant='outline'>
                   <Link
                     to='/research/$projectId/$stage'
@@ -570,9 +567,19 @@ function RunWorkspace({
                     查看研究报告 →
                   </Link>
                 </Button>
-              )}
-            </>
-          )}
+              )
+            }
+          />
+        )}
+      </div>
+    )
+  return (
+    <div className='space-y-6'>
+      {summary.isPending && <p role='status'>正在读取运行状态…</p>}
+      {run && (
+        <>
+          {statusContent}
+          {timeline}
           {stage === 'report' &&
             (run.hasResult ? (
               <ResultPanel run={run} />
@@ -815,10 +822,10 @@ function ProjectWorkspace({
   return (
     <ResearchShell
       title={project.data?.title ?? '研究工作台'}
-      split={stage === 'plan' || stage === 'patents'}
+      split={stage === 'plan' || stage === 'patents' || stage === 'companies'}
       navigation={
         <div
-          className={`mx-auto space-y-3 ${stage === 'plan' || stage === 'patents' ? 'w-full' : 'max-w-4xl'}`}
+          className={`mx-auto space-y-3 ${stage === 'plan' || stage === 'patents' || stage === 'companies' ? 'w-full' : 'max-w-4xl'}`}
         >
           <nav
             aria-label='研究流程'

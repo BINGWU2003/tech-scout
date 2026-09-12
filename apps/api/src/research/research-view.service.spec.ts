@@ -1,5 +1,7 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+import type { PrismaService } from '../database/prisma.service.js'
 import {
+  ResearchViewService,
   candidateView,
   patentStatsView,
   sourceView,
@@ -119,5 +121,40 @@ describe('待核对主体国家', () => {
       countryStatus: 'verified',
       countrySource: 'patent',
     })
+  })
+})
+
+describe('企业全量排行', () => {
+  it('跨分页取前八名，并在读取时校验所有权', async () => {
+    const findFirst = vi.fn().mockResolvedValue({
+      state: {
+        artifacts: {
+          companies: Array.from({ length: 40 }, (_, i) => ({
+            company_id: `c${i}`,
+            preferred_name: `公司${i}`,
+            patent_ids: Array.from({ length: i + 1 }, (_, j) => `p${j}`),
+          })),
+        },
+      },
+    })
+    const service = new ResearchViewService({
+      researchRun: { findFirst },
+    } as unknown as PrismaService)
+    const stats = await service.companyStats('owner', 'run')
+    expect(findFirst).toHaveBeenCalledWith({
+      where: { id: 'run', project: { userId: 'owner' } },
+      select: { state: true },
+    })
+    expect(stats.total).toBe(40)
+    expect(stats.ranking).toHaveLength(8)
+    expect(stats.ranking[0]).toEqual({
+      id: 'c39',
+      name: '公司39',
+      patentCount: 40,
+    })
+    findFirst.mockResolvedValue(null)
+    await expect(service.companyStats('stranger', 'run')).rejects.toThrow(
+      '研究运行不存在'
+    )
   })
 })

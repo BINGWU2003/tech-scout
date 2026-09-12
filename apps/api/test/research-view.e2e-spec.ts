@@ -348,6 +348,7 @@ describe.skipIf(!enabled)(
         '/conflicts',
         '/patents',
         '/patent-stats',
+        '/company-stats',
         '/candidates',
         '/candidates/u1',
         '/companies/c1',

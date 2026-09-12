@@ -27,6 +27,7 @@ import {
   researchCandidateDetailViewSchema,
   researchCompanyDetailViewSchema,
   researchCompanyMatchesSchema,
+  researchCompanyStatsSchema,
   researchViewQuerySchema,
   type ResearchAction,
   type ResearchCreate,
@@ -148,6 +149,12 @@ export class ResearchViewController {
     @Query(new ZodValidationPipe(researchViewQuerySchema)) q: ResearchViewQuery
   ) {
     return this.view.candidates(auth.user.id, id, q)
+  }
+
+  @Get('runs/:runId/company-stats')
+  @ZodResponse(researchCompanyStatsSchema)
+  companyStats(@CurrentAuth() auth: Auth, @Param('runId', uuid) id: string) {
+    return this.view.companyStats(auth.user.id, id)
   }
 
   @Get('runs/:runId/companies')

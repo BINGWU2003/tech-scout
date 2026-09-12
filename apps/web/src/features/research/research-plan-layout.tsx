@@ -20,21 +20,40 @@ export function ResearchPlanLayout({
   conversation,
   composer,
   variant = 'plan',
+  detailKey,
+  autoFollow = true,
 }: {
   directions: ReactNode
   conversation: ReactNode
   composer?: ReactNode
-  variant?: 'plan' | 'patents'
+  variant?: 'plan' | 'patents' | 'companies'
+  detailKey?: string | null
+  autoFollow?: boolean
 }) {
   const mobile = useIsMobile()
   const patents = variant === 'patents'
-  const leftTitle = patents ? '专利概览' : '已选方向'
-  const rightTitle = patents ? '专利搜索记录' : 'AI 对话'
-  const LeftIcon = patents ? ChartNoAxesCombined : Shapes
-  const RightIcon = patents ? Search : MessageSquare
+  const companies = variant === 'companies'
+  const results = patents || companies
+  const leftTitle = companies
+    ? '企业概览与核验'
+    : patents
+      ? '专利概览'
+      : '已选方向'
+  const rightTitle = companies
+    ? '发现记录与主体依据'
+    : patents
+      ? '专利搜索记录'
+      : 'AI 对话'
+  const LeftIcon = results ? ChartNoAxesCombined : Shapes
+  const RightIcon = results ? Search : MessageSquare
   const [mobilePane, setMobilePane] = useState<'conversation' | 'directions'>(
-    patents ? 'directions' : 'conversation'
+    results ? 'directions' : 'conversation'
   )
+  const [previousDetail, setPreviousDetail] = useState(detailKey)
+  if (previousDetail !== detailKey) {
+    setPreviousDetail(detailKey)
+    if (detailKey) setMobilePane('conversation')
+  }
   const { defaultLayout, onLayoutChanged } = useDefaultLayout({
     id: `research-${variant}-layout-v1`,
     onlySaveAfterUserInteractions: true,
@@ -44,12 +63,17 @@ export function ResearchPlanLayout({
   const following = useRef(true)
   useEffect(() => {
     const observer = new ResizeObserver(() => {
-      if (following.current && viewport.current)
+      if (autoFollow && following.current && viewport.current)
         viewport.current.scrollTop = viewport.current.scrollHeight
     })
     if (messages.current) observer.observe(messages.current)
     return () => observer.disconnect()
-  }, [mobile])
+  }, [mobile, autoFollow])
+  useEffect(() => {
+    if (detailKey) {
+      viewport.current?.scrollTo({ top: 0 })
+    }
+  }, [detailKey])
 
   const directionPane = (
     <section
@@ -96,7 +120,7 @@ export function ResearchPlanLayout({
       {composer && (
         <div
           className={
-            patents
+            results
               ? 'max-h-[45%] shrink-0 overflow-y-auto border-t bg-background p-3'
               : 'shrink-0 border-t bg-background p-3'
           }
@@ -124,7 +148,7 @@ export function ResearchPlanLayout({
             aria-pressed={mobilePane === 'directions'}
             onClick={() => setMobilePane('directions')}
           >
-            {patents ? leftTitle : '已选计划'}
+            {results ? leftTitle : '已选计划'}
           </Button>
         </div>
         <div
@@ -154,7 +178,11 @@ export function ResearchPlanLayout({
       </Panel>
       <Separator
         aria-label={
-          patents ? '调整专利概览与搜索记录宽度' : '调整方向与 AI 对话宽度'
+          companies
+            ? '调整企业概览与主体依据宽度'
+            : patents
+              ? '调整专利概览与搜索记录宽度'
+              : '调整方向与 AI 对话宽度'
         }
         className='group flex w-4 shrink-0 items-center justify-center rounded focus-visible:outline-2 focus-visible:outline-ring'
       >

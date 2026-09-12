@@ -13,6 +13,7 @@ import {
   researchCandidateDetailViewSchema,
   researchCompanyDetailViewSchema,
   researchCompanyMatchesSchema,
+  researchCompanyStatsSchema,
   type ResearchAction,
   type ResearchCreate,
 } from '@tech-scout/contracts'
@@ -99,6 +100,8 @@ export const researchApi = {
       `${run(id)}/companies/${encodeURIComponent(companyId)}`,
       researchCompanyDetailViewSchema
     ),
+  companyStats: (id: string) =>
+    apiRequest(`${run(id)}/company-stats`, researchCompanyStatsSchema),
   companyMatches: (id: string, page: number) =>
     apiRequest(
       `${run(id)}/companies?page=${page}`,

@@ -1,0 +1,318 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import {
+  researchSummaryViewSchema,
+  type ResearchProgressView,
+} from '@tech-scout/contracts'
+import { afterEach, expect, it, vi } from 'vitest'
+import { render } from 'vitest-browser-react'
+import { page } from 'vitest/browser'
+import { researchApi } from '@/lib/research-api'
+import { useAuthStore } from '@/stores/auth-store'
+import { companyRecords, loadReviewDraft } from './company-review-data'
+import { CompanyWorkspace } from './company-workspace'
+import { CandidateEditor } from './entity-review'
+import '@/styles/index.css'
+const now = '2026-09-12T01:00:00Z'
+const userId = crypto.randomUUID()
+const run = researchSummaryViewSchema.parse({
+  id: crypto.randomUUID(),
+  projectId: crypto.randomUUID(),
+  question: '企业核验',
+  status: 'awaiting_entities',
+  sequence: 10,
+  createdAt: now,
+  updatedAt: now,
+  ready: true,
+  node: 'entity',
+  error: null,
+  budget: null,
+  releaseId: null,
+  fromYear: 2020,
+  toYear: 2026,
+  domains: [],
+  plan: null,
+  confirmedPlan: null,
+  pendingCandidateIds: ['a', 'b'],
+  candidateCount: 2,
+  hasResult: false,
+  hasCompanies: true,
+})
+const key = `research-review-v1:${userId}:${run.id}`
+const candidate = (id: string) => ({
+  id,
+  name: id === 'a' ? '甲科技候选主体' : '乙科技候选主体',
+  country: null,
+  countryStatus: 'unknown' as const,
+  countrySource: null,
+  status: 'unverified',
+  needsReview: true,
+  terminalExclusion: false,
+  decision: null,
+  patentCount: 3,
+})
+afterEach(() => {
+  vi.restoreAllMocks()
+  localStorage.removeItem(key)
+  useAuthStore.getState().auth.reset()
+})
+it('草稿恢复、连续核验、失败保留与成功清理，手机切换到依据面板', async () => {
+  await page.viewport(1280, 900)
+  useAuthStore.getState().auth.setSession({
+    user: {
+      id: userId,
+      username: 'reviewer',
+      email: 'reviewer@example.com',
+      role: 'user',
+      status: 'active',
+      createdAt: now,
+      updatedAt: now,
+      lastLoginAt: null,
+    },
+    csrfToken: 'x'.repeat(32),
+  })
+  vi.spyOn(researchApi, 'companyStats').mockResolvedValue({
+    total: 30,
+    ranking: [{ id: 'c', name: '示例新能源科技有限公司', patentCount: 36 }],
+  })
+  vi.spyOn(researchApi, 'companyMatches').mockResolvedValue({
+    items: [
+      {
+        id: 'c',
+        name: '示例新能源科技有限公司',
+        country: 'CN',
+        patentCount: 36,
+      },
+    ],
+    total: 30,
+    page: 1,
+    pageSize: 20,
+  })
+  vi.spyOn(researchApi, 'candidates').mockResolvedValue({
+    items: [candidate('a'), candidate('b')],
+    total: 2,
+    page: 1,
+    pageSize: 20,
+  })
+  vi.spyOn(researchApi, 'candidate').mockImplementation(async (_run, id) => ({
+    ...candidate(id),
+    evidence: [],
+    reviewNote: null,
+    companyOptions: [],
+  }))
+  const submit = vi
+    .fn()
+    .mockRejectedValueOnce(new Error('offline'))
+    .mockResolvedValue(undefined)
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  })
+  const ui = () => (
+    <QueryClientProvider client={client}>
+      <div className='flex h-[820px] flex-col p-4'>
+        <CompanyWorkspace
+          run={run}
+          events={[]}
+          active={false}
+          busy={false}
+          readOnly={false}
+          onSubmit={submit}
+          controls={null}
+          report={null}
+          recordsError={false}
+          retryRecords={() => {}}
+        />
+      </div>
+    </QueryClientProvider>
+  )
+  let screen = await render(ui())
+  await screen.getByRole('button', { name: '查看并处理' }).first().click()
+  await expect
+    .element(screen.getByRole('heading', { name: '甲科技候选主体' }))
+    .toBeVisible()
+  const choose = () =>
+    screen
+      .getByRole('combobox', { name: '本次决定' })
+      .element() as HTMLSelectElement
+  choose().value = 'skip'
+  choose().dispatchEvent(new Event('change', { bubbles: true }))
+  await screen.getByRole('button', { name: '暂存并继续核验' }).click()
+  await expect
+    .element(screen.getByRole('heading', { name: '乙科技候选主体' }))
+    .toBeVisible()
+  expect(loadReviewDraft(key, ['a', 'b'])).toHaveProperty('a.action', 'skip')
+  await page.screenshot({ path: '__screenshots__/company-review-detail.png' })
+  await screen.unmount()
+  screen = await render(ui())
+  await expect
+    .element(screen.getByText('已暂存：本次跳过', { exact: false }))
+    .toBeVisible()
+  await page.viewport(390, 844)
+  await screen.getByRole('button', { name: '查看并处理' }).last().click()
+  await expect
+    .element(screen.getByRole('heading', { name: '乙科技候选主体' }))
+    .toBeVisible()
+  choose().value = 'reject'
+  choose().dispatchEvent(new Event('change', { bubbles: true }))
+  await screen.getByRole('button', { name: '暂存并继续核验' }).click()
+  await screen.getByRole('button', { name: '确认主体并生成报告' }).click()
+  await expect
+    .element(screen.getByText('提交失败，草稿已保留，请重试。'))
+    .toBeVisible()
+  expect(Object.keys(loadReviewDraft(key, ['a', 'b']))).toHaveLength(2)
+  await page.screenshot({ path: '__screenshots__/company-review-mobile.png' })
+  expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(390)
+  await screen.getByRole('button', { name: '确认主体并生成报告' }).click()
+  await expect.poll(() => localStorage.getItem(key)).toBeNull()
+  expect(submit.mock.calls[1][0].decisions).toHaveLength(2)
+  await page.viewport(1280, 900)
+  await page.screenshot({ path: '__screenshots__/company-review-desktop.png' })
+  await screen.unmount()
+  client.clear()
+})
+it('查询进度不刷屏，同名主体更新完成状态，不合并不同企业', () => {
+  const events = Array.from({ length: 100 }, (_, i): ResearchProgressView => ({
+    sequence: i,
+    kind: 'acquisition_progress',
+    createdAt: now,
+    status: 'running',
+    node: 'company_snapshot',
+    error: null,
+    reasoning: null,
+    answer: null,
+    acquisition: {
+      stage: 'companies',
+      status: 'running',
+      completed: i,
+      total: 100,
+    },
+  }))
+  const process = {
+    stage: 'companies',
+    direction: '甲公司',
+    message: '查询中',
+    outcome: 'running' as const,
+  }
+  events.push(
+    {
+      ...events[0],
+      acquisition: null,
+      sequence: 101,
+      kind: 'search_progress',
+      process,
+    },
+    {
+      ...events[0],
+      acquisition: null,
+      sequence: 102,
+      kind: 'search_progress',
+      process: { ...process, outcome: 'completed', message: '查询完成' },
+    },
+    {
+      ...events[0],
+      acquisition: null,
+      sequence: 103,
+      kind: 'search_progress',
+      process: { ...process, direction: '乙公司' },
+    }
+  )
+  expect(companyRecords(events)).toHaveLength(2)
+  expect(companyRecords(events)[0].process?.outcome).toBe('completed')
+})
+it('确认匹配必须选择支持证据，禁止确认的主体不能通过已有草稿确认', async () => {
+  const save = vi.fn()
+  const detail = {
+    ...candidate('a'),
+    evidence: [],
+    reviewNote: null,
+    companyOptions: [
+      { id: 'c', name: '公司', country: 'CN', supportingEvidenceIds: [] },
+    ],
+  }
+  const screen = await render(
+    <CandidateEditor
+      detail={detail}
+      editable
+      save={save}
+      initial={{
+        candidate_id: 'a',
+        action: 'confirm',
+        company_id: 'c',
+        evidence_ids: [],
+        note: '',
+      }}
+    />
+  )
+  await expect
+    .element(screen.getByRole('button', { name: '暂存并继续核验' }))
+    .toBeDisabled()
+  await screen.unmount()
+  localStorage.setItem(
+    key,
+    JSON.stringify([
+      {
+        candidate_id: 'a',
+        action: 'confirm',
+        company_id: null,
+        evidence_ids: [],
+        note: '',
+      },
+    ])
+  )
+  expect(loadReviewDraft(key, ['a'])).toEqual({})
+  expect(loadReviewDraft(key, ['other'])).toEqual({})
+})
+
+it('仅支持所选公司的证据可确认，历史只读不显示操作', async () => {
+  const save = vi.fn()
+  const evidence = {
+    id: 'e1',
+    publisher: '企业登记信息',
+    observedAt: now,
+    legalName: '甲公司',
+    country: 'CN',
+    identifierType: 'registration',
+    identifierValue: '123',
+    preserved: true,
+    contentHash: null,
+    source: { sha256: null },
+  }
+  const detail = {
+    ...candidate('a'),
+    evidence: [evidence],
+    reviewNote: null,
+    companyOptions: [
+      { id: 'c', name: '甲公司', country: 'CN', supportingEvidenceIds: ['e1'] },
+    ],
+  }
+  const initial = {
+    candidate_id: 'a',
+    action: 'confirm' as const,
+    company_id: 'c',
+    evidence_ids: [],
+    note: '',
+  }
+  const screen = await render(
+    <CandidateEditor detail={detail} editable save={save} initial={initial} />
+  )
+  await screen.getByRole('checkbox', { name: '选择证据 e1' }).click()
+  await screen.getByRole('button', { name: '暂存并继续核验' }).click()
+  expect(save).toHaveBeenCalledWith({ ...initial, evidence_ids: ['e1'] })
+  await screen.rerender(
+    <CandidateEditor
+      detail={{ ...detail, terminalExclusion: true }}
+      editable
+      save={save}
+      initial={initial}
+    />
+  )
+  await expect
+    .element(screen.getByRole('button', { name: '暂存并继续核验' }))
+    .toBeDisabled()
+  await screen.rerender(
+    <CandidateEditor detail={detail} editable={false} save={save} />
+  )
+  await expect
+    .element(screen.getByRole('combobox', { name: '本次决定' }))
+    .not.toBeInTheDocument()
+  await screen.unmount()
+})

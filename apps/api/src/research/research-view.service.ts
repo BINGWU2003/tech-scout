@@ -368,6 +368,24 @@ export class ResearchViewService {
     return pageOf(items.map(candidateView), q)
   }
 
+  async companyStats(userId: string, id: string) {
+    const companies = rows((await this.artifacts(userId, id)).companies)
+    return {
+      total: companies.length,
+      ranking: companies
+        .map((c) => ({
+          id: String(c.company_id),
+          name: String(c.preferred_name),
+          patentCount: new Set(strings(c.patent_ids)).size,
+        }))
+        .sort(
+          (a, b) =>
+            b.patentCount - a.patentCount || a.name.localeCompare(b.name)
+        )
+        .slice(0, 8),
+    }
+  }
+
   async companyMatches(userId: string, id: string, q: ResearchViewQuery) {
     const companies = rows((await this.artifacts(userId, id)).companies)
     return pageOf(

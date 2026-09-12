@@ -94,10 +94,6 @@ export function ResearchComposer({
           </Button>
         </div>
       </div>
-
-      <p className='text-center text-[11px] text-muted-foreground'>
-        Enter 发送 · Shift + Enter 换行
-      </p>
     </form>
   )
 }
