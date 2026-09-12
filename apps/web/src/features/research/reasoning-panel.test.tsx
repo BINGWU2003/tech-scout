@@ -16,8 +16,12 @@ const reasoning: ResearchReasoning = {
   truncated: false,
 }
 
-it('实时展开，完成自动折叠，仍可手动查看真实思考内容', async () => {
+it('默认折叠，手动展开后完成时收起，仍可回看思考内容', async () => {
   const screen = await render(<ReasoningPanel reasoning={reasoning} />)
+  await expect
+    .element(screen.getByRole('button', { name: /查看思考过程/ }))
+    .toHaveAttribute('aria-expanded', 'false')
+  await screen.getByRole('button', { name: /查看思考过程/ }).click()
   await expect.element(screen.getByText(reasoning.text)).toBeVisible()
   await screen.rerender(
     <ReasoningPanel
@@ -25,24 +29,28 @@ it('实时展开，完成自动折叠，仍可手动查看真实思考内容', a
     />
   )
   await expect
-    .element(screen.getByRole('button', { name: /思考已完成/ }))
+    .element(screen.getByRole('button', { name: /查看思考过程/ }))
     .toHaveAttribute('aria-expanded', 'false')
-  await screen.getByRole('button', { name: /思考已完成/ }).click()
+  await screen.getByRole('button', { name: /查看思考过程/ }).click()
   await expect.element(screen.getByText(reasoning.text)).toBeVisible()
 })
 
-it('新一次尝试重新展开，无内容时只显示真实状态', async () => {
+it('新一次尝试保持折叠，展开后可查看空内容提示', async () => {
   const screen = await render(
     <ReasoningPanel reasoning={{ ...reasoning, status: 'interrupted' }} />
   )
   await expect
-    .element(screen.getByRole('button', { name: /思考已中断/ }))
+    .element(screen.getByRole('button', { name: /查看思考过程/ }))
     .toHaveAttribute('aria-expanded', 'false')
   await screen.rerender(
     <ReasoningPanel
       reasoning={{ ...reasoning, id: crypto.randomUUID(), text: '' }}
     />
   )
+  await expect
+    .element(screen.getByRole('button', { name: /查看思考过程/ }))
+    .toHaveAttribute('aria-expanded', 'false')
+  await screen.getByRole('button', { name: /查看思考过程/ }).click()
   await expect.element(screen.getByText('正在等待模型返回内容…')).toBeVisible()
 })
 
@@ -95,6 +103,7 @@ it('事件补充消息内实时思考，但旧事件不能覆盖刷新后已完�
     ],
   }
   const screen = await render(<ProjectConversation {...props} />)
+  await screen.getByRole('button', { name: /查看思考过程/ }).click()
   await expect.element(screen.getByText(reasoning.text)).toBeVisible()
   await screen.rerender(
     <ProjectConversation
@@ -114,6 +123,6 @@ it('事件补充消息内实时思考，但旧事件不能覆盖刷新后已完�
   )
   await expect.element(screen.getByText('这是最终回答。')).toBeVisible()
   await expect
-    .element(screen.getByRole('button', { name: /思考已完成/ }))
+    .element(screen.getByRole('button', { name: /查看思考过程/ }))
     .toHaveAttribute('aria-expanded', 'false')
 })

@@ -18,6 +18,7 @@ import { CompanyMatches } from './company-matches'
 import { EntityReview } from './entity-review'
 import { countryName, nodeLabels, statusLabels } from './labels'
 import { SelectedPlanEditor } from './plan-editor'
+import { PlanRunFeedback } from './plan-run-feedback'
 import { ProjectConversation } from './project-conversation'
 import { ResearchComposer } from './research-composer'
 import { ResearchPlanLayout } from './research-plan-layout'
@@ -258,6 +259,9 @@ function RunWorkspace({
       void client.invalidateQueries({
         queryKey: ['research', run.projectId, 'project'],
       })
+      void client.invalidateQueries({
+        queryKey: ['research', run.projectId, 'workspace'],
+      })
       actionKey.current = null
       setCancelConfirm(false)
     },
@@ -447,14 +451,26 @@ function RunWorkspace({
         {run && (
           <ResearchPlanLayout
             directions={directions}
-            conversation={
+            conversation={conversation?.(events.data ?? [])}
+            composer={
               <>
-                {conversation?.(events.data ?? [])}
-                {statusContent}
-                {timeline}
+                <PlanRunFeedback
+                  run={run}
+                  events={events.data ?? []}
+                  disconnected={disconnected}
+                  busy={mutation.isPending}
+                  readOnly={readOnly}
+                  onAction={(kind) =>
+                    void submit({
+                      action_id: createRequestId(),
+                      kind,
+                      decisions: [],
+                    }).catch(() => undefined)
+                  }
+                />
+                {composer}
               </>
             }
-            composer={composer}
           />
         )}
       </div>

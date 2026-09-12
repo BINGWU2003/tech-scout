@@ -86,8 +86,7 @@ export class ResearchService implements OnModuleInit, OnModuleDestroy {
       })
     if (
       project.question !== input.question ||
-      object(project.runs[0].context).thinking !==
-        (input.thinking)
+      object(project.runs[0].context).thinking !== input.thinking
     )
       throw new ConflictException({
         code: 'IDEMPOTENCY_CONFLICT',
@@ -154,8 +153,7 @@ export class ResearchService implements OnModuleInit, OnModuleDestroy {
       if (existing) {
         if (
           existing.question !== input.question ||
-          object(existing.context).thinking !==
-            (input.thinking) ||
+          object(existing.context).thinking !== input.thinking ||
           Boolean(object(existing.context).startSearch) !==
             (searchRevision !== undefined) ||
           (searchRevision !== undefined &&

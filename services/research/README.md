@@ -12,3 +12,5 @@ uv run --project services/research pytest services/research/tests
 ```
 
 配置见 `.env.example`。本服务写入 `agent_runtime`、`ingestion` 和 `catalog_v2`，产品投影由 NestJS 写入 `app`。旧离线目录读取器已删除。详细结构见 [架构](../../docs/architecture.md)。
+
+研究、模型和采集配置统一写在本目录的 `.env`，只保留 `.env` 与 `.env.example` 两种文件。可选数据库测试配置使用同一文件中的 `TEST_ACQUISITION_DATABASE_URL`、`TEST_INTELLIGENCE_DATABASE_URL`，指向独立测试库；已有进程环境变量不会被文件覆盖。

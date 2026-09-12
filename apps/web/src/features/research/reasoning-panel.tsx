@@ -1,5 +1,5 @@
 import type { ResearchReasoning } from '@tech-scout/contracts'
-import { Brain, ChevronDown, LoaderCircle } from 'lucide-react'
+import { Brain, ChevronDown } from 'lucide-react'
 import { useId, useState } from 'react'
 
 export function ReasoningPanel({
@@ -14,35 +14,21 @@ export function ReasoningPanel({
     open: boolean
   } | null>(null)
   const phase = `${reasoning.id}:${active}`
-  const open = expanded?.phase === phase ? expanded.open : active
+  const open = expanded?.phase === phase ? expanded.open : false
   const contentId = useId()
-  const label =
-    reasoning.status === 'thinking'
-      ? '正在思考'
-      : reasoning.status === 'answering'
-        ? '正在生成回答'
-        : reasoning.status === 'interrupted'
-          ? '思考已中断'
-          : '思考已完成'
+  const label = '查看思考过程'
   return (
-    <div className='rounded-xl border bg-background/60'>
+    <div>
       <button
         type='button'
         aria-label={`${label}，用时 ${Math.round(reasoning.durationMs / 1000)} 秒`}
         aria-expanded={open}
         aria-controls={contentId}
         onClick={() => setExpanded({ phase, open: !open })}
-        className='flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-xs text-muted-foreground focus-visible:outline-2 focus-visible:outline-ring'
+        className='flex items-center gap-2 rounded-md py-1.5 text-left text-xs text-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring'
       >
-        {active ? (
-          <LoaderCircle
-            className='size-4 motion-safe:animate-spin'
-            aria-hidden='true'
-          />
-        ) : (
-          <Brain className='size-4' aria-hidden='true' />
-        )}
-        <span role='status'>{label}</span>
+        <Brain className='size-3.5' aria-hidden='true' />
+        <span>{label}</span>
         <span className='ml-auto'>
           {Math.round(reasoning.durationMs / 1000)} 秒
         </span>
@@ -54,7 +40,7 @@ export function ReasoningPanel({
       {open && (
         <div
           id={contentId}
-          className='space-y-2 border-t px-3 py-3 text-xs leading-6 text-muted-foreground'
+          className='mt-1 space-y-2 border-l-2 pl-3 text-xs leading-6 text-muted-foreground'
         >
           <p className='break-words whitespace-pre-wrap'>
             {reasoning.text ||

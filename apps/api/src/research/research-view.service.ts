@@ -205,8 +205,9 @@ export class ResearchViewService {
       FROM app.research_event e WHERE e.run_id = ${id}::uuid AND e.sequence > ${after}
       ORDER BY e.sequence ASC LIMIT 100`)
     return events.map((event) => {
-      const reasoning =
-        researchReasoningSchema.nullable().parse(event.reasoning)
+      const reasoning = researchReasoningSchema
+        .nullable()
+        .parse(event.reasoning)
       if (
         reasoning &&
         !['queued', 'running'].includes(event.status) &&

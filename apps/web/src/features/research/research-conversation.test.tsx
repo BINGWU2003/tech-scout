@@ -188,20 +188,44 @@ it('工作台从左侧切换项目，确认前追问保留上下文，并在手�
   }
   vi.spyOn(researchApi, 'workspace').mockImplementation(async () => ({
     ...workspace,
-    messages: project.runs.map((run) => ({
-      id: run.id,
-      runId: run.id,
-      role: 'user' as const,
-      reasoning: null,
-      pending: false,
-      text: run.question,
-      createdAt: now,
-      plan: null,
-      proposal: false,
-      applied: false,
-      outdated: false,
-      hasResult: false,
-    })),
+    messages: project.runs.flatMap((run) => [
+      {
+        id: run.id,
+        runId: run.id,
+        role: 'user' as const,
+        reasoning: null,
+        pending: false,
+        text: run.question,
+        createdAt: now,
+        plan: null,
+        proposal: false,
+        applied: false,
+        outdated: false,
+        hasResult: false,
+      },
+      {
+        id: `${run.id}-reply`,
+        runId: run.id,
+        role: 'assistant' as const,
+        reasoning: {
+          id: run.id,
+          status: 'completed' as const,
+          text: '结合研究范围，比较材料体系与离子传导机制。',
+          startedAt: now,
+          durationMs: 3200,
+          truncated: false,
+        },
+        pending: false,
+        text: '建议先从固态电解质入手，关注离子传导材料与界面稳定性。',
+        createdAt: now,
+        plan,
+        recommendation: true,
+        proposal: false,
+        applied: false,
+        outdated: false,
+        hasResult: false,
+      },
+    ]),
   }))
   const workspaceAction = vi
     .spyOn(researchApi, 'workspaceAction')
@@ -308,6 +332,26 @@ it('工作台从左侧切换项目，确认前追问保留上下文，并在手�
     .element(screen.getByRole('button', { name: '开始研究' }))
     .toBeVisible()
   expect(action).not.toHaveBeenCalled()
+  const reply = screen.getByText(
+    '建议先从固态电解质入手，关注离子传导材料与界面稳定性。'
+  )
+  await expect.element(reply).toBeVisible()
+  const recommendation = screen.getByText('AI 推荐方向', { exact: true })
+  expect(reply.element().getBoundingClientRect().bottom).toBeLessThan(
+    recommendation.element().getBoundingClientRect().top
+  )
+  await expect
+    .element(screen.getByRole('button', { name: /查看思考过程/ }))
+    .toHaveAttribute('aria-expanded', 'false')
+  await expect
+    .element(screen.getByRole('button', { name: '刷新状态' }))
+    .not.toBeInTheDocument()
+  await expect
+    .element(screen.getByRole('button', { name: '取消本次研究' }))
+    .not.toBeInTheDocument()
+  await expect
+    .element(screen.getByRole('button', { name: /研究过程与依据/ }))
+    .not.toBeInTheDocument()
   await page.screenshot({ path: '__screenshots__/research-desktop.png' })
   await screen.getByRole('textbox', { name: '方向描述' }).fill('修改后的范围')
   await screen.getByRole('button', { name: '深度思考' }).click()

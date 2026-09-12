@@ -104,6 +104,9 @@ export class ResearchWorkspaceService {
         (r.candidates ?? r.plan) &&
         !ctx.startSearch &&
         (!ctx.workspace ||
+          // Older planner results contain a plan without a reply intent.
+          // Treat an unconfirmed result as a recommendation on follow-ups too.
+          (r.intent == null && !r.confirmed && !proposal && !r.hasResult) ||
           ['refresh_candidates', 'update_candidate'].includes(String(r.intent)))
       )
       const pending =

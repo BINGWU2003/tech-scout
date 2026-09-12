@@ -101,7 +101,11 @@ describeDb('阶段 2 产品 API：所有权、幂等与持久化', () => {
   it('项目请求幂等；跨用户读取、写入和事件均被隔离；写入要求 CSRF', async () => {
     const owner = await account()
     const other = await account()
-    const input = { thinking: true, requestKey: randomUUID(), question: '工业视觉边缘推理' }
+    const input = {
+      thinking: true,
+      requestKey: randomUUID(),
+      question: '工业视觉边缘推理',
+    }
     const missingCsrf = await owner.agent
       .post('/api/v1/research/projects')
       .set('Origin', 'http://localhost:5173')
@@ -203,7 +207,11 @@ describeDb('阶段 2 产品 API：所有权、幂等与持久化', () => {
 
   it('并发相同创建请求只产生一个项目和运行', async () => {
     const owner = await account()
-    const input = { thinking: true, requestKey: randomUUID(), question: '并发研究' }
+    const input = {
+      thinking: true,
+      requestKey: randomUUID(),
+      question: '并发研究',
+    }
     const responses = await Promise.all(
       Array.from({ length: 4 }, () =>
         owner.agent
@@ -282,32 +290,79 @@ describeDb('阶段 2 产品 API：所有权、幂等与持久化', () => {
 
   it('思考事件按游标回放，历史消息保留内容，异常结构直接拒绝', async () => {
     const owner = await account()
-    const input = { requestKey: randomUUID(), question: '思考流测试', thinking: true }
-    const post = (body: object) => owner.agent.post('/api/v1/research/projects')
-      .set('Origin', 'http://localhost:5173').set('x-csrf-token', owner.csrf).send(body)
+    const input = {
+      requestKey: randomUUID(),
+      question: '思考流测试',
+      thinking: true,
+    }
+    const post = (body: object) =>
+      owner.agent
+        .post('/api/v1/research/projects')
+        .set('Origin', 'http://localhost:5173')
+        .set('x-csrf-token', owner.csrf)
+        .send(body)
     const created = await post(input).expect(201)
     await post({ ...input, thinking: false }).expect(409)
     const id = created.body.runs[0].id
     const service = app.get(ResearchService)
     const initial = states.get(id)!
-    const reasoning = { id: randomUUID(), status: 'thinking', text: '先梳理研究范围。', startedAt: new Date().toISOString(), durationMs: 1000, truncated: false }
-    await service.receive({ sequence: 2, kind: 'reasoning_progress', created_at: new Date().toISOString(), data: {
-      ...initial, sequence: 2, status: 'running', node: 'planner', artifacts: { reasoning },
-    } })
-    const progress = await owner.agent.get(`/api/v1/research/ui/runs/${id}/events?after=1`).expect(200)
+    const reasoning = {
+      id: randomUUID(),
+      status: 'thinking',
+      text: '先梳理研究范围。',
+      startedAt: new Date().toISOString(),
+      durationMs: 1000,
+      truncated: false,
+    }
+    await service.receive({
+      sequence: 2,
+      kind: 'reasoning_progress',
+      created_at: new Date().toISOString(),
+      data: {
+        ...initial,
+        sequence: 2,
+        status: 'running',
+        node: 'planner',
+        artifacts: { reasoning },
+      },
+    })
+    const progress = await owner.agent
+      .get(`/api/v1/research/ui/runs/${id}/events?after=1`)
+      .expect(200)
     expect(progress.body[0].reasoning).toEqual(reasoning)
     const workspaceUrl = `/api/v1/research/ui/projects/${created.body.id}/workspace`
     const pending = await owner.agent.get(workspaceUrl).expect(200)
-    expect(pending.body.messages.at(-1)).toMatchObject({ pending: true, text: '', reasoning })
-    await service.receive({ sequence: 3, kind: 'node_completed', created_at: new Date().toISOString(), data: {
-      ...initial, sequence: 3, artifacts: { reply: '最终回答', reasoning: { ...reasoning, status: 'completed' } },
-    } })
+    expect(pending.body.messages.at(-1)).toMatchObject({
+      pending: true,
+      text: '',
+      reasoning,
+    })
+    await service.receive({
+      sequence: 3,
+      kind: 'node_completed',
+      created_at: new Date().toISOString(),
+      data: {
+        ...initial,
+        sequence: 3,
+        artifacts: {
+          reply: '最终回答',
+          reasoning: { ...reasoning, status: 'completed' },
+        },
+      },
+    })
     const history = await owner.agent.get(workspaceUrl).expect(200)
-    expect(history.body.messages.at(-1)).toMatchObject({ pending: false, text: '最终回答', reasoning: { ...reasoning, status: 'completed' } })
+    expect(history.body.messages.at(-1)).toMatchObject({
+      pending: false,
+      text: '最终回答',
+      reasoning: { ...reasoning, status: 'completed' },
+    })
     const other = await account()
     await other.agent.get(workspaceUrl).expect(404)
     await other.agent.get(`/api/v1/research/ui/runs/${id}/events`).expect(404)
-    await prisma.researchRun.update({ where: { id }, data: { state: { artifacts: { reasoning: { text: '无效数据' } } } } })
+    await prisma.researchRun.update({
+      where: { id },
+      data: { state: { artifacts: { reasoning: { text: '无效数据' } } } },
+    })
     await owner.agent.get(workspaceUrl).expect(500)
   })
 
@@ -317,7 +372,11 @@ describeDb('阶段 2 产品 API：所有权、幂等与持久化', () => {
       .post('/api/v1/research/projects')
       .set('Origin', 'http://localhost:5173')
       .set('x-csrf-token', owner.csrf)
-      .send({ thinking: true, requestKey: randomUUID(), question: '专利过程测试' })
+      .send({
+        thinking: true,
+        requestKey: randomUUID(),
+        question: '专利过程测试',
+      })
       .expect(201)
     const id = created.body.runs[0].id
     const state = states.get(id)!

@@ -43,7 +43,7 @@ Google Patents 列表与详情中的中国企业申请人分别保留。只有�
 ## 验证
 
 - `pnpm test:research`：Google Patents 网页结构、中国专利/企业过滤、同名/曾用名匹配、列表与详情冲突、100 条中断恢复及研究工作流。
-- 配置指向**独立测试库**的 `TEST_ACQUISITION_DATABASE_URL` 后运行上述测试，可验证真实数据库唯一性、暂停以及快照不可变性。
+- 在 `services/research/.env` 或进程环境中配置指向**独立测试库**的 `TEST_ACQUISITION_DATABASE_URL` 后运行上述测试，可验证真实数据库唯一性、暂停以及快照不可变性。进程环境优先，不配置时跳过数据库测试。
 - `uv run --project services/research pytest services/research/tests/intelligence` 包含空库计划确认门禁测试。
 - `pnpm validate` 检查 TypeScript 契约、页面、API 和构建。未配置相应独立数据库的端到端测试会跳过，不能视为已通过。
 

@@ -23,6 +23,8 @@
 
 需要 Node.js 24、pnpm 10、Python 3.13、uv、PostgreSQL 和 Chrome。按各服务的 `.env.example` 配置数据库、内部服务令牌及模型服务。
 
+环境配置按服务统一管理：`apps/api` 和 `services/research` 各只使用 `.env`（本地实际配置，不提交）与 `.env.example`（可提交的配置模板）。研究与浏览器采集共用 `services/research/.env`，进程环境变量优先于文件。可选的 `TEST_*` 变量也放在对应服务的 `.env`；数据库测试只读取测试变量，不会回退到日常使用的数据库连接。示例中的测试配置默认注释，启用时必须指向独立测试库。
+
 ```powershell
 pnpm install
 uv sync --project services/research

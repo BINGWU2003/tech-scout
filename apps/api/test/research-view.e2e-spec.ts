@@ -419,7 +419,11 @@ describe.skipIf(!enabled)(
         .send(action)
         .expect(201)
       expect(repeated.body.sequence).toBe(response.body.sequence)
-      const payload = { thinking: true, requestKey: randomUUID(), question: '新一轮视觉研究' }
+      const payload = {
+        thinking: true,
+        requestKey: randomUUID(),
+        question: '新一轮视觉研究',
+      }
       await stranger
         .post(`/api/v1/research/ui/projects/${response.body.projectId}/runs`)
         .set('Origin', 'http://localhost:5173')
