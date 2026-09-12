@@ -592,7 +592,15 @@ describe.skipIf(!enabled)(
       expect(JSON.stringify(started)).not.toContain('source_path')
     })
 
-    it.each(['completed', 'empty'] as const)(
+    it.each([
+      'completed',
+      'empty',
+      'awaiting_companies',
+      'awaiting_entities',
+      'recoverable',
+      'failed',
+      'cancelled',
+    ] as const)(
       '%s 任务禁止重复研究和修改计划，后续聊天不解除锁定',
       async (status) => {
         const original = await prisma.researchRun.findUniqueOrThrow({
@@ -639,7 +647,8 @@ describe.skipIf(!enabled)(
             .send(body)
         const workspace = (await owner.get(url).expect(200)).body
         expect(workspace).toMatchObject({
-          researchCompleted: true,
+          researchCompleted: ['completed', 'empty'].includes(status),
+          executionRunId: project.runs[0].id,
           reachedStage: 'report',
         })
         await post({
@@ -669,10 +678,7 @@ describe.skipIf(!enabled)(
             requestKey: randomUUID(),
             revision: 0,
           }
-          const started = (await post(input).expect(201)).body
-          expect((await post(input).expect(201)).body.activeRunId).toBe(
-            started.activeRunId
-          )
+          await post(input).expect(409)
         }
       }
     )

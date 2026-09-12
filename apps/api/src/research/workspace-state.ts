@@ -1,7 +1,30 @@
 import { ConflictException } from '@nestjs/common'
 import { researchSelectedPlanSchema } from '@tech-scout/contracts'
-import type { Prisma } from '../generated/prisma/client.js'
+import { Prisma } from '../generated/prisma/client.js'
 import { object } from './research-view.service.js'
+
+export async function assertResearchPlanEditable(
+  tx: Prisma.TransactionClient,
+  projectId: string
+) {
+  const execution = await tx.researchRun.findFirst({
+    where: {
+      projectId,
+      OR: [
+        { status: { in: ['completed', 'empty'] } },
+        { context: { path: ['startSearch'], equals: true } },
+        {
+          state: { path: ['artifacts', 'confirmed_plan'], not: Prisma.DbNull },
+        },
+      ],
+    },
+    select: { id: true },
+  })
+  if (execution)
+    throw new ConflictException(
+      '技术方向已确认，不能修改计划或重复开始研究；请新建研究。'
+    )
+}
 
 export async function assertResearchNotCompleted(
   tx: Prisma.TransactionClient,

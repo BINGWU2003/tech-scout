@@ -23,6 +23,7 @@ import { IntelligenceClient } from './intelligence.client.js'
 import { object } from './research-view.service.js'
 import {
   assertResearchNotCompleted,
+  assertResearchPlanEditable,
   revision,
   selectedPlan,
 } from './workspace-state.js'
@@ -237,27 +238,7 @@ export class ResearchService implements OnModuleInit, OnModuleDestroy {
       })
       if (active || pending)
         throw new ConflictException('请等待当前研究结束或停止后再发送')
-      // Check completion after active runs: a run may finish between these reads.
-      await assertResearchNotCompleted(tx, projectId)
-      if (searchRevision === undefined) {
-        const execution = await tx.researchRun.findFirst({
-          where: {
-            projectId,
-            OR: [
-              { context: { path: ['startSearch'], equals: true } },
-              {
-                state: {
-                  path: ['artifacts', 'confirmed_plan'],
-                  not: Prisma.DbNull,
-                },
-              },
-            ],
-          },
-          select: { id: true },
-        })
-        if (execution)
-          throw new ConflictException('技术方向已确认，无法继续追问。')
-      }
+      await assertResearchPlanEditable(tx, projectId)
       const previousContext = object(previous?.context)
       const artifacts = object(object(previous?.state).artifacts)
       const confirmed = await tx.researchRun.findFirst({
@@ -393,6 +374,8 @@ export class ResearchService implements OnModuleInit, OnModuleDestroy {
         if (otherActive)
           throw new ConflictException('请等待当前研究结束或停止后再操作')
       }
+      if (input.kind === 'confirm_plan')
+        await assertResearchPlanEditable(tx, owned.projectId)
       if (
         [
           'confirm_plan',

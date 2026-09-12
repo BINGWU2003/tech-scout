@@ -1,14 +1,25 @@
 import { useQuery } from '@tanstack/react-query'
 import { Link, useRouterState } from '@tanstack/react-router'
-import { researchActivityLabel } from '@tech-scout/contracts'
+import {
+  researchActivityLabel,
+  type ResearchState,
+} from '@tech-scout/contracts'
 import {
   ChevronDown,
   ChevronUp,
+  CircleAlert,
+  CircleCheck,
+  CircleSlash,
+  ClipboardCheck,
+  Clock,
   History,
   MessageSquare,
   LoaderCircle,
+  Pause,
   Plus,
   RefreshCw,
+  SearchX,
+  type LucideIcon,
 } from 'lucide-react'
 import { useId, useState } from 'react'
 import {
@@ -30,8 +41,32 @@ import {
 } from '@/components/ui/sidebar'
 import { resetApiErrors } from '@/lib/api-error-notifications'
 import { researchApi } from '@/lib/research-api'
+import { cn } from '@/lib/utils'
 import { useResearchClient } from './research-cache'
 import { isExecuting } from './use-research-run'
+
+const awaitingIcon = {
+  icon: ClipboardCheck,
+  className: 'text-amber-600 dark:text-amber-400',
+}
+const taskIcons: Record<
+  ResearchState['status'],
+  { icon: LucideIcon; className?: string }
+> = {
+  queued: { icon: Clock },
+  running: { icon: LoaderCircle, className: 'motion-safe:animate-spin' },
+  awaiting_plan: awaitingIcon,
+  awaiting_companies: awaitingIcon,
+  awaiting_entities: awaitingIcon,
+  completed: {
+    icon: CircleCheck,
+    className: 'text-emerald-600 dark:text-emerald-400',
+  },
+  empty: { icon: SearchX },
+  failed: { icon: CircleAlert, className: 'text-destructive' },
+  recoverable: { icon: Pause },
+  cancelled: { icon: CircleSlash },
+}
 
 export function ResearchTaskLabel({
   project,
@@ -68,7 +103,11 @@ export function ResearchTaskLabel({
     summary.data && summary.data.sequence >= (project.activity?.sequence ?? 0)
       ? summary.data
       : undefined
-  const active = id && isExecuting(run?.status ?? project.activity?.status)
+  const status = run?.status ?? project.activity?.status
+  const active = id && isExecuting(status)
+  const { icon: Icon, className: iconClassName } = status
+    ? taskIcons[status]
+    : { icon: MessageSquare, className: undefined }
   const reasoning = [...(events.data ?? [])]
     .reverse()
     .find((event) => event.reasoning)?.reasoning
@@ -80,14 +119,20 @@ export function ResearchTaskLabel({
         : project.activity?.label
   return (
     <>
-      {active ? (
-        <LoaderCircle
-          className='size-4 shrink-0 motion-safe:animate-spin'
-          aria-hidden='true'
-        />
-      ) : (
-        <MessageSquare className='size-4 shrink-0' aria-hidden='true' />
-      )}
+      <span
+        key={status ?? 'idle'}
+        aria-hidden='true'
+        className='flex size-4 shrink-0 items-center justify-center motion-safe:animate-in motion-safe:duration-200 motion-safe:fade-in-0'
+      >
+        <span
+          className={cn(
+            'flex size-4 items-center justify-center',
+            iconClassName
+          )}
+        >
+          <Icon className='size-4' />
+        </span>
+      </span>
       <span className='min-w-0 flex-1'>
         <span className='block truncate'>{project.title}</span>
         {label && (

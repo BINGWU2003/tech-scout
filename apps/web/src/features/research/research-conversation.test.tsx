@@ -376,7 +376,7 @@ it('工作台从左侧切换项目，确认前追问保留上下文，并在手�
     .toBeVisible()
   await expect
     .element(screen.getByRole('button', { name: '取消本次研究' }))
-    .not.toBeInTheDocument()
+    .toBeVisible()
   await expect
     .element(screen.getByRole('button', { name: /研究过程与依据/ }))
     .not.toBeInTheDocument()
@@ -463,7 +463,14 @@ it('工作台从左侧切换项目，确认前追问保留上下文，并在手�
   await screen.getByRole('link', { name: /1\. 技术方向与计划/ }).click()
   await expect
     .element(screen.getByRole('button', { name: '开始研究' }))
-    .toBeVisible()
+    .not.toBeInTheDocument()
+  await expect
+    .element(screen.getByRole('textbox', { name: '方向名称' }).first())
+    .toBeDisabled()
+  await screen.getByRole('link', { name: '前往当前步骤' }).click()
+  await expect
+    .poll(() => router.state.location.pathname)
+    .toBe(`/research/${projectId}/patents`)
   // A fresh route mount uses the address, without resetting to the current execution stage.
   await router.navigate({
     to: '/research/$projectId/$stage',

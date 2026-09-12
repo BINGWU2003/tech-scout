@@ -84,7 +84,7 @@ export function PatentWorkspace({
       {controls}
       <ResearchPlanLayout
         variant='patents'
-        headingActions={actions}
+        footerActions={actions}
         directions={
           <div className='h-full space-y-5 overflow-y-auto overscroll-contain p-4'>
             <dl className='grid grid-cols-2 gap-3'>

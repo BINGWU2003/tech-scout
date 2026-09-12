@@ -606,7 +606,9 @@ function ProjectWorkspace({
     baseline: ResearchWorkspace['selectedPlan']
     plan: ResearchWorkspace['selectedPlan']
   } | null>(null)
-  const draft = workspace.data?.researchCompleted ? null : pendingDraft
+  const planLocked =
+    !!workspace.data?.executionRunId || !!workspace.data?.researchCompleted
+  const draft = planLocked ? null : pendingDraft
   const dirty = draft !== null
   const editPlan = (
     dirty: boolean,
@@ -704,10 +706,7 @@ function ProjectWorkspace({
     workspace.isError ||
     workspace.data.blocked
   const editingBusy =
-    blocked ||
-    change.isPending ||
-    create.isPending ||
-    !!workspace.data?.researchCompleted
+    blocked || change.isPending || create.isPending || planLocked
   const savePlan = (plan: ResearchWorkspace['selectedPlan']) => {
     const parsed = researchSelectedPlanSchema.safeParse(plan)
     if (!parsed.success || plan.directions.some((d) => !d.explanation.trim()))
@@ -823,6 +822,27 @@ function ProjectWorkspace({
                   key={editorWorkspace.revision}
                   workspace={editorWorkspace}
                   initialPlan={draft?.plan}
+                  lockedActions={
+                    <div className='flex flex-wrap items-center gap-2'>
+                      <Button asChild variant='outline'>
+                        <Link to='/research'>新建研究</Link>
+                      </Button>
+                      <Button asChild className='ml-auto'>
+                        <Link
+                          to='/research/$projectId/$stage'
+                          params={{
+                            projectId,
+                            stage: workspace.data!.reachedStage,
+                          }}
+                          search={{
+                            runId: workspace.data!.executionRunId ?? selectedId,
+                          }}
+                        >
+                          前往当前步骤
+                        </Link>
+                      </Button>
+                    </div>
+                  }
                   busy={editingBusy}
                   onDirty={editPlan}
                   onSave={savePlan}
@@ -884,8 +904,7 @@ function ProjectWorkspace({
               stage === 'plan' &&
               selected &&
               !readOnly &&
-              (workspace.data?.executionRunId ||
-              workspace.data?.researchCompleted ? (
+              (planLocked ? (
                 <p
                   role='status'
                   className='px-4 py-3 text-sm text-muted-foreground'

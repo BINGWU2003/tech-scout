@@ -4,7 +4,7 @@ import {
 } from '@tech-scout/contracts'
 import { createRequestId } from '@tech-scout/shared'
 import { Plus } from 'lucide-react'
-import { useRef, useState } from 'react'
+import { type ReactNode, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -18,16 +18,20 @@ export function SelectedPlanEditor({
   onStart,
   onDirty,
   initialPlan,
+  lockedActions,
 }: {
   workspace: ResearchWorkspace
   busy: boolean
   onSave: (plan: ResearchWorkspace['selectedPlan']) => Promise<unknown>
   onStart: (plan: ResearchWorkspace['selectedPlan']) => Promise<unknown> | void
   onDirty: (dirty: boolean, plan?: ResearchWorkspace['selectedPlan']) => void
+  lockedActions?: ReactNode
   initialPlan?: ResearchWorkspace['selectedPlan']
 }) {
-  const locked = workspace.researchCompleted
-  const plan = initialPlan ?? workspace.selectedPlan
+  const locked = !!workspace.executionRunId || workspace.researchCompleted
+  const plan = locked
+    ? workspace.selectedPlan
+    : (initialPlan ?? workspace.selectedPlan)
   const isEmpty = plan.directions.length === 0
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -75,7 +79,7 @@ export function SelectedPlanEditor({
         >
           <p className='shrink-0 text-sm text-muted-foreground'>
             已选 {plan.directions.length} / 3 个方向 ·{' '}
-            {locked ? '研究已完成，计划已锁定' : '确认后开始检索'}
+            {locked ? '技术方向已确认，计划只读' : '确认后开始检索'}
           </p>
           <div
             className={cn(
@@ -178,56 +182,58 @@ export function SelectedPlanEditor({
             )}
           </div>
         </fieldset>
-        <fieldset
-          disabled={locked || busy || submitting}
-          className='shrink-0 space-y-3 border-t bg-background p-4'
-        >
-          {locked && (
-            <p className='text-sm text-muted-foreground'>
-              此任务已完成研究（包括无匹配结果），不能重复执行。如需调整方向，请新建研究。
+        {locked ? (
+          <div className='shrink-0 space-y-3 border-t bg-background p-4'>
+            <p role='status' className='text-sm text-muted-foreground'>
+              技术方向已确认，计划仅供回看。如需调整方向，请新建研究。
             </p>
-          )}
-          {error && (
-            <p role='alert' className='text-sm text-destructive'>
-              {error}
-            </p>
-          )}
-          {dirty && (
-            <p className='text-sm text-muted-foreground'>
-              有未保存调整，开始研究或发送消息时将自动保存。
-            </p>
-          )}
-          <div className='flex flex-wrap items-center gap-2'>
+            {lockedActions}
+          </div>
+        ) : (
+          <fieldset
+            disabled={busy || submitting}
+            className='shrink-0 space-y-3 border-t bg-background p-4'
+          >
+            {error && (
+              <p role='alert' className='text-sm text-destructive'>
+                {error}
+              </p>
+            )}
             {dirty && (
+              <p className='text-sm text-muted-foreground'>
+                有未保存调整，开始研究或发送消息时将自动保存。
+              </p>
+            )}
+            <div className='flex flex-wrap items-center gap-2'>
+              {dirty && (
+                <Button
+                  type='button'
+                  variant='ghost'
+                  onClick={() => update(workspace.selectedPlan)}
+                >
+                  撤销调整
+                </Button>
+              )}
+              {dirty && (
+                <Button type='submit' variant='outline'>
+                  保存调整
+                </Button>
+              )}
               <Button
                 type='button'
-                variant='ghost'
-                onClick={() => update(workspace.selectedPlan)}
+                className='ml-auto'
+                disabled={!plan.directions.length}
+                onClick={() => void save(true)}
               >
-                撤销调整
-              </Button>
-            )}
-            {dirty && (
-              <Button type='submit' variant='outline'>
-                保存调整
-              </Button>
-            )}
-            <Button
-              type='button'
-              className='ml-auto'
-              disabled={!plan.directions.length}
-              onClick={() => void save(true)}
-            >
-              {locked
-                ? '研究已完成'
-                : submitting
+                {submitting
                   ? '正在提交…'
                   : dirty
                     ? '保存并开始研究'
                     : '开始研究'}
-            </Button>
-          </div>
-        </fieldset>
+              </Button>
+            </div>
+          </fieldset>
+        )}
       </form>
     </div>
   )

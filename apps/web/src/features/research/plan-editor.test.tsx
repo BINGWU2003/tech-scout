@@ -33,37 +33,41 @@ const initial: ResearchWorkspace = {
   blocked: false,
 }
 
-it('研究完成后锁定编辑和重复启动，仍可查看原计划', async () => {
-  const onStart = vi.fn()
-  const onSave = vi.fn()
-  const screen = await render(
-    <SelectedPlanEditor
-      workspace={{
-        ...initial,
-        researchCompleted: true,
-        reachedStage: 'report',
-      }}
-      busy={false}
-      onStart={onStart}
-      onSave={onSave}
-      onDirty={vi.fn()}
-    />
-  )
-  await expect
-    .element(screen.getByRole('textbox', { name: '方向名称' }))
-    .toBeDisabled()
-  await expect
-    .element(screen.getByRole('textbox', { name: '方向描述' }))
-    .toHaveValue('已选方向范围')
-  await expect
-    .element(screen.getByRole('button', { name: '研究已完成', exact: true }))
-    .toBeDisabled()
-  await expect
-    .element(screen.getByRole('button', { name: '增加方向' }))
-    .toBeDisabled()
-  expect(onStart).not.toHaveBeenCalled()
-  expect(onSave).not.toHaveBeenCalled()
-})
+it.each([false, true])(
+  '已开始研究后锁定编辑和重复启动（完成：%s）',
+  async (completed) => {
+    const onStart = vi.fn()
+    const onSave = vi.fn()
+    const screen = await render(
+      <SelectedPlanEditor
+        workspace={{
+          ...initial,
+          researchCompleted: completed,
+          executionRunId: 'execution',
+          reachedStage: completed ? 'report' : 'patents',
+        }}
+        busy={false}
+        onStart={onStart}
+        onSave={onSave}
+        onDirty={vi.fn()}
+      />
+    )
+    await expect
+      .element(screen.getByRole('textbox', { name: '方向名称' }))
+      .toBeDisabled()
+    await expect
+      .element(screen.getByRole('textbox', { name: '方向描述' }))
+      .toHaveValue('已选方向范围')
+    await expect
+      .element(screen.getByRole('button', { name: '开始研究', exact: true }))
+      .not.toBeInTheDocument()
+    await expect
+      .element(screen.getByRole('button', { name: '增加方向' }))
+      .toBeDisabled()
+    expect(onStart).not.toHaveBeenCalled()
+    expect(onSave).not.toHaveBeenCalled()
+  }
+)
 
 it('候选刷新保留未保存编辑，可直接保存或开始研究', async () => {
   const save = vi.fn(),

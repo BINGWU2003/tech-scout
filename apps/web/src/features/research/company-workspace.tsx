@@ -82,7 +82,7 @@ export function CompanyWorkspace({
           {controls}
           <ResearchPlanLayout
             variant='companies'
-            headingActions={report}
+            footerActions={report}
             detailKey={selected}
             autoFollow={!selected}
             directions={

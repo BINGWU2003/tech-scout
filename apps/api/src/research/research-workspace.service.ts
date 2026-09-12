@@ -16,7 +16,7 @@ import { Prisma } from '../generated/prisma/client.js'
 import { object, rows } from './research-view.service.js'
 import { ResearchService } from './research.service.js'
 import {
-  assertResearchNotCompleted,
+  assertResearchPlanEditable,
   reachedResearchStage,
   revision,
   selectedPlan,
@@ -327,7 +327,7 @@ export class ResearchWorkspaceService {
       })
       if (active || pending)
         throw new ConflictException('请等待当前研究结束或停止后再调整')
-      await assertResearchNotCompleted(tx, projectId)
+      await assertResearchPlanEditable(tx, projectId)
       let next: unknown
       if (input.kind === 'save_plan') next = input.plan
       else {
