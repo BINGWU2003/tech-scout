@@ -14,7 +14,7 @@ import {
   MoreHorizontal,
   RefreshCw,
 } from 'lucide-react'
-import { useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -24,6 +24,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { resetApiErrors } from '@/lib/api-error-notifications'
 import { researchApi } from '@/lib/research-api'
+import { useAuthStore } from '@/stores/auth-store'
 import { CompanyWorkspace } from './company-workspace'
 import { nodeLabels } from './labels'
 import { PatentWorkspace } from './patent-workspace'
@@ -31,6 +32,7 @@ import { SelectedPlanEditor } from './plan-editor'
 import { ProjectConversation } from './project-conversation'
 import { ReportWorkspace } from './report-workspace'
 import { ResearchComposer } from './research-composer'
+import { readResearchLocation, saveResearchLocation } from './research-location'
 import { ResearchPlanLayout } from './research-plan-layout'
 import {
   researchStages,
@@ -485,26 +487,38 @@ export function ResearchEntry({
   projectId: string
   runId?: string
 }) {
+  const userId = useAuthStore((state) => state.auth.user?.id)
+  const saved = readResearchLocation(userId, projectId)
   const project = useQuery({
     queryKey: ['research', projectId, 'project'],
     queryFn: () => researchApi.project(projectId),
   })
   const runs = project.data?.runs ?? []
+  const workspace = useQuery({
+    queryKey: ['research', projectId, 'workspace'],
+    queryFn: () => researchApi.workspace(projectId),
+    enabled: !runId,
+  })
+  const restored =
+    !runId && saved && runs.some((run) => run.id === saved.runId) ? saved : null
+  const targetRunId = runId ?? restored?.runId ?? workspace.data?.executionRunId
   const selected = runId
     ? runs.find((run) => run.id === runId)
-    : runs[runs.length - 1]
+    : (runs.find((run) => run.id === targetRunId) ?? runs[runs.length - 1])
   const summary = useQuery({
     queryKey: ['research', selected?.id, 'summary'],
     queryFn: () => researchApi.summary(selected!.id),
     enabled: Boolean(selected),
   })
-  if (summary.data)
+  if (summary.data && (runId || workspace.data))
     return (
       <Navigate
         to='/research/$projectId/$stage'
         params={{
           projectId,
-          stage: runId ? stageForRun(summary.data) : 'plan',
+          stage: runId
+            ? stageForRun(summary.data)
+            : (restored?.stage ?? workspace.data!.reachedStage),
         }}
         search={{ runId: selected!.id }}
         replace
@@ -512,11 +526,15 @@ export function ResearchEntry({
     )
   return (
     <ResearchShell>
-      <p role='status'>
-        {project.data && !selected
-          ? '此记录不存在，请从左侧重新打开项目。'
-          : '正在打开研究…'}
-      </p>
+      {project.isError || summary.isError || (!runId && workspace.isError) ? (
+        <p role='alert'>研究加载失败，请刷新页面重试。</p>
+      ) : (
+        <p role='status'>
+          {project.data && !selected
+            ? '此记录不存在，请从左侧重新打开项目。'
+            : '正在打开研究…'}
+        </p>
+      )}
     </ResearchShell>
   )
 }
@@ -695,6 +713,13 @@ function ProjectWorkspace({
   }
   const stages = Object.keys(researchStages) as ResearchStage[]
   const reached = stages.indexOf(workspace.data?.reachedStage ?? 'plan')
+  const userId = useAuthStore((state) => state.auth.user?.id)
+  const viewedRunId = selected?.id
+  const canRemember = !!workspace.data && stages.indexOf(stage) <= reached
+  useEffect(() => {
+    if (canRemember && viewedRunId)
+      saveResearchLocation(userId, projectId, { stage, runId: viewedRunId })
+  }, [userId, projectId, stage, viewedRunId, canRemember])
   if (workspace.data && stages.indexOf(stage) > reached)
     return (
       <Navigate

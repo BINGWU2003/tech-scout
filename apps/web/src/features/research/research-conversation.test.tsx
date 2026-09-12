@@ -19,6 +19,7 @@ import { researchApi } from '@/lib/research-api'
 import { routeTree } from '@/routeTree.gen'
 import { useAuthStore } from '@/stores/auth-store'
 import { ResearchComposer } from './research-composer'
+import { readResearchLocation } from './research-location'
 import { ResearchTimeline } from './research-timeline'
 import '@/styles/index.css'
 
@@ -472,6 +473,88 @@ it('工作台从左侧切换项目，确认前追问保留上下文，并在手�
   await expect
     .element(screen.getByRole('heading', { name: '专利检索', exact: true }))
     .toBeVisible()
+  // 切换任务入口后，恢复最后浏览的阶段及研究记录。
+  await router.navigate({ to: '/research' })
+  await screen.getByRole('link', { name: project.title, exact: true }).click()
+  await expect
+    .poll(() => router.state.location.pathname)
+    .toBe(`/research/${projectId}/patents`)
+  expect(router.state.location.search.runId).toBe(secondId)
+
+  // 即使研究已推进到报告，主动回看的技术方向仍应被记住。
+  workspace.reachedStage = 'report'
+  await expect
+    .element(screen.getByRole('link', { name: /4\. 研究报告/ }))
+    .toBeVisible()
+  await screen.getByRole('link', { name: /1\. 技术方向与计划/ }).click()
+  await router.navigate({ to: '/research' })
+  await screen.getByRole('link', { name: project.title, exact: true }).click()
+  await expect
+    .poll(() => router.state.location.pathname)
+    .toBe(`/research/${projectId}/plan`)
+
+  await screen.getByRole('link', { name: /4\. 研究报告/ }).click()
+  await expect
+    .element(screen.getByRole('heading', { name: '研究报告', exact: true }))
+    .toBeVisible()
+  const userId = useAuthStore.getState().auth.user!.id
+  await expect
+    .poll(() => readResearchLocation(userId, projectId))
+    .toEqual({ stage: 'report', runId: secondId })
+  await router.navigate({ to: '/research' })
+  await screen.getByRole('link', { name: project.title, exact: true }).click()
+  await expect
+    .poll(() => router.state.location.pathname)
+    .toBe(`/research/${projectId}/report`)
   await screen.unmount()
   queryClient.clear()
+
+  // 新建路由和查询缓存模拟重新打开应用，仍从持久化记录恢复报告。
+  const freshClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  })
+  const freshRouter = createRouter({
+    routeTree,
+    context: { queryClient: freshClient },
+    history: createMemoryHistory({
+      initialEntries: [`/research/${projectId}`],
+    }),
+  })
+  const reopened = await render(
+    <QueryClientProvider client={freshClient}>
+      <ThemeProvider defaultTheme='light'>
+        <FontProvider>
+          <DirectionProvider>
+            <RouterProvider router={freshRouter} />
+          </DirectionProvider>
+        </FontProvider>
+      </ThemeProvider>
+    </QueryClientProvider>
+  )
+  await expect
+    .element(reopened.getByRole('heading', { name: '研究报告', exact: true }))
+    .toBeVisible()
+  expect(freshRouter.state.location.pathname).toBe(
+    `/research/${projectId}/report`
+  )
+  // 无记录、损坏记录和已删除的运行记录均按工作台进度打开。
+  const locationKey = `research-location-v1:${userId}:${projectId}`
+  for (const stored of [
+    null,
+    '{broken',
+    JSON.stringify({ stage: 'plan', runId: 'deleted-run' }),
+  ]) {
+    await freshRouter.navigate({ to: '/research' })
+    if (stored === null) localStorage.removeItem(locationKey)
+    else localStorage.setItem(locationKey, stored)
+    await reopened
+      .getByRole('link', { name: project.title, exact: true })
+      .click()
+    await expect
+      .poll(() => freshRouter.state.location.pathname)
+      .toBe(`/research/${projectId}/report`)
+  }
+  await reopened.unmount()
+  freshClient.clear()
+  localStorage.removeItem(`research-location-v1:${userId}:${projectId}`)
 }, 30000)
