@@ -9,15 +9,12 @@ type Failure = { sources: Set<string>; id: string }
 const failures = new Map<string, Failure>()
 let seen = new WeakSet<object>()
 let onAuthenticationRequired: (() => void) | undefined
-let retryQueries: (() => Promise<unknown>) | undefined
 let authenticationNotified = false
 
 export function configureApiErrors(options: {
   onAuthenticationRequired: () => void
-  retryQueries: () => Promise<unknown>
 }) {
   onAuthenticationRequired = options.onAuthenticationRequired
-  retryQueries = options.retryQueries
 }
 
 export function recoverApiRequest(source: string) {
@@ -43,7 +40,7 @@ export function resetApiErrors() {
   authenticationNotified = false
 }
 
-export function notifyApiError(error: unknown, manual = false) {
+export function notifyApiError(error: unknown) {
   if (error && typeof error === 'object') {
     if (seen.has(error)) return
     seen.add(error)
@@ -70,26 +67,9 @@ export function notifyApiError(error: unknown, manual = false) {
     }
   }
   failures.set(key, failure)
-  if (
-    !previous ||
-    manual ||
-    (api && api.method !== 'GET' && api.method !== 'HEAD')
-  ) {
+  if (!previous || (api && api.method !== 'GET' && api.method !== 'HEAD')) {
     toast.error(message, {
       id: failure.id,
-      action:
-        api?.method === 'GET' &&
-        api.payload.retryable !== false &&
-        retryQueries &&
-        !requiresAuthentication(api.payload)
-          ? {
-              label: '重试',
-              onClick: () => {
-                resetApiErrors()
-                void retryQueries?.()
-              },
-            }
-          : undefined,
     })
   }
   if (api && requiresAuthentication(api.payload) && !authenticationNotified) {

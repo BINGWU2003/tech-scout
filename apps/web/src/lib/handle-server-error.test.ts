@@ -41,14 +41,11 @@ it('不同组件和轮询的同类故障只提示一次，所有失败请求恢�
   expect(errorToast.mock.lastCall?.[0]).toBe('研究服务暂不可用')
 })
 
-it('主动重试和再次提交能提示失败，同一异常的局部处理不重复通知', () => {
-  const retry = vi.fn().mockResolvedValue(undefined)
-  configureApiErrors({ onAuthenticationRequired: vi.fn(), retryQueries: retry })
+it('错误提示不提供请求操作，再次提交仍提示失败且同一异常不重复通知', () => {
   notifyApiError(failure('GET summary'))
-  errorToast.mock.lastCall?.[1].action.onClick()
-  expect(retry).toHaveBeenCalledOnce()
+  expect(errorToast.mock.lastCall?.[1]).toEqual({ id: expect.any(String) })
   notifyApiError(failure('GET summary'))
-  expect(errorToast).toHaveBeenCalledTimes(2)
+  expect(errorToast).toHaveBeenCalledTimes(1)
   const write = () =>
     new ApiClientError(
       409,
@@ -64,14 +61,13 @@ it('主动重试和再次提交能提示失败，同一异常的局部处理不�
   notifyApiError(first)
   handleServerError(first)
   notifyApiError(write())
-  expect(errorToast).toHaveBeenCalledTimes(4)
+  expect(errorToast).toHaveBeenCalledTimes(3)
 })
 
 it('凭据错误不跳转，明确的会话失效只处理一次', () => {
   const redirect = vi.fn()
   configureApiErrors({
     onAuthenticationRequired: redirect,
-    retryQueries: vi.fn(),
   })
   notifyApiError(
     new ApiClientError(401, {

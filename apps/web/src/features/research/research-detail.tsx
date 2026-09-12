@@ -11,17 +11,14 @@ import { createRequestId } from '@tech-scout/shared'
 import {
   ArrowRight,
   LoaderCircle,
-  MoreHorizontal,
+  Pause,
+  Play,
   RefreshCw,
+  X,
 } from 'lucide-react'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { ConfirmDialog } from '@/components/confirm-dialog'
 import { Button } from '@/components/ui/button'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
 import { resetApiErrors } from '@/lib/api-error-notifications'
 import { researchApi } from '@/lib/research-api'
 import { useAuthStore } from '@/stores/auth-store'
@@ -110,6 +107,7 @@ function RunWorkspace({
     }
   }
   const run = summary.data
+  const canResume = run?.status === 'recoverable' && !run.error
   const inCurrentStage = run ? stageForRun(run) === stage : false
   const failed =
     run?.status === 'failed' || (run?.status === 'recoverable' && !!run.error)
@@ -161,7 +159,13 @@ function RunWorkspace({
                 {isExecuting(run.status) && (
                   <Button
                     variant='ghost'
-                    size='sm'
+                    size='icon'
+                    aria-label={
+                      mutation.isPending && mutation.variables?.kind === 'pause'
+                        ? '正在暂停…'
+                        : '暂停研究'
+                    }
+                    title='暂停研究'
                     disabled={mutation.isPending}
                     onClick={() =>
                       void submit({
@@ -171,13 +175,30 @@ function RunWorkspace({
                       }).catch(() => undefined)
                     }
                   >
-                    {mutation.isPending && mutation.variables?.kind === 'pause'
-                      ? '正在暂停…'
-                      : '暂停研究'}
+                    {mutation.isPending &&
+                    mutation.variables?.kind === 'pause' ? (
+                      <LoaderCircle
+                        className='animate-spin'
+                        aria-hidden='true'
+                      />
+                    ) : (
+                      <Pause aria-hidden='true' />
+                    )}
                   </Button>
                 )}
                 {['failed', 'recoverable'].includes(run.status) && (
                   <Button
+                    variant={canResume ? 'ghost' : 'default'}
+                    size={canResume ? 'icon' : 'default'}
+                    aria-label={
+                      canResume
+                        ? mutation.isPending &&
+                          mutation.variables?.kind === 'retry'
+                          ? '正在恢复…'
+                          : '继续研究'
+                        : undefined
+                    }
+                    title={canResume ? '继续研究' : undefined}
                     disabled={mutation.isPending}
                     onClick={() =>
                       void submit({
@@ -187,35 +208,36 @@ function RunWorkspace({
                       }).catch(() => undefined)
                     }
                   >
-                    {mutation.isPending && mutation.variables?.kind === 'retry'
-                      ? '正在恢复…'
-                      : run.status === 'recoverable' && !run.error
-                        ? '继续研究'
-                        : '重试此步骤'}
+                    {canResume ? (
+                      mutation.isPending &&
+                      mutation.variables?.kind === 'retry' ? (
+                        <LoaderCircle
+                          className='animate-spin'
+                          aria-hidden='true'
+                        />
+                      ) : (
+                        <Play aria-hidden='true' />
+                      )
+                    ) : mutation.isPending &&
+                      mutation.variables?.kind === 'retry' ? (
+                      '正在恢复…'
+                    ) : (
+                      '重试此步骤'
+                    )}
                   </Button>
                 )}
                 {!['completed', 'empty', 'cancelled'].includes(run.status) && (
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        variant='ghost'
-                        size='icon'
-                        aria-label='更多研究操作'
-                        disabled={mutation.isPending}
-                      >
-                        <MoreHorizontal aria-hidden='true' />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align='end'>
-                      <DropdownMenuItem
-                        disabled={cancelConfirm}
-                        onSelect={() => setCancelConfirm(true)}
-                        className='text-destructive'
-                      >
-                        取消本次研究
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                  <Button
+                    variant='ghost'
+                    size='icon'
+                    aria-label='取消本次研究'
+                    title='取消本次研究'
+                    disabled={mutation.isPending || cancelConfirm}
+                    onClick={() => setCancelConfirm(true)}
+                    className='text-destructive hover:text-destructive'
+                  >
+                    <X aria-hidden='true' />
+                  </Button>
                 )}
               </div>
             )}
@@ -238,49 +260,40 @@ function RunWorkspace({
           </div>
         )}
       </div>
-      {run && (
-        <>
-          {cancelConfirm &&
-            !readOnly &&
-            inCurrentStage &&
-            !['completed', 'empty', 'cancelled'].includes(run.status) && (
-              <div
-                role='region'
-                aria-label='确认取消研究'
-                className='rounded-lg border border-destructive/20 bg-destructive/5 p-3 text-sm'
-              >
-                <p className='mb-1 font-medium'>确定取消本次研究？</p>
-                <p>取消后本次不能继续执行，已有记录和已发生费用保留。</p>
-                <div className='mt-2 flex gap-2'>
-                  <Button
-                    size='sm'
-                    variant='outline'
-                    disabled={mutation.isPending}
-                    onClick={() => setCancelConfirm(false)}
-                  >
-                    暂不取消
-                  </Button>
-                  <Button
-                    size='sm'
-                    variant='destructive'
-                    disabled={mutation.isPending}
-                    onClick={() =>
-                      void submit({
-                        action_id: createRequestId(),
-                        kind: 'cancel',
-                        decisions: [],
-                      }).catch(() => undefined)
-                    }
-                  >
-                    {mutation.isPending && mutation.variables?.kind === 'cancel'
-                      ? '正在取消…'
-                      : '确认取消'}
-                  </Button>
-                </div>
-              </div>
+      {run &&
+        !readOnly &&
+        inCurrentStage &&
+        !['completed', 'empty', 'cancelled'].includes(run.status) && (
+          <ConfirmDialog
+            open={cancelConfirm}
+            onOpenChange={(open) => {
+              if (!mutation.isPending) setCancelConfirm(open)
+            }}
+            title='确定取消本次研究？'
+            desc='取消后本次不能继续执行，已有记录和已发生费用保留。'
+            cancelBtnText='暂不取消'
+            confirmText={
+              mutation.isPending && mutation.variables?.kind === 'cancel'
+                ? '正在取消…'
+                : '确认取消'
+            }
+            destructive
+            isLoading={mutation.isPending}
+            handleConfirm={() =>
+              void submit({
+                action_id: createRequestId(),
+                kind: 'cancel',
+                decisions: [],
+              }).catch(() => undefined)
+            }
+          >
+            {mutation.isError && mutation.variables?.kind === 'cancel' && (
+              <p role='alert' className='text-sm text-destructive'>
+                取消失败，请重试。
+              </p>
             )}
-        </>
-      )}
+          </ConfirmDialog>
+        )}
       {run && isExecuting(run.status) && disconnected && (
         <p role='status' className='text-sm text-muted-foreground'>
           实时连接暂时中断，正在重连。进度仍会自动更新，无需重复提交。

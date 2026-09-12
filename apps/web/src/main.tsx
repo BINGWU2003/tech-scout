@@ -41,11 +41,6 @@ configureApiErrors({
         search: { redirect: router.history.location.href },
       })
   },
-  retryQueries: () =>
-    queryClient.refetchQueries({
-      type: 'active',
-      predicate: (query) => query.state.status === 'error',
-    }),
 })
 
 // Register the router instance for type safety

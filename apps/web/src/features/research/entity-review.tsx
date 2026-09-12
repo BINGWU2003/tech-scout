@@ -6,6 +6,7 @@ import {
 } from '@tech-scout/contracts'
 import { createRequestId } from '@tech-scout/shared'
 import { useState, type ReactNode } from 'react'
+import { ConfirmDialog } from '@/components/confirm-dialog'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
@@ -396,46 +397,37 @@ export function EntityReview({
                   : '生成研究报告'}
             </Button>
           </div>
-          {skipConfirm && (
-            <div className='rounded-lg bg-muted p-3 text-sm'>
-              <p>
-                将尚未选择的 {remaining.length}{' '}
-                项标记为“跳过”，保留已经暂存的决定。此操作只更新草稿。
-              </p>
-              <div className='mt-2 flex gap-2'>
-                <Button
-                  size='sm'
-                  variant='outline'
-                  onClick={() => setSkipConfirm(false)}
-                >
-                  返回
-                </Button>
-                <Button
-                  size='sm'
-                  onClick={() => {
-                    setDraft((d) => ({
-                      ...d,
-                      ...Object.fromEntries(
-                        remaining.map((id) => [
-                          id,
-                          {
-                            candidate_id: id,
-                            action: 'skip',
-                            company_id: null,
-                            evidence_ids: [],
-                            note: '人工选择跳过，当前依据不足',
-                          } satisfies Decision,
-                        ])
-                      ),
-                    }))
-                    setSkipConfirm(false)
-                  }}
-                >
-                  确认标记为跳过
-                </Button>
-              </div>
-            </div>
-          )}
+          <ConfirmDialog
+            open={skipConfirm}
+            onOpenChange={(open) => {
+              if (!busy) setSkipConfirm(open)
+            }}
+            title='确认跳过剩余主体？'
+            desc={`将尚未选择的 ${remaining.length} 项标记为“跳过”，保留已经暂存的决定。此操作只更新草稿。`}
+            cancelBtnText='返回'
+            confirmText='确认标记为跳过'
+            isLoading={busy}
+            disabled={!remaining.length}
+            handleConfirm={() => {
+              if (busy || !remaining.length) return
+              setDraft((d) => ({
+                ...d,
+                ...Object.fromEntries(
+                  remaining.map((id) => [
+                    id,
+                    {
+                      candidate_id: id,
+                      action: 'skip',
+                      company_id: null,
+                      evidence_ids: [],
+                      note: '人工选择跳过，当前依据不足',
+                    } satisfies Decision,
+                  ])
+                ),
+              }))
+              setSkipConfirm(false)
+            }}
+          />
         </div>
       )}
     </>

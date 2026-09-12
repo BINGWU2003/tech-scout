@@ -1,6 +1,10 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  useInfiniteQuery,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -21,7 +25,7 @@ import {
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { withLibraryDetail } from '@/features/library/library-navigation'
 import { researchApi } from '@/lib/research-api'
-import { Pager, SourceReference } from './shared'
+import { SourceReference } from './shared'
 
 export function PatentSnapshot({
   runId,
@@ -310,20 +314,43 @@ export function PatentList({
   companyId?: string
   citations?: string[]
 }) {
-  const [page, setPage] = useState(1)
+  const loadMore = useRef<HTMLDivElement>(null)
   const [selected, setSelected] = useState<{
     data: PatentPage
     index: number
   } | null>(null)
   const trigger = useRef<HTMLButtonElement | null>(null)
-  const query = useQuery({
-    queryKey: ['research', runId, 'patents', companyId, page],
-    queryFn: () => researchApi.patents(runId, page, companyId),
+  const query = useInfiniteQuery({
+    queryKey: ['research', runId, 'patents', companyId, 'infinite'],
+    initialPageParam: 1,
+    queryFn: ({ pageParam }) =>
+      researchApi.patents(runId, pageParam, companyId),
+    getNextPageParam: (lastPage) =>
+      lastPage.items.length > 0 &&
+      lastPage.page * lastPage.pageSize < lastPage.total
+        ? lastPage.page + 1
+        : undefined,
   })
+  const { fetchNextPage, hasNextPage, isFetching, isFetchNextPageError } = query
+  const total = query.data?.pages[0].total ?? 0
+  const loaded =
+    query.data?.pages.reduce((count, data) => count + data.items.length, 0) ?? 0
+  useEffect(() => {
+    if (!hasNextPage || isFetching || isFetchNextPageError || selected) return
+    const target = loadMore.current
+    if (!target) return
+    const observer = new IntersectionObserver((entries) => {
+      if (entries.some((entry) => entry.isIntersecting)) {
+        void fetchNextPage({ cancelRefetch: false })
+      }
+    })
+    observer.observe(target)
+    return () => observer.disconnect()
+  }, [fetchNextPage, hasNextPage, isFetching, isFetchNextPageError, selected])
   return (
     <div className='space-y-3'>
       {query.isPending && <p role='status'>读取快照专利…</p>}
-      {query.isError && (
+      {query.isError && !query.data && (
         <div role='alert' className='text-sm'>
           专利列表加载失败。
           <Button size='sm' variant='link' onClick={() => void query.refetch()}>
@@ -331,43 +358,45 @@ export function PatentList({
           </Button>
         </div>
       )}
-      {query.data?.total === 0 && (
+      {query.data && total === 0 && (
         <p className='rounded-xl border border-dashed p-6 text-sm text-muted-foreground'>
           本次没有符合条件的专利，可以调整研究条件后重新检索。
         </p>
       )}
-      <ul className='space-y-3'>
-        {query.data?.items.map((p, index) => (
-          <li
-            key={p.id}
-            className='space-y-2 rounded-lg border p-4 transition-colors hover:border-primary/30 hover:bg-muted/20'
-          >
-            <div className='flex items-start gap-2'>
-              <button
-                type='button'
-                className='min-w-0 rounded-sm text-left text-sm leading-6 font-medium break-words hover:text-primary focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none'
-                onClick={(event) => {
-                  trigger.current = event.currentTarget
-                  setSelected({ data: query.data!, index })
-                }}
-              >
-                {p.title}
-              </button>
-              {citations.includes(p.id) && (
-                <Badge variant='secondary' className='mt-1 shrink-0'>
-                  模型引用
-                </Badge>
-              )}
-            </div>
-            <p className='text-xs leading-5 break-words text-muted-foreground'>
-              {p.id} · {p.dateKind === 'publication' ? '公开' : '授权'}{' '}
-              {p.year ?? '年份未提供'} · IPC：{p.cpcs.join('、') || '未提供'}
-            </p>
-            <p className='line-clamp-2 text-xs leading-5 break-words text-muted-foreground'>
-              {p.abstract || '该快照未提供摘要'}
-            </p>
-          </li>
-        ))}
+      <ul aria-label='本次专利列表' className='divide-y border-y'>
+        {query.data?.pages.flatMap((data) =>
+          data.items.map((p, index) => (
+            <li
+              key={p.id}
+              className='space-y-1.5 px-2 py-3 transition-colors hover:bg-muted/30'
+            >
+              <div className='flex items-start gap-2'>
+                <button
+                  type='button'
+                  className='min-w-0 rounded-sm text-left text-sm leading-6 font-medium break-words hover:text-primary focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none'
+                  onClick={(event) => {
+                    trigger.current = event.currentTarget
+                    setSelected({ data, index })
+                  }}
+                >
+                  {p.title}
+                </button>
+                {citations.includes(p.id) && (
+                  <Badge variant='secondary' className='mt-1 shrink-0'>
+                    模型引用
+                  </Badge>
+                )}
+              </div>
+              <p className='text-xs leading-5 break-words text-muted-foreground'>
+                {p.id} · {p.dateKind === 'publication' ? '公开' : '授权'}{' '}
+                {p.year ?? '年份未提供'} · IPC：{p.cpcs.join('、') || '未提供'}
+              </p>
+              <p className='line-clamp-2 text-xs leading-5 break-words text-muted-foreground'>
+                {p.abstract || '该快照未提供摘要'}
+              </p>
+            </li>
+          ))
+        )}
       </ul>
       {selected && (
         <PatentReader
@@ -378,14 +407,41 @@ export function PatentList({
           returnFocus={() => trigger.current?.focus({ preventScroll: true })}
         />
       )}
-      {query.data && (
-        <Pager
-          page={page}
-          total={query.data.total}
-          pageSize={query.data.pageSize}
-          onChange={setPage}
-        />
-      )}
+      <div
+        ref={loadMore}
+        className='flex min-h-12 flex-wrap items-center justify-center gap-2 py-2 text-xs text-muted-foreground [overflow-anchor:none]'
+      >
+        {query.data && total > 0 && (
+          <span>
+            已加载 {loaded} / {total} 篇
+          </span>
+        )}
+        {query.isFetchingNextPage ? (
+          <span role='status'>正在加载更多专利…</span>
+        ) : isFetchNextPageError ? (
+          <>
+            <span role='alert'>加载失败，已保留现有专利。</span>
+            <Button
+              size='sm'
+              variant='ghost'
+              onClick={() => void fetchNextPage({ cancelRefetch: false })}
+            >
+              重试加载
+            </Button>
+          </>
+        ) : hasNextPage ? (
+          <Button
+            size='sm'
+            variant='ghost'
+            disabled={isFetching}
+            onClick={() => void fetchNextPage({ cancelRefetch: false })}
+          >
+            加载更多
+          </Button>
+        ) : query.data && total > 0 ? (
+          <span role='status'>已全部加载</span>
+        ) : null}
+      </div>
     </div>
   )
 }

@@ -55,12 +55,71 @@ function setup(nested = false) {
         new QueryClient({ defaultOptions: { queries: { retry: false } } })
       }
     >
-      {nested ? <Nested /> : <PatentList runId='run' citations={['CN20']} />}
+      {nested ? (
+        <Nested />
+      ) : (
+        <div
+          data-testid='patent-panel'
+          style={{ height: 600, overflowY: 'auto' }}
+        >
+          <div style={{ height: 200 }}>专利统计</div>
+          <PatentList runId='run' citations={['CN20']} />
+          <div style={{ height: 600 }}>其他研究内容</div>
+        </div>
+      )}
     </QueryClientProvider>
   )
   return { screen, list, detail }
 }
 afterEach(() => vi.restoreAllMocks())
+
+it('触底追加下一页，加载和失败保留位置，重试后展示结束状态', async () => {
+  await page.viewport(1280, 900)
+  const { list } = setup()
+  await expect
+    .element(page.getByRole('button', { name: patents[0].title, exact: true }))
+    .toBeVisible()
+  const panel = page.getByTestId('patent-panel').element()
+  const first = panel.querySelector('li')
+  expect(panel.querySelectorAll('li')).toHaveLength(20)
+  expect(list).toHaveBeenCalledTimes(1)
+  let reject!: (reason: Error) => void
+  list.mockImplementationOnce(
+    () =>
+      new Promise((_resolve, fail) => {
+        reject = fail
+      })
+  )
+  const ul = panel.querySelector('ul')!
+  panel.scrollTop = ul.offsetTop + ul.clientHeight - panel.clientHeight + 80
+  await expect.element(page.getByText('正在加载更多专利…')).toBeVisible()
+  const scrollTop = panel.scrollTop
+  expect(panel.querySelectorAll('li')).toHaveLength(20)
+  reject(new Error('offline'))
+  await expect
+    .element(page.getByRole('alert'))
+    .toHaveTextContent('已保留现有专利')
+  expect(panel.scrollTop).toBe(scrollTop)
+  expect(panel.querySelectorAll('li')).toHaveLength(20)
+  expect(list).toHaveBeenCalledTimes(2)
+  await page.getByRole('button', { name: '重试加载' }).click()
+  await expect.poll(() => panel.querySelectorAll('li').length).toBe(21)
+  expect(panel.querySelector('li')).toBe(first)
+  expect(panel.scrollTop).toBe(scrollTop)
+  expect(list).toHaveBeenCalledTimes(3)
+  panel.scrollTop += 500
+  await expect.element(page.getByText('已全部加载')).toBeVisible()
+  await expect.element(page.getByText('已加载 21 / 21 篇')).toBeVisible()
+  await page
+    .getByRole('button', { name: patents[20].title, exact: true })
+    .click()
+  await expect
+    .element(page.getByRole('heading', { name: patents[20].title }))
+    .toBeVisible()
+  await expect.element(page.getByText('21 / 21', { exact: true })).toBeVisible()
+  await page.getByRole('button', { name: '关闭详情' }).click()
+  expect(list).toHaveBeenCalledTimes(3)
+})
 
 it('直接打开详情、长文滚动、跨页阅读后返回原列表与焦点', async () => {
   await page.viewport(1280, 900)
@@ -96,7 +155,12 @@ it('直接打开详情、长文滚动、跨页阅读后返回原列表与焦点'
     .toBeVisible()
   await page.getByRole('button', { name: '关闭详情' }).click()
   await expect.element(trigger).toHaveFocus()
-  await expect.element(page.getByText('共 21 项 · 第 1 / 2 页')).toBeVisible()
+  expect(
+    page
+      .getByRole('list', { name: '本次专利列表' })
+      .element()
+      .querySelectorAll('li').length
+  ).toBeGreaterThanOrEqual(20)
 })
 
 it('手机企业抽屉内打开弹窗，Escape 只关闭专利并回到企业', async () => {
