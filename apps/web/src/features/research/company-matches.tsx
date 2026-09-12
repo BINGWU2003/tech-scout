@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
+import { ContentSkeleton, LoadingRegion } from '@/components/loading'
 import { Button } from '@/components/ui/button'
 import { researchApi } from '@/lib/research-api'
 import { countryName } from './labels'
@@ -10,11 +11,16 @@ export function CompanyMatches({ runId }: { runId: string }) {
   const [page, setPage] = useState(1)
   const [selected, setSelected] = useState<string | null>(null)
   const query = useQuery({
+    placeholderData: (previous, previousQuery) =>
+      previousQuery?.queryKey[1] === runId ? previous : undefined,
     queryKey: ['research', runId, 'company-matches', page],
     queryFn: () => researchApi.companyMatches(runId, page),
   })
   return (
-    <section className='space-y-4'>
+    <LoadingRegion
+      busy={query.isPlaceholderData && query.isFetching}
+      className='flex flex-col gap-4'
+    >
       <h2 className='text-lg font-semibold'>已匹配企业</h2>
 
       {query.isError && (
@@ -25,7 +31,9 @@ export function CompanyMatches({ runId }: { runId: string }) {
           </Button>
         </p>
       )}
-      {query.isPending && <p role='status'>正在读取匹配企业…</p>}
+      {query.isPending && (
+        <ContentSkeleton variant='list' label='正在读取匹配企业…' />
+      )}
       {query.data?.total === 0 && (
         <p className='rounded-xl border border-dashed p-6 text-sm text-muted-foreground'>
           尚无已匹配企业，可切换到核验列表处理候选主体。
@@ -63,6 +71,6 @@ export function CompanyMatches({ runId }: { runId: string }) {
           close={() => setSelected(null)}
         />
       )}
-    </section>
+    </LoadingRegion>
   )
 }

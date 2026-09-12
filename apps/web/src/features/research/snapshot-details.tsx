@@ -5,6 +5,11 @@ import {
 } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
+import {
+  ContentSkeleton,
+  LoadingIndicator,
+  LoadingRegion,
+} from '@/components/loading'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -33,14 +38,18 @@ export function PatentSnapshot({
   close,
   navigation,
   returnFocus,
+  switching = false,
 }: {
   runId: string
   patentId: string
   close: () => void
   navigation?: ReactNode
+  switching?: boolean
   returnFocus?: () => void
 }) {
   const query = useQuery({
+    placeholderData: (previous, previousQuery) =>
+      previousQuery?.queryKey[1] === runId ? previous : undefined,
     queryKey: ['research', runId, 'patent', patentId],
     queryFn: () => researchApi.patent(runId, patentId),
   })
@@ -71,7 +80,7 @@ export function PatentSnapshot({
             {patent?.title ?? `专利 ${patentId}`}
           </DialogTitle>
           <DialogDescription className='break-words'>
-            {patentId} · 本次研究快照
+            {patent?.id ?? patentId} · 本次研究快照
           </DialogDescription>
           {patent?.source.url && (
             <a
@@ -84,140 +93,153 @@ export function PatentSnapshot({
             </a>
           )}
         </DialogHeader>
-        {query.isPending && (
-          <p role='status' className='flex-1 p-7 text-sm'>
-            读取专利…
-          </p>
-        )}
-        {query.isError && (
-          <div role='alert' className='flex-1 space-y-3 p-7 text-sm'>
-            <p>专利详情加载失败，请重试。</p>
-            <Button variant='outline' onClick={() => void query.refetch()}>
-              重新加载
-            </Button>
-          </div>
-        )}
-        {query.isSuccess && !patent && (
-          <p className='flex-1 p-7 text-sm text-muted-foreground'>
-            本次研究中未找到该专利。
-          </p>
-        )}
-        {patent && (
-          <Tabs
-            key={patentId}
-            defaultValue='overview'
-            className='min-h-0 flex-1 gap-0'
-          >
-            <div className='shrink-0 px-5 py-3 sm:px-7'>
-              <TabsList aria-label='专利详情内容' className='w-full sm:w-auto'>
-                <TabsTrigger value='overview'>概览</TabsTrigger>
-                <TabsTrigger value='claims'>权利要求</TabsTrigger>
-                <TabsTrigger value='description'>说明书</TabsTrigger>
-              </TabsList>
-            </div>
-            <TabsContent
-              value='overview'
-              className='min-h-0 overflow-y-auto overscroll-contain px-5 pb-6 text-sm sm:px-7'
-            >
-              <div className='space-y-6'>
-                <dl className='grid gap-4 rounded-lg bg-muted/40 p-4 sm:grid-cols-2'>
-                  <div>
-                    <dt className='text-xs text-muted-foreground'>
-                      {patent.dateKind === 'publication'
-                        ? '公开年份'
-                        : '授权年份'}
-                    </dt>
-                    <dd className='mt-1'>{patent.year ?? '未提供'}</dd>
-                  </div>
-                  <div>
-                    <dt className='text-xs text-muted-foreground'>
-                      技术分类（IPC）
-                    </dt>
-                    <dd className='mt-1 break-words'>
-                      {patent.cpcs.join('、') || '未提供'}
-                    </dd>
-                  </div>
-                  <div className='sm:col-span-2'>
-                    <dt className='text-xs text-muted-foreground'>本次领域</dt>
-                    <dd className='mt-1 break-words'>
-                      {patent.domains.join('、') || '未提供'}
-                    </dd>
-                  </div>
-                </dl>
-                <section className='space-y-2'>
-                  <h3 className='font-semibold'>摘要</h3>
-                  <p className='leading-7 break-words whitespace-pre-wrap'>
-                    {patent.abstract || '该快照未提供摘要'}
-                  </p>
-                </section>
-                <section className='space-y-3'>
-                  <h3 className='font-semibold'>申请人 / 权利人</h3>
-                  {patent.parties.length === 0 && (
-                    <p className='text-muted-foreground'>
-                      该快照未提供申请人或权利人信息
-                    </p>
-                  )}
-                  {patent.parties.map((party, index) => (
-                    <div
-                      key={index}
-                      className='space-y-1 border-b pb-3 last:border-0'
-                    >
-                      <p className='break-words'>{party.name}</p>
-                      <p className='text-xs text-muted-foreground'>
-                        {party.roles
-                          .map(
-                            (role) =>
-                              (
-                                ({
-                                  search_listing: '检索列表名称',
-                                  current_assignee: '当前权利人',
-                                  original_assignee: '原始申请人',
-                                }) as Record<string, string>
-                              )[role] ?? role
-                          )
-                          .join('、')}
-                      </p>
-                    </div>
-                  ))}
-                </section>
-                <details className='border-t pt-4'>
-                  <summary className='cursor-pointer text-xs text-muted-foreground'>
-                    快照来源与校验信息
-                  </summary>
-                  <SourceReference source={patent.source} />
-                </details>
-              </div>
-            </TabsContent>
-            <TabsContent
-              value='claims'
-              className='min-h-0 overflow-y-auto overscroll-contain px-5 pb-6 sm:px-7'
-            >
-              <p className='text-sm leading-7 break-words whitespace-pre-wrap'>
-                {patent.claims || '该快照未提供权利要求'}
-              </p>
-            </TabsContent>
-            <TabsContent
-              value='description'
-              className='min-h-0 overflow-y-auto overscroll-contain px-5 pb-6 sm:px-7'
-            >
-              <p className='text-sm leading-7 break-words whitespace-pre-wrap'>
-                {patent.description || '该快照未提供说明书'}
-              </p>
-            </TabsContent>
-          </Tabs>
-        )}
-        <footer className='flex shrink-0 flex-wrap items-center justify-between gap-3 border-t px-5 py-3 sm:px-7'>
-          {navigation ?? (
-            <span className='text-xs text-muted-foreground'>
-              本次研究保存的引用依据
-            </span>
+        <LoadingRegion
+          busy={switching || (query.isPlaceholderData && query.isFetching)}
+          label='正在切换专利…'
+          className='flex min-h-0 flex-1 flex-col'
+        >
+          {query.isPending && (
+            <ContentSkeleton
+              variant='detail'
+              label='读取专利…'
+              className='min-h-0 flex-1 overflow-hidden px-7'
+            />
           )}
-          <DialogClose asChild>
-            <Button variant='ghost' size='sm'>
-              关闭详情
-            </Button>
-          </DialogClose>
-        </footer>
+          {query.isError && (
+            <div role='alert' className='flex-1 space-y-3 p-7 text-sm'>
+              <p>专利详情加载失败，请重试。</p>
+              <Button variant='outline' onClick={() => void query.refetch()}>
+                重新加载
+              </Button>
+            </div>
+          )}
+          {query.isSuccess && !patent && (
+            <p className='flex-1 p-7 text-sm text-muted-foreground'>
+              本次研究中未找到该专利。
+            </p>
+          )}
+          {patent && (
+            <Tabs
+              key={patent.id}
+              defaultValue='overview'
+              className='min-h-0 flex-1 gap-0'
+            >
+              <div className='shrink-0 px-5 py-3 sm:px-7'>
+                <TabsList
+                  aria-label='专利详情内容'
+                  className='w-full sm:w-auto'
+                >
+                  <TabsTrigger value='overview'>概览</TabsTrigger>
+                  <TabsTrigger value='claims'>权利要求</TabsTrigger>
+                  <TabsTrigger value='description'>说明书</TabsTrigger>
+                </TabsList>
+              </div>
+              <TabsContent
+                value='overview'
+                className='min-h-0 overflow-y-auto overscroll-contain px-5 pb-6 text-sm sm:px-7'
+              >
+                <div className='space-y-6'>
+                  <dl className='grid gap-4 rounded-lg bg-muted/40 p-4 sm:grid-cols-2'>
+                    <div>
+                      <dt className='text-xs text-muted-foreground'>
+                        {patent.dateKind === 'publication'
+                          ? '公开年份'
+                          : '授权年份'}
+                      </dt>
+                      <dd className='mt-1'>{patent.year ?? '未提供'}</dd>
+                    </div>
+                    <div>
+                      <dt className='text-xs text-muted-foreground'>
+                        技术分类（IPC）
+                      </dt>
+                      <dd className='mt-1 break-words'>
+                        {patent.cpcs.join('、') || '未提供'}
+                      </dd>
+                    </div>
+                    <div className='sm:col-span-2'>
+                      <dt className='text-xs text-muted-foreground'>
+                        本次领域
+                      </dt>
+                      <dd className='mt-1 break-words'>
+                        {patent.domains.join('、') || '未提供'}
+                      </dd>
+                    </div>
+                  </dl>
+                  <section className='space-y-2'>
+                    <h3 className='font-semibold'>摘要</h3>
+                    <p className='leading-7 break-words whitespace-pre-wrap'>
+                      {patent.abstract || '该快照未提供摘要'}
+                    </p>
+                  </section>
+                  <section className='space-y-3'>
+                    <h3 className='font-semibold'>申请人 / 权利人</h3>
+                    {patent.parties.length === 0 && (
+                      <p className='text-muted-foreground'>
+                        该快照未提供申请人或权利人信息
+                      </p>
+                    )}
+                    {patent.parties.map((party, index) => (
+                      <div
+                        key={index}
+                        className='space-y-1 border-b pb-3 last:border-0'
+                      >
+                        <p className='break-words'>{party.name}</p>
+                        <p className='text-xs text-muted-foreground'>
+                          {party.roles
+                            .map(
+                              (role) =>
+                                (
+                                  ({
+                                    search_listing: '检索列表名称',
+                                    current_assignee: '当前权利人',
+                                    original_assignee: '原始申请人',
+                                  }) as Record<string, string>
+                                )[role] ?? role
+                            )
+                            .join('、')}
+                        </p>
+                      </div>
+                    ))}
+                  </section>
+                  <details className='border-t pt-4'>
+                    <summary className='cursor-pointer text-xs text-muted-foreground'>
+                      快照来源与校验信息
+                    </summary>
+                    <SourceReference source={patent.source} />
+                  </details>
+                </div>
+              </TabsContent>
+              <TabsContent
+                value='claims'
+                className='min-h-0 overflow-y-auto overscroll-contain px-5 pb-6 sm:px-7'
+              >
+                <p className='text-sm leading-7 break-words whitespace-pre-wrap'>
+                  {patent.claims || '该快照未提供权利要求'}
+                </p>
+              </TabsContent>
+              <TabsContent
+                value='description'
+                className='min-h-0 overflow-y-auto overscroll-contain px-5 pb-6 sm:px-7'
+              >
+                <p className='text-sm leading-7 break-words whitespace-pre-wrap'>
+                  {patent.description || '该快照未提供说明书'}
+                </p>
+              </TabsContent>
+            </Tabs>
+          )}
+          <footer className='flex shrink-0 flex-wrap items-center justify-between gap-3 border-t px-5 py-3 sm:px-7'>
+            {navigation ?? (
+              <span className='text-xs text-muted-foreground'>
+                本次研究保存的引用依据
+              </span>
+            )}
+            <DialogClose asChild>
+              <Button variant='ghost' size='sm'>
+                关闭详情
+              </Button>
+            </DialogClose>
+          </footer>
+        </LoadingRegion>
       </DialogContent>
     </Dialog>
   )
@@ -271,6 +293,7 @@ function PatentReader({
     <PatentSnapshot
       runId={runId}
       patentId={data.items[index].id}
+      switching={pending}
       close={close}
       returnFocus={returnFocus}
       navigation={
@@ -349,7 +372,9 @@ export function PatentList({
   }, [fetchNextPage, hasNextPage, isFetching, isFetchNextPageError, selected])
   return (
     <div className='space-y-3'>
-      {query.isPending && <p role='status'>读取快照专利…</p>}
+      {query.isPending && (
+        <ContentSkeleton variant='list' label='读取快照专利…' />
+      )}
       {query.isError && !query.data && (
         <div role='alert' className='text-sm'>
           专利列表加载失败。
@@ -417,7 +442,7 @@ export function PatentList({
           </span>
         )}
         {query.isFetchingNextPage ? (
-          <span role='status'>正在加载更多专利…</span>
+          <LoadingIndicator label='正在加载更多专利…' />
         ) : isFetchNextPageError ? (
           <>
             <span role='alert'>加载失败，已保留现有专利。</span>
@@ -510,7 +535,9 @@ export function CompanySnapshotDetails({
           </Button>
         </p>
       )}
-      {query.isPending && <p role='status'>读取快照…</p>}
+      {query.isPending && (
+        <ContentSkeleton variant='detail' label='读取快照…' />
+      )}
       {query.data && (
         <div className='space-y-5'>
           <div className='space-y-2 text-sm'>

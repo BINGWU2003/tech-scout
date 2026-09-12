@@ -225,6 +225,18 @@ export const researchWorkspaceSchema = z.object({
   reachedStage: z
     .enum(['plan', 'patents', 'companies', 'report'])
     .default('plan'),
+  currentStageStatus: z
+    .enum([
+      'draft',
+      'awaiting_confirmation',
+      'queued',
+      'running',
+      'completed',
+      'paused',
+      'failed',
+      'cancelled',
+    ])
+    .optional(),
   revision: z.number().int().nonnegative(),
   selectedPlan: researchSelectedPlanSchema,
   candidates: researchSelectedPlanSchema.nullable(),

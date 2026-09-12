@@ -90,7 +90,11 @@ export function ResearchComposer({
             aria-label={busy ? '正在发送' : '发送研究需求'}
             disabled={!value.trim() || busy || blocked}
           >
-            {busy ? <LoaderCircle className='animate-spin' /> : <ArrowUp />}
+            {busy ? (
+              <LoaderCircle className='motion-safe:animate-spin' />
+            ) : (
+              <ArrowUp />
+            )}
           </Button>
         </div>
       </div>

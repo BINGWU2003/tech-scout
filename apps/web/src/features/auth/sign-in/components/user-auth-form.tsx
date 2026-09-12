@@ -98,7 +98,11 @@ export function UserAuthForm({
           )}
         />
         <Button className='mt-2' disabled={isLoading}>
-          {isLoading ? <Loader2 className='animate-spin' /> : <LogIn />}
+          {isLoading ? (
+            <Loader2 className='motion-safe:animate-spin' />
+          ) : (
+            <LogIn />
+          )}
           登录
         </Button>
       </form>

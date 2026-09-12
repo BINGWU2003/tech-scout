@@ -149,7 +149,11 @@ export function SignUpForm({
           )}
         />
         <Button className='mt-2' disabled={isLoading}>
-          {isLoading ? <Loader2 className='animate-spin' /> : <UserPlus />}
+          {isLoading ? (
+            <Loader2 className='motion-safe:animate-spin' />
+          ) : (
+            <UserPlus />
+          )}
           注册并登录
         </Button>
       </form>

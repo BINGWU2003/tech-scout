@@ -18,6 +18,7 @@ import { ResearchService } from './research.service.js'
 import {
   assertResearchPlanEditable,
   reachedResearchStage,
+  researchStageProgress,
   revision,
   selectedPlan,
 } from './workspace-state.js'
@@ -253,20 +254,29 @@ export class ResearchWorkspaceService {
     const pending = await this.prisma.researchCommand.count({
       where: { run: { projectId }, status: 'pending' },
     })
+    const startedRunIds = new Set(
+      commands
+        .filter((command) =>
+          ['confirm_plan', 'start_companies', 'resolve_entities'].includes(
+            String(object(command.payload).kind)
+          )
+        )
+        .map((command) => command.runId)
+    )
+    const execution = runs.findLast(
+      (r) =>
+        reachedResearchStage([r]) !== 'plan' || startedRunIds.has(String(r.id))
+    )
+    const progress = researchStageProgress(
+      execution ?? latest,
+      commands,
+      selected.directions.length > 0
+    )
     return researchWorkspaceSchema.parse({
       researchCompleted: runs.some((r) =>
         ['completed', 'empty'].includes(String(r.status))
       ),
-      reachedStage: reachedResearchStage([
-        ...runs,
-        ...commands.flatMap((command) => {
-          const kind = object(command.payload).kind
-          if (kind === 'start_companies') return [{ node: 'company_snapshot' }]
-          if (kind === 'resolve_entities') return [{ node: 'evidence' }]
-          if (kind === 'confirm_plan') return [{ node: 'patent' }]
-          return []
-        }),
-      ]),
+      ...progress,
       revision: revision(ws),
       selectedPlan: selected,
       candidates,
@@ -276,9 +286,7 @@ export class ResearchWorkspaceService {
         result && !same(scope(selected), scope(result.confirmed))
       ),
       activeRunId: latest?.id ?? null,
-      executionRunId:
-        runs.findLast((r) => r.confirmed || object(r.context).startSearch)
-          ?.id ?? null,
+      executionRunId: execution?.id ?? null,
       blocked:
         pending > 0 ||
         runs.some((r) => ['queued', 'running'].includes(String(r.status))),

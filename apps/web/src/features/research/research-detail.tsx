@@ -19,6 +19,7 @@ import {
 } from 'lucide-react'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { ConfirmDialog } from '@/components/confirm-dialog'
+import { ContentSkeleton, LoadingRegion } from '@/components/loading'
 import { Button } from '@/components/ui/button'
 import { resetApiErrors } from '@/lib/api-error-notifications'
 import { researchApi } from '@/lib/research-api'
@@ -34,6 +35,7 @@ import { readResearchLocation, saveResearchLocation } from './research-location'
 import { ResearchPlanLayout } from './research-plan-layout'
 import {
   researchStages,
+  researchStageLabel,
   stageForEvent,
   stageForRun,
   type ResearchStage,
@@ -64,6 +66,7 @@ function RunWorkspace({
   const navigate = useNavigate()
   const { summary, events, disconnected } = useResearchRun(id)
   const client = useQueryClient()
+  const [refreshing, setRefreshing] = useState(false)
   const [cancelConfirm, setCancelConfirm] = useState(false)
   const actionKey = useRef<{ signature: string; input: ResearchAction } | null>(
     null
@@ -179,7 +182,7 @@ function RunWorkspace({
                     {mutation.isPending &&
                     mutation.variables?.kind === 'pause' ? (
                       <LoaderCircle
-                        className='animate-spin'
+                        className='motion-safe:animate-spin'
                         aria-hidden='true'
                       />
                     ) : (
@@ -211,7 +214,7 @@ function RunWorkspace({
                     {mutation.isPending &&
                     mutation.variables?.kind === 'retry' ? (
                       <LoaderCircle
-                        className='animate-spin'
+                        className='motion-safe:animate-spin'
                         aria-hidden='true'
                       />
                     ) : canResume ? (
@@ -244,11 +247,12 @@ function RunWorkspace({
               disabled={summary.isFetching}
               onClick={() => {
                 resetApiErrors()
-                void summary.refetch()
+                setRefreshing(true)
+                void summary.refetch().finally(() => setRefreshing(false))
               }}
             >
               <RefreshCw
-                className={summary.isFetching ? 'animate-spin' : ''}
+                className={summary.isFetching ? 'motion-safe:animate-spin' : ''}
                 aria-hidden='true'
               />
             </Button>
@@ -309,9 +313,11 @@ function RunWorkspace({
   )
   if (stage === 'plan')
     return (
-      <div className='flex min-h-0 flex-1 flex-col'>
+      <LoadingRegion busy={refreshing} className='flex min-h-0 flex-1 flex-col'>
         {header}
-        {summary.isPending && <p role='status'>正在读取运行状态…</p>}
+        {summary.isPending && (
+          <ContentSkeleton variant='workspace' label='正在读取运行状态…' />
+        )}
         {run && (
           <ResearchPlanLayout
             directions={directions}
@@ -324,13 +330,15 @@ function RunWorkspace({
             }
           />
         )}
-      </div>
+      </LoadingRegion>
     )
   if (stage === 'patents')
     return (
-      <div className='flex min-h-0 flex-1 flex-col'>
+      <LoadingRegion busy={refreshing} className='flex min-h-0 flex-1 flex-col'>
         {header}
-        {summary.isPending && <p role='status'>正在读取运行状态…</p>}
+        {summary.isPending && (
+          <ContentSkeleton variant='workspace' label='正在读取运行状态…' />
+        )}
         {summary.isError && (
           <p role='alert'>运行状态加载失败，请刷新页面重试。</p>
         )}
@@ -362,7 +370,7 @@ function RunWorkspace({
                       mutation.variables?.kind === 'start_companies' ? (
                         <>
                           <LoaderCircle
-                            className='animate-spin'
+                            className='motion-safe:animate-spin'
                             aria-hidden='true'
                           />
                           正在启动…
@@ -394,13 +402,15 @@ function RunWorkspace({
             }
           />
         )}
-      </div>
+      </LoadingRegion>
     )
   if (stage === 'companies')
     return (
-      <div className='flex min-h-0 flex-1 flex-col'>
+      <LoadingRegion busy={refreshing} className='flex min-h-0 flex-1 flex-col'>
         {header}
-        {summary.isPending && <p role='status'>正在读取运行状态…</p>}
+        {summary.isPending && (
+          <ContentSkeleton variant='workspace' label='正在读取运行状态…' />
+        )}
         {summary.isError && (
           <p role='alert'>运行状态加载失败，请刷新页面重试。</p>
         )}
@@ -434,13 +444,15 @@ function RunWorkspace({
             }
           />
         )}
-      </div>
+      </LoadingRegion>
     )
   const resultId = run?.hasResult ? run.id : (previousResultId ?? undefined)
   return (
-    <div className='flex min-h-0 flex-1 flex-col'>
+    <LoadingRegion busy={refreshing} className='flex min-h-0 flex-1 flex-col'>
       {header}
-      {summary.isPending && <p role='status'>正在读取运行状态…</p>}
+      {summary.isPending && (
+        <ContentSkeleton variant='workspace' label='正在读取运行状态…' />
+      )}
       {summary.isError && (
         <p role='alert'>
           运行状态加载失败。
@@ -484,7 +496,7 @@ function RunWorkspace({
           }
         />
       )}
-    </div>
+    </LoadingRegion>
   )
 }
 
@@ -536,12 +548,10 @@ export function ResearchEntry({
     <ResearchShell>
       {project.isError || summary.isError || (!runId && workspace.isError) ? (
         <p role='alert'>研究加载失败，请刷新页面重试。</p>
+      ) : project.data && !selected ? (
+        <p role='status'>此记录不存在，请从左侧重新打开项目。</p>
       ) : (
-        <p role='status'>
-          {project.data && !selected
-            ? '此记录不存在，请从左侧重新打开项目。'
-            : '正在打开研究…'}
-        </p>
+        <ContentSkeleton variant='workspace' label='正在打开研究…' />
       )}
     </ResearchShell>
   )
@@ -779,9 +789,14 @@ function ProjectWorkspace({
                 >
                   {index + 1}. {item.title}
                   <span className='mt-1 block text-[11px]'>
-                    {index < reached || workspace.data?.researchCompleted
-                      ? '已完成 · 可回看'
-                      : '当前步骤'}
+                    {workspace.data
+                      ? researchStageLabel(key, workspace.data)
+                      : '加载中'}
+                    {workspace.data && index === reached && (
+                      <span className='ml-1.5 inline-block rounded border border-current/30 px-1'>
+                        当前步骤
+                      </span>
+                    )}
                   </span>
                 </Link>
               )
@@ -790,7 +805,9 @@ function ProjectWorkspace({
         </div>
       }
     >
-      {project.isPending && <p role='status'>正在读取研究…</p>}
+      {project.isPending && (
+        <ContentSkeleton variant='workspace' label='正在读取研究…' />
+      )}
       {project.data && !selected && (
         <p role='alert'>此记录不属于当前项目，请从左侧重新打开研究。</p>
       )}

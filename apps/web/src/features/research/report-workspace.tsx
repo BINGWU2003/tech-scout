@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { ArrowRight, Building2, FileText } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
+import { ContentSkeleton, LoadingRegion } from '@/components/loading'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { researchApi } from '@/lib/research-api'
@@ -48,9 +49,7 @@ export function ReportWorkspace({
           {controls}
           {notice}
           {runId && query.isPending && (
-            <p role='status' className='text-sm'>
-              正在读取报告…
-            </p>
+            <ContentSkeleton variant='workspace' label='正在读取报告…' />
           )}
           {runId && query.isError && (
             <p role='alert' className='text-sm'>
@@ -272,6 +271,8 @@ function ConflictList({ runId }: { runId: string }) {
   const [page, setPage] = useState(1),
     [open, setOpen] = useState(false)
   const query = useQuery({
+    placeholderData: (previous, previousQuery) =>
+      previousQuery?.queryKey[1] === runId ? previous : undefined,
     queryKey: ['research', runId, 'conflicts', page],
     queryFn: () => researchApi.conflicts(runId, page),
     enabled: open,
@@ -284,8 +285,16 @@ function ConflictList({ runId }: { runId: string }) {
       <summary className='cursor-pointer font-medium'>
         查看身份差异与冲突
       </summary>
-      <div className='mt-3 space-y-3'>
-        {open && query.isPending && <p role='status'>读取冲突记录…</p>}
+      <LoadingRegion
+        busy={query.isPlaceholderData && query.isFetching}
+        className='mt-3 flex flex-col gap-3'
+      >
+        {query.isError && (
+          <p role='alert'>冲突记录加载失败，请收起后重新打开。</p>
+        )}
+        {open && query.isPending && (
+          <ContentSkeleton variant='list' label='读取冲突记录…' />
+        )}
         {query.data?.items.map((c, i) => (
           <div key={i} className='rounded-md bg-muted p-3 text-sm'>
             <p className='font-medium break-all'>{c.name}</p>
@@ -301,7 +310,7 @@ function ConflictList({ runId }: { runId: string }) {
         {query.data && (
           <Pager page={page} total={query.data.total} onChange={setPage} />
         )}
-      </div>
+      </LoadingRegion>
     </details>
   )
 }

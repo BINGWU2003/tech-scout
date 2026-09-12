@@ -7,6 +7,7 @@ import {
 import { createRequestId } from '@tech-scout/shared'
 import { useState, type ReactNode } from 'react'
 import { ConfirmDialog } from '@/components/confirm-dialog'
+import { ContentSkeleton, LoadingRegion } from '@/components/loading'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
@@ -215,7 +216,9 @@ function CandidatePanel({
       <h3 className='text-base font-semibold break-words'>
         {query.data?.name ?? '主体依据'}
       </h3>
-      {query.isPending && <p role='status'>读取身份依据…</p>}
+      {query.isPending && (
+        <ContentSkeleton variant='detail' label='读取身份依据…' />
+      )}
       {query.isError && (
         <p role='alert'>
           身份依据加载失败。
@@ -285,6 +288,11 @@ export function EntityReview({
   }
   const [skipConfirm, setSkipConfirm] = useState(false)
   const query = useQuery({
+    placeholderData: (previous, previousQuery) =>
+      previousQuery?.queryKey[1] === run.id &&
+      previousQuery.queryKey[4] === editable
+        ? previous
+        : undefined,
     queryKey: ['research', run.id, 'candidates', page, editable],
     queryFn: () => researchApi.candidates(run.id, page, editable),
     enabled: run.hasCompanies,
@@ -303,7 +311,10 @@ export function EntityReview({
       .catch(() => setSubmitError(true))
   }
   const list = (
-    <section className='space-y-4'>
+    <LoadingRegion
+      busy={query.isPlaceholderData && query.isFetching}
+      className='flex flex-col gap-4'
+    >
       <div>
         <h2 className='text-lg font-semibold'>
           {editable ? '确认待核验主体' : '未核验主体与处理记录'}
@@ -328,7 +339,9 @@ export function EntityReview({
           </Button>
         </p>
       )}
-      {query.isPending && <p role='status'>读取主体列表…</p>}
+      {query.isPending && (
+        <ContentSkeleton variant='list' label='读取主体列表…' />
+      )}
       {query.data?.total === 0 && (
         <p className='text-sm text-muted-foreground'>暂无需要核验的主体。</p>
       )}
@@ -364,7 +377,7 @@ export function EntityReview({
       {query.data && (
         <Pager page={page} total={query.data.total} onChange={setPage} />
       )}
-    </section>
+    </LoadingRegion>
   )
   const footer = (
     <>

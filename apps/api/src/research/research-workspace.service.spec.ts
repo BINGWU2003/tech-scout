@@ -78,6 +78,7 @@ describe('多轮推荐卡片', () => {
     )
     expect(result.messages.length).toBeGreaterThan(0)
     expect(result.reachedStage).toBe(stage)
+    expect(result.currentStageStatus).toBe('queued')
   })
   it.each(['completed', 'empty'])(
     '历史 %s 后继续对话不会解锁研究',
@@ -110,6 +111,117 @@ describe('多轮推荐卡片', () => {
       }),
     ])
     expect(result.reachedStage).toBe('patents')
+    expect(result.currentStageStatus).toBe('completed')
+  })
+  it('旧轮次的进度与启动命令不解锁当前轮次的企业步骤', async () => {
+    const previous = run({ status: 'failed', node: 'company', confirmed: plan })
+    const current = run({
+      status: 'awaiting_companies',
+      node: 'company_gate',
+      confirmed: plan,
+    })
+    const result = await workspace(
+      [previous, current],
+      [
+        {
+          id: randomUUID(),
+          runId: previous.id,
+          payload: { kind: 'resolve_entities' },
+          createdAt: new Date(),
+        },
+      ]
+    )
+    expect(result).toMatchObject({
+      executionRunId: current.id,
+      reachedStage: 'patents',
+      currentStageStatus: 'completed',
+    })
+  })
+  it('后续追问不会抢占执行中的当前步骤', async () => {
+    const execution = run({
+      status: 'running',
+      node: 'company',
+      confirmed: plan,
+    })
+    const result = await workspace([execution, run()])
+    expect(result).toMatchObject({
+      executionRunId: execution.id,
+      reachedStage: 'companies',
+      currentStageStatus: 'running',
+    })
+  })
+  it('新轮次启动已受理但快照尚未更新时，使用新轮次的排队进度', async () => {
+    const previous = run({ status: 'failed', node: 'company', confirmed: plan })
+    const current = run({ node: 'plan_gate' })
+    const result = await workspace(
+      [previous, current],
+      [
+        {
+          id: randomUUID(),
+          runId: current.id,
+          payload: { kind: 'confirm_plan' },
+          createdAt: new Date(),
+        },
+      ]
+    )
+    expect(result).toMatchObject({
+      executionRunId: current.id,
+      reachedStage: 'patents',
+      currentStageStatus: 'queued',
+    })
+  })
+  it.each([
+    ['queued', null, 'queued'],
+    ['running', null, 'running'],
+    ['recoverable', null, 'paused'],
+    ['recoverable', 'company', 'failed'],
+    ['failed', 'company', 'failed'],
+    ['cancelled', null, 'cancelled'],
+    ['awaiting_entities', null, 'awaiting_confirmation'],
+  ])(
+    '企业步骤 %s 显示 %s 对应的真实状态 %s',
+    async (status, errorNode, label) => {
+      const result = await workspace([
+        run({
+          status,
+          errorNode,
+          node: 'company',
+          confirmed: plan,
+        }),
+      ])
+      expect(result.reachedStage).toBe('companies')
+      expect(result.currentStageStatus).toBe(label)
+    }
+  )
+  it('空计划保留可访问的初始步骤', async () => {
+    const result = await workspace([])
+    expect(result).toMatchObject({
+      reachedStage: 'plan',
+      currentStageStatus: 'draft',
+      executionRunId: null,
+    })
+  })
+  it('开始企业查询后尚未更新节点便暂停，仍保留企业步骤和暂停状态', async () => {
+    const current = run({
+      status: 'recoverable',
+      node: 'company_gate',
+      confirmed: plan,
+    })
+    const result = await workspace(
+      [current],
+      [
+        {
+          id: randomUUID(),
+          runId: current.id,
+          payload: { kind: 'start_companies' },
+          createdAt: new Date(),
+        },
+      ]
+    )
+    expect(result).toMatchObject({
+      reachedStage: 'companies',
+      currentStageStatus: 'paused',
+    })
   })
   it('明确推荐意图的后续规划成为最新推荐，旧推荐失效', async () => {
     const first = run()

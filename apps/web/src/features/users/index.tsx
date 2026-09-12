@@ -1,4 +1,9 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  keepPreviousData,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
 import { type User } from '@tech-scout/contracts'
 import { useState } from 'react'
@@ -35,6 +40,7 @@ export function Users() {
     null
   )
   const query = useQuery({
+    placeholderData: keepPreviousData,
     queryKey: [
       'admin-users',
       page,
@@ -88,10 +94,16 @@ export function Users() {
             </p>
           </div>
         </div>
+        {query.isError && (
+          <p role='alert' className='text-sm text-destructive'>
+            用户列表加载失败，请刷新页面重试。
+          </p>
+        )}
         <UsersTable
           data={query.data?.items ?? EMPTY_USERS}
           pageCount={query.data?.totalPages ?? 0}
-          isLoading={query.isLoading}
+          isLoading={query.isPending}
+          isUpdating={query.isPlaceholderData && query.isFetching}
           onAction={setAction}
         />
       </Main>

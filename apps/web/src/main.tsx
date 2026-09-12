@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { RouterProvider, createRouter } from '@tanstack/react-router'
 import { StrictMode } from 'react'
 import ReactDOM from 'react-dom/client'
+import { PageLoading } from '@/components/loading'
 import { configureApiErrors } from '@/lib/api-error-notifications'
 import { useAuthStore } from '@/stores/auth-store'
 import { DirectionProvider } from './context/direction-provider'
@@ -28,6 +29,9 @@ const router = createRouter({
   context: { queryClient },
   defaultPreload: 'intent',
   defaultPreloadStaleTime: 0,
+  defaultPendingComponent: PageLoading,
+  defaultPendingMs: 200,
+  defaultPendingMinMs: 200,
 })
 
 configureApiErrors({

@@ -5,6 +5,7 @@ import type {
   ResearchSummaryView,
 } from '@tech-scout/contracts'
 import { lazy, Suspense, useState, type ReactNode } from 'react'
+import { ContentSkeleton } from '@/components/loading'
 import { Button } from '@/components/ui/button'
 import { researchApi } from '@/lib/research-api'
 import { CompanyMatches } from './company-matches'
@@ -111,10 +112,17 @@ export function CompanyWorkspace({
                   </p>
                 )}
                 {run.hasCompanies && stats.isPending && (
-                  <p role='status'>正在汇总企业统计…</p>
+                  <ContentSkeleton variant='chart' label='正在汇总企业统计…' />
                 )}
                 {stats.data && (
-                  <Suspense fallback={<p role='status'>正在加载企业排行…</p>}>
+                  <Suspense
+                    fallback={
+                      <ContentSkeleton
+                        variant='chart'
+                        label='正在加载企业排行…'
+                      />
+                    }
+                  >
                     <CompanyRanking items={stats.data.ranking} />
                   </Suspense>
                 )}

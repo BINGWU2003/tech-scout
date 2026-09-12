@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { libraryDetailSchema, type LibraryRecord } from '@tech-scout/contracts'
 import { type z } from 'zod'
+import { ContentSkeleton } from '@/components/loading'
 import {
   Dialog,
   DialogContent,
@@ -180,9 +181,14 @@ export function LibraryDetailDialog({
           </DialogDescription>
         </DialogHeader>
         {detail.isPending && selectedId ? (
-          <p role='status'>正在加载详情…</p>
+          <ContentSkeleton variant='detail' label='正在加载详情…' />
         ) : null}
 
+        {detail.isError && (
+          <p role='alert' className='text-sm text-destructive'>
+            详情加载失败，请关闭后重试。
+          </p>
+        )}
         {detail.data ? (
           <DetailContent kind={kind} detail={detail.data} />
         ) : null}

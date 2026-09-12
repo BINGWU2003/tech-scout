@@ -1,5 +1,8 @@
 import { ConflictException } from '@nestjs/common'
-import { researchSelectedPlanSchema } from '@tech-scout/contracts'
+import {
+  researchSelectedPlanSchema,
+  type ResearchWorkspace,
+} from '@tech-scout/contracts'
 import { Prisma } from '../generated/prisma/client.js'
 import { object } from './research-view.service.js'
 
@@ -67,6 +70,47 @@ export function reachedResearchStage(runs: Record<string, unknown>[]) {
       reached = Math.max(reached, 1)
   }
   return (['plan', 'patents', 'companies', 'report'] as const)[reached]
+}
+
+export function researchStageProgress(
+  run: Record<string, unknown> | undefined,
+  commands: Record<string, unknown>[],
+  hasSelectedDirections: boolean
+): Pick<ResearchWorkspace, 'reachedStage' | 'currentStageStatus'> {
+  const sentStages = commands.flatMap((command) => {
+    if (!run || command.runId !== run.id) return []
+    const kind = object(command.payload).kind
+    if (kind === 'start_companies') return [{ node: 'company_snapshot' }]
+    if (kind === 'resolve_entities') return [{ node: 'evidence' }]
+    if (kind === 'confirm_plan') return [{ node: 'patent' }]
+    return []
+  })
+  const reachedStage = reachedResearchStage([
+    ...(run ? [run] : []),
+    ...sentStages,
+  ])
+  let currentStageStatus: ResearchWorkspace['currentStageStatus']
+  if (run?.status === 'queued' || run?.status === 'running') {
+    currentStageStatus = run.status
+  } else if (run?.status === 'failed') {
+    currentStageStatus = 'failed'
+  } else if (run?.status === 'recoverable') {
+    currentStageStatus = run.errorNode ? 'failed' : 'paused'
+  } else if (run?.status === 'cancelled') {
+    currentStageStatus = 'cancelled'
+  } else if (reachedStage !== reachedResearchStage(run ? [run] : [])) {
+    // The start command was accepted before the worker updated its state.
+    currentStageStatus = 'queued'
+  } else if (run?.status === 'awaiting_entities') {
+    currentStageStatus = 'awaiting_confirmation'
+  } else if (reachedStage === 'plan') {
+    currentStageStatus = hasSelectedDirections
+      ? 'awaiting_confirmation'
+      : 'draft'
+  } else {
+    currentStageStatus = 'completed'
+  }
+  return { reachedStage, currentStageStatus }
 }
 
 export function selectedPlan(workspace: unknown, previous?: unknown) {

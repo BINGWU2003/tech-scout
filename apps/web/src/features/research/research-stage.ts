@@ -1,6 +1,7 @@
 import type {
   ResearchProgressView,
   ResearchSummaryView,
+  ResearchWorkspace,
 } from '@tech-scout/contracts'
 
 export const researchStages = {
@@ -19,6 +20,32 @@ export const researchStages = {
   report: { title: '研究报告', description: '查看分析结论与引用证据。' },
 } as const
 export type ResearchStage = keyof typeof researchStages
+
+export function researchStageLabel(
+  stage: ResearchStage,
+  workspace: ResearchWorkspace
+) {
+  const stages = Object.keys(researchStages) as ResearchStage[]
+  const index = stages.indexOf(stage)
+  const reached = stages.indexOf(workspace.reachedStage)
+  if (index > reached) return '未开始'
+  if (index < reached) return '已完成'
+  const labels = {
+    draft: '待完善',
+    awaiting_confirmation: '待确认',
+    queued: '排队中',
+    running: '处理中',
+    completed: '已完成',
+    paused: '已暂停',
+    failed: '失败',
+    cancelled: '已取消',
+  }
+  if (workspace.currentStageStatus) return labels[workspace.currentStageStatus]
+  if (workspace.researchCompleted) return '已完成'
+  if (stage === 'plan')
+    return workspace.selectedPlan.directions.length ? '待确认' : '待完善'
+  return '状态更新中'
+}
 
 export function stageForNode(node: string | null): ResearchStage {
   if (

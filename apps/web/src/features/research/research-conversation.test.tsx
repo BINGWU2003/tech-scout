@@ -180,6 +180,7 @@ it('工作台从左侧切换项目，确认前追问保留上下文，并在手�
   const workspace: ResearchWorkspace = {
     researchCompleted: false,
     reachedStage: 'plan',
+    currentStageStatus: 'awaiting_confirmation',
     revision: 0,
     selectedPlan: plan,
     candidates: plan,
@@ -242,6 +243,7 @@ it('工作台从左侧切换项目，确认前追问保留上下文，并在手�
       }
       if (input.kind === 'start_search') {
         workspace.reachedStage = 'patents'
+        workspace.currentStageStatus = 'completed'
         advanced = true
         workspace.activeRunId = secondId
         workspace.executionRunId = secondId
@@ -461,6 +463,15 @@ it('工作台从左侧切换项目，确认前追问保留上下文，并在手�
     .toBe(`/research/${projectId}/patents`)
   expect(workspaceAction).toHaveBeenCalledTimes(3)
   await screen.getByRole('link', { name: /1\. 技术方向与计划/ }).click()
+  await expect
+    .element(screen.getByRole('link', { name: /1\. 技术方向与计划/ }))
+    .toHaveAttribute('aria-current', 'page')
+  await expect
+    .element(screen.getByRole('link', { name: /2\. 专利检索/ }))
+    .toHaveTextContent('已完成当前步骤')
+  await expect
+    .element(screen.getByRole('link', { name: /2\. 专利检索/ }))
+    .not.toHaveAttribute('aria-current')
   await expect
     .element(screen.getByRole('button', { name: '开始研究' }))
     .not.toBeInTheDocument()

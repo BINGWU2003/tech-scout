@@ -2,9 +2,10 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { type ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { render } from 'vitest-browser-react'
-import { userEvent } from 'vitest/browser'
+import { page, userEvent } from 'vitest/browser'
 import { type LibraryKind, type LibrarySearch } from './library-navigation'
 import { LibraryPage } from './library-page'
+import '@/styles/index.css'
 
 const mocks = vi.hoisted(() => ({
   request: vi.fn(),
@@ -83,6 +84,85 @@ describe('累计数据库页面', () => {
     mocks.request.mockReset()
     mocks.navigate.mockReset()
     mocks.locationState = {}
+  })
+
+  it('首次加载显示骨架，后台刷新可操作，翻页保留旧记录并锁定到请求完成', async () => {
+    await page.viewport(1280, 900)
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    })
+    type Result = {
+      items: (typeof patent)[]
+      total: number
+      page: number
+      pageSize: number
+    }
+    let finish!: (result: Result) => void
+    mocks.request.mockImplementation((path: string) =>
+      path.endsWith('/runs')
+        ? Promise.resolve([])
+        : new Promise<Result>((resolve) => {
+            finish = resolve
+          })
+    )
+    const onSearchChange = vi.fn()
+    const view = (page: number) => (
+      <QueryClientProvider client={client}>
+        <LibraryPage
+          kind='patents'
+          search={{ page }}
+          onSearchChange={onSearchChange}
+        />
+      </QueryClientProvider>
+    )
+    const screen = await render(view(1))
+    await expect.element(screen.getByText('正在加载表格…')).toBeInTheDocument()
+    await page.screenshot({
+      path: '__screenshots__/library-loading-skeleton.png',
+    })
+    finish({ items: [patent], total: 41, page: 1, pageSize: 20 })
+    const record = screen.getByRole('button', { name: patent.name })
+    await expect.element(record).toBeInTheDocument()
+    const previous = record.element()
+    const refresh = client.refetchQueries({ queryKey: ['library', 'patents'] })
+    await expect
+      .poll(
+        () =>
+          mocks.request.mock.calls.filter(
+            ([path]) => path === 'library/patents'
+          ).length
+      )
+      .toBe(2)
+    expect(previous.closest('[inert]')).toBeNull()
+    await expect.element(screen.getByText('正在更新…')).not.toBeInTheDocument()
+    finish({ items: [patent], total: 41, page: 1, pageSize: 20 })
+    await refresh
+    await screen.rerender(view(2))
+    await expect.element(screen.getByText('正在更新…')).toBeInTheDocument()
+    expect(previous.isConnected).toBe(true)
+    expect(previous.closest('[inert]')).not.toBeNull()
+    await page.screenshot({
+      path: '__screenshots__/library-loading-overlay.png',
+    })
+    // Placeholder totals must not redirect a requested page before its response arrives.
+    expect(onSearchChange).not.toHaveBeenCalled()
+    finish({
+      items: [{ ...patent, id: 'CNNEW', name: '第二页专利' }],
+      total: 41,
+      page: 2,
+      pageSize: 20,
+    })
+    await expect
+      .element(screen.getByRole('button', { name: '第二页专利' }))
+      .toBeInTheDocument()
+    await expect.element(screen.getByText('正在更新…')).not.toBeInTheDocument()
+    expect(
+      screen
+        .getByRole('button', { name: '第二页专利' })
+        .element()
+        .closest('[inert]')
+    ).toBeNull()
+    client.clear()
   })
 
   it('空库引导开始研究，输入检索词后延迟更新查询状态', async () => {

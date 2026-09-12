@@ -73,6 +73,50 @@ function setup(nested = false) {
 }
 afterEach(() => vi.restoreAllMocks())
 
+it('慢速切换专利时保留旧详情并遮罩，关闭入口仍可操作', async () => {
+  await page.viewport(390, 844)
+  const { detail } = setup()
+  await page
+    .getByRole('button', { name: patents[0].title, exact: true })
+    .click()
+  await expect
+    .element(page.getByRole('heading', { name: patents[0].title }))
+    .toBeVisible()
+  const original = page.getByRole('tabpanel').element()
+  const height = page
+    .getByRole('dialog')
+    .element()
+    .getBoundingClientRect().height
+  let finish!: (value: Awaited<ReturnType<typeof researchApi.patent>>) => void
+  detail.mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        finish = resolve
+      })
+  )
+  await page.getByRole('button', { name: '下一篇', exact: true }).click()
+  await expect.element(page.getByText('正在切换专利…')).toBeVisible()
+  expect(original.closest('[inert]')).not.toBeNull()
+  expect(page.getByRole('dialog').element().textContent).toContain(
+    patents[0].abstract
+  )
+  expect(
+    page.getByRole('dialog').element().getBoundingClientRect().height
+  ).toBe(height)
+  await expect
+    .element(page.getByRole('button', { name: 'Close', exact: true }))
+    .toBeEnabled()
+  await page.screenshot({
+    path: '__screenshots__/patent-loading-overlay-mobile.png',
+  })
+  finish({ items: [patents[1]], total: 1, page: 1, pageSize: 20 })
+  await expect
+    .element(page.getByRole('heading', { name: patents[1].title }))
+    .toBeVisible()
+  await expect.element(page.getByText('正在切换专利…')).not.toBeInTheDocument()
+  await page.getByRole('button', { name: '关闭详情' }).click()
+})
+
 it('触底追加下一页，加载和失败保留位置，重试后展示结束状态', async () => {
   await page.viewport(1280, 900)
   const { list } = setup()

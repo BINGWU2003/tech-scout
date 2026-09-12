@@ -57,6 +57,8 @@ export function LibraryPage({
           ...(runId ? { runId } : {}),
         },
       }),
+    placeholderData: (previous, previousQuery) =>
+      previousQuery?.queryKey[1] === kind ? previous : undefined,
     refetchInterval: 15000,
   })
   const pageCount = Math.ceil((list.data?.total ?? 0) / pageSize)
@@ -72,10 +74,22 @@ export function LibraryPage({
   }, [incomingDetail, kind, navigate])
 
   useEffect(() => {
-    if (pageCount > 0 && page > pageCount) {
+    if (
+      !list.isPlaceholderData &&
+      !list.isError &&
+      pageCount > 0 &&
+      page > pageCount
+    ) {
       onSearchChange({ ...search, page: pageCount }, true)
     }
-  }, [onSearchChange, page, pageCount, search])
+  }, [
+    list.isPlaceholderData,
+    list.isError,
+    onSearchChange,
+    page,
+    pageCount,
+    search,
+  ])
 
   const handlePaginationChange = (
     updater: PaginationState | ((previous: PaginationState) => PaginationState)
@@ -113,6 +127,11 @@ export function LibraryPage({
           </Button>
         </div>
 
+        {list.isError && (
+          <p role='alert' className='text-sm text-destructive'>
+            列表加载失败，请调整筛选或刷新页面重试。
+          </p>
+        )}
         <LibraryTable
           kind={kind}
           data={list.data?.items ?? EMPTY_RECORDS}
@@ -123,7 +142,8 @@ export function LibraryPage({
           query={query}
           runId={runId}
           runs={runs.data ?? EMPTY_RUNS}
-          isLoading={list.isLoading}
+          isLoading={list.isPending}
+          isUpdating={list.isPlaceholderData && list.isFetching}
           runsLoading={runs.isLoading}
           onQueryChange={(value) =>
             onSearchChange({

@@ -50,7 +50,7 @@ export function ResearchTimeline({
         className='flex w-full items-center gap-2 p-4 text-left text-sm'
       >
         {active ? (
-          <LoaderCircle className='size-4 animate-spin text-primary' />
+          <LoaderCircle className='size-4 text-primary motion-safe:animate-spin' />
         ) : (
           <Sparkles className='size-4 text-muted-foreground' />
         )}

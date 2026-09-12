@@ -1,3 +1,4 @@
+import { LoaderCircle } from 'lucide-react'
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -62,7 +63,14 @@ export function ConfirmDialog(props: ConfirmDialogProps) {
             onClick={handleConfirm}
             variant={destructive ? 'destructive' : 'default'}
             disabled={disabled || isLoading}
+            aria-busy={isLoading}
           >
+            {isLoading && (
+              <LoaderCircle
+                aria-hidden='true'
+                className='size-4 motion-safe:animate-spin'
+              />
+            )}
             {confirmText ?? 'Continue'}
           </Button>
         </AlertDialogFooter>

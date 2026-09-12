@@ -19,6 +19,7 @@ import {
   DataTablePagination,
 } from '@/components/data-table'
 import { DataTableViewOptions } from '@/components/data-table/view-options'
+import { LoadingRegion, TableSkeletonRows } from '@/components/loading'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -60,6 +61,7 @@ export type UserAction =
 type UsersTableProps = {
   data: User[]
   pageCount: number
+  isUpdating?: boolean
   isLoading: boolean
   onAction: (action: UserAction) => void
 }
@@ -214,6 +216,7 @@ export function UsersTable({
   data,
   pageCount,
   isLoading,
+  isUpdating = false,
   onAction,
 }: UsersTableProps) {
   const search = route.useSearch()
@@ -349,74 +352,71 @@ export function UsersTable({
         <DataTableViewOptions table={table} />
       </div>
 
-      <div className='overflow-hidden rounded-md border'>
-        <Table className='min-w-4xl'>
-          <TableHeader>
-            {table.getHeaderGroups().map((headerGroup) => (
-              <TableRow key={headerGroup.id}>
-                {headerGroup.headers.map((header) => (
-                  <TableHead
-                    key={header.id}
-                    colSpan={header.colSpan}
-                    className={cn(
-                      header.column.columnDef.meta?.className,
-                      header.column.columnDef.meta?.thClassName
-                    )}
-                  >
-                    {header.isPlaceholder
-                      ? null
-                      : flexRender(
-                          header.column.columnDef.header,
-                          header.getContext()
-                        )}
-                  </TableHead>
-                ))}
-              </TableRow>
-            ))}
-          </TableHeader>
-          <TableBody>
-            {isLoading ? (
-              <TableRow>
-                <TableCell
-                  colSpan={table.getVisibleLeafColumns().length}
-                  className='h-24 text-center'
-                >
-                  加载中…
-                </TableCell>
-              </TableRow>
-            ) : table.getRowModel().rows.length ? (
-              table.getRowModel().rows.map((row) => (
-                <TableRow key={row.id}>
-                  {row.getVisibleCells().map((cell) => (
-                    <TableCell
-                      key={cell.id}
+      <LoadingRegion busy={isUpdating} className='flex flex-1 flex-col gap-4'>
+        <div className='overflow-hidden rounded-md border'>
+          <Table className='min-w-4xl'>
+            <TableHeader>
+              {table.getHeaderGroups().map((headerGroup) => (
+                <TableRow key={headerGroup.id}>
+                  {headerGroup.headers.map((header) => (
+                    <TableHead
+                      key={header.id}
+                      colSpan={header.colSpan}
                       className={cn(
-                        cell.column.columnDef.meta?.className,
-                        cell.column.columnDef.meta?.tdClassName
+                        header.column.columnDef.meta?.className,
+                        header.column.columnDef.meta?.thClassName
                       )}
                     >
-                      {flexRender(
-                        cell.column.columnDef.cell,
-                        cell.getContext()
-                      )}
-                    </TableCell>
+                      {header.isPlaceholder
+                        ? null
+                        : flexRender(
+                            header.column.columnDef.header,
+                            header.getContext()
+                          )}
+                    </TableHead>
                   ))}
                 </TableRow>
-              ))
-            ) : (
-              <TableRow>
-                <TableCell
-                  colSpan={table.getVisibleLeafColumns().length}
-                  className='h-24 text-center'
-                >
-                  没有符合条件的用户。
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </div>
-      <DataTablePagination table={table} className='mt-auto' />
+              ))}
+            </TableHeader>
+            <TableBody>
+              {isLoading ? (
+                <TableSkeletonRows
+                  columns={table.getVisibleLeafColumns().length}
+                />
+              ) : table.getRowModel().rows.length ? (
+                table.getRowModel().rows.map((row) => (
+                  <TableRow key={row.id}>
+                    {row.getVisibleCells().map((cell) => (
+                      <TableCell
+                        key={cell.id}
+                        className={cn(
+                          cell.column.columnDef.meta?.className,
+                          cell.column.columnDef.meta?.tdClassName
+                        )}
+                      >
+                        {flexRender(
+                          cell.column.columnDef.cell,
+                          cell.getContext()
+                        )}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell
+                    colSpan={table.getVisibleLeafColumns().length}
+                    className='h-24 text-center'
+                  >
+                    没有符合条件的用户。
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </div>
+        <DataTablePagination table={table} className='mt-auto' />
+      </LoadingRegion>
     </div>
   )
 }

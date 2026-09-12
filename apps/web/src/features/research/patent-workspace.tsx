@@ -5,6 +5,7 @@ import type {
 } from '@tech-scout/contracts'
 import { Check, LoaderCircle, Search } from 'lucide-react'
 import { lazy, Suspense, useMemo, type ReactNode } from 'react'
+import { ContentSkeleton } from '@/components/loading'
 import { Button } from '@/components/ui/button'
 import { researchApi } from '@/lib/research-api'
 import { patentSearchData } from './patent-search-data'
@@ -123,9 +124,7 @@ export function PatentWorkspace({
               </p>
             )}
             {run.hasPatents && stats.isPending && (
-              <p role='status' className='text-sm'>
-                正在汇总全部专利…
-              </p>
+              <ContentSkeleton variant='chart' label='正在汇总全部专利…' />
             )}
             {stats.isError && (
               <div role='alert' className='text-sm'>
@@ -142,9 +141,7 @@ export function PatentWorkspace({
             {stats.data && (
               <Suspense
                 fallback={
-                  <p role='status' className='text-sm'>
-                    正在加载统计图表…
-                  </p>
+                  <ContentSkeleton variant='chart' label='正在加载统计图表…' />
                 }
               >
                 <PatentCharts stats={stats.data} />
@@ -262,7 +259,7 @@ export function PatentWorkspace({
               <div className='flex items-center gap-2 text-sm font-medium'>
                 {active && data.details && !detailDone ? (
                   <LoaderCircle
-                    className='size-4 animate-spin text-primary'
+                    className='size-4 text-primary motion-safe:animate-spin'
                     aria-hidden='true'
                   />
                 ) : detailDone ? (

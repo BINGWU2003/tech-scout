@@ -22,6 +22,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { useId, useState } from 'react'
+import { ContentSkeleton } from '@/components/loading'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -219,12 +220,10 @@ export function ResearchSidebar() {
                 <DropdownMenuLabel>最近研究</DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 {query.isPending && (
-                  <p
-                    role='status'
-                    className='px-2 py-3 text-xs text-muted-foreground'
-                  >
-                    正在读取研究记录…
-                  </p>
+                  <ContentSkeleton
+                    variant='sidebar'
+                    label='正在读取研究记录…'
+                  />
                 )}
                 {query.isError && (
                   <DropdownMenuItem
@@ -274,12 +273,7 @@ export function ResearchSidebar() {
         <SidebarGroupLabel>研究记录</SidebarGroupLabel>
         <SidebarGroupContent className='min-h-0 flex-1 overflow-y-auto overscroll-contain'>
           {query.isPending && (
-            <p
-              role='status'
-              className='px-2 py-3 text-xs group-data-[collapsible=icon]:hidden'
-            >
-              正在读取研究记录…
-            </p>
+            <ContentSkeleton variant='sidebar' label='正在读取研究记录…' />
           )}
           {query.isError && (
             <SidebarMenuButton
