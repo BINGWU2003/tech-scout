@@ -188,12 +188,20 @@ export const researchReasoningSchema = z.object({
   truncated: z.boolean(),
 })
 export type ResearchReasoning = z.infer<typeof researchReasoningSchema>
+export const researchAnswerSchema = z.object({
+  id: z.uuid(),
+  startedAt: z.string(),
+  status: z.enum(['streaming', 'completed', 'interrupted']),
+  text: z.string().max(4000),
+})
+export type ResearchAnswer = z.infer<typeof researchAnswerSchema>
 export const researchConversationMessageSchema = z.object({
   id: z.string(),
   runId: z.uuid().nullable(),
   role: z.enum(['user', 'assistant']),
   text: z.string(),
   reasoning: researchReasoningSchema.nullable(),
+  answer: researchAnswerSchema.nullable(),
   pending: z.boolean(),
   createdAt: z.string(),
   plan: researchSelectedPlanSchema.nullable(),

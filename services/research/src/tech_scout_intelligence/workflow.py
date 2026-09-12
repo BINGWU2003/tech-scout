@@ -412,6 +412,8 @@ def build_graph(llm, store, checkpointer, acquisition):
                 "不要加入新方向，不要改变其它项。已选和候选有同名时优先理解为已选；不清楚时先询问。"
                 "只有明确调整年份才设置 from_year/to_year，否则为 null。"
                 "updates/remove_ids 在 discuss 中必须为空。回复用中文，"
+                "JSON 中先输出 reply，再输出其它字段。推荐方向时，reply 用一段简短说明"
+                "概括需求重点、推荐理由，并引出下方方向卡片，不要在正文重复卡片列表。"
                 "修改已选时说明待用户应用，"
                 "不得声称已修改或已开始检索。不要生成专利、公司等未经检索的事实。",
                 {
@@ -460,7 +462,10 @@ def build_graph(llm, store, checkpointer, acquisition):
             run_id,
             lease,
             "将研究需求拆成 1–3 个技术方向，包含唯一 domain_id、名称和范围描述。"
-            "只生成方向，不生成关键词或检索条件，也不生成公司或专利事实。"
+            "JSON 中先输出 reply，再输出 directions。reply 用一段简短中文说明"
+            "概括需求重点和推荐理由，以自然的句子引出下方方向卡片；"
+            "不要在正文重复卡片列表，不得声称已经检索或验证。"
+            "不生成关键词或检索条件，也不生成公司或专利事实。"
             "conversation 是历史需求与上一轮计划，继承未修改的要求，"
             "以本轮 question 为准。"
             "描述应明确技术范围及用户要求的限制。",
@@ -471,7 +476,6 @@ def build_graph(llm, store, checkpointer, acquisition):
             },
             DirectionProposal,
         )
-        # Preserve the existing persisted plan envelope for older clients.
         plan = Plan(
             directions=proposal.model_dump()["directions"],
             from_year=state["context"].get("period_from_year", 1800),
@@ -480,7 +484,7 @@ def build_graph(llm, store, checkpointer, acquisition):
         validate_plan(plan, state["context"])
         for direction in plan.directions:
             await explain(direction.explanation, direction.name)
-        return {"plan": plan.model_dump()}
+        return {"plan": plan.model_dump(), "reply": proposal.reply, "reply_intent": "refresh_candidates"}
 
     async def plan_gate(state, config):
         confirmed = state.get("confirmed_plan")

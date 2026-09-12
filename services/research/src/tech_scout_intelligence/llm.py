@@ -8,6 +8,7 @@ from uuid import uuid4
 
 from openai import AsyncOpenAI
 from pydantic import ValidationError
+from pydantic_core import from_json
 
 from .models import ConversationReply, DirectionProposal, ResearchError
 
@@ -19,6 +20,16 @@ class Reasoning(TypedDict):
     startedAt: str
     durationMs: int
     truncated: bool
+
+
+def partial_reply(content: str) -> str:
+    """Decode only the public prose field; never expose partial JSON/card data."""
+    try:
+        value = from_json(content, allow_partial="trailing-strings")
+    except ValueError:
+        return ""
+    reply = value.get("reply") if isinstance(value, dict) else None
+    return reply[:4000] if isinstance(reply, str) else ""
 
 
 class DeepSeek:
@@ -61,6 +72,22 @@ class DeepSeek:
             "durationMs": 0,
             "truncated": False,
         }
+        answer = {
+            "id": reasoning["id"],
+            "startedAt": reasoning["startedAt"],
+            "status": "streaming",
+            "text": "",
+        }
+
+        async def publish_answer(status):
+            answer["status"] = status
+            current = await self.store.get(run_id)
+            await self.store.publish(
+                run_id,
+                lease=lease,
+                kind="answer_progress",
+                artifacts={**current.artifacts, "answer": dict(answer)},
+            )
 
         async def publish(status):
             reasoning["status"] = status
@@ -75,6 +102,8 @@ class DeepSeek:
 
         if thinking:
             await publish(reasoning["status"])
+        if visible:
+            await publish_answer("streaming")
         try:
             async with AsyncOpenAI(
                 api_key=key,
@@ -95,6 +124,7 @@ class DeepSeek:
                     content = ""
                     finish_reason = None
                     last_publish = time.monotonic()
+                    last_answer_publish = time.monotonic()
                     stream = await client.chat.completions.create(
                         **options,
                         stream=True,
@@ -123,6 +153,13 @@ class DeepSeek:
                                 if reasoning["status"] == "thinking":
                                     await publish("answering")
                                     last_publish = time.monotonic()
+                                reply = partial_reply(content)
+                                if reply != answer["text"]:
+                                    first_answer = not answer["text"]
+                                    answer["text"] = reply
+                                    if first_answer or time.monotonic() - last_answer_publish >= 0.3:
+                                        await publish_answer("streaming")
+                                        last_answer_publish = time.monotonic()
                             if changed and (
                                 first_reasoning
                                 or time.monotonic() - last_publish >= 0.5
@@ -146,6 +183,9 @@ class DeepSeek:
                         else ""
                     )
         except (Exception, asyncio.CancelledError) as exc:
+            if visible:
+                with suppress(Exception):
+                    await publish_answer("interrupted")
             if thinking:
                 with suppress(Exception):
                     await publish("interrupted")
@@ -155,12 +195,16 @@ class DeepSeek:
                 "MODEL_REQUEST_FAILED", "DeepSeek 请求失败，请主动重试"
             ) from exc
         if finish_reason != "stop":
+            if visible:
+                await publish_answer("interrupted")
             if thinking:
                 await publish("interrupted")
             raise ResearchError("MODEL_OUTPUT_INVALID", "模型输出未完整结束")
         try:
             result = schema.model_validate_json(content)
         except ValidationError as exc:
+            if visible:
+                await publish_answer("interrupted")
             if thinking:
                 await publish("interrupted")
             raise ResearchError(
@@ -168,4 +212,7 @@ class DeepSeek:
             ) from exc
         if thinking:
             await publish("completed")
+        if visible:
+            answer["text"] = result.reply
+            await publish_answer("completed")
         return result

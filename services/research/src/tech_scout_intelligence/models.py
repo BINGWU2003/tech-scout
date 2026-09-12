@@ -17,6 +17,7 @@ class DirectionDraft(Model):
 
 
 class DirectionProposal(Model):
+    reply: str = Field(min_length=1, max_length=4000)
     directions: list[DirectionDraft] = Field(min_length=1, max_length=3)
 
 

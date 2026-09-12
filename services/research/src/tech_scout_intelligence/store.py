@@ -65,6 +65,7 @@ class Store:
                             "execution_config": self.config.execution_policy(),
                             "conversation": conversation or {},
                             "reasoning": None,
+                            "answer": None,
                         }
                     ),
                 ),
