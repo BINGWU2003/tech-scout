@@ -14,6 +14,7 @@ import {
   Pause,
   Play,
   RefreshCw,
+  RotateCcw,
   X,
 } from 'lucide-react'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
@@ -188,17 +189,16 @@ function RunWorkspace({
                 )}
                 {['failed', 'recoverable'].includes(run.status) && (
                   <Button
-                    variant={canResume ? 'ghost' : 'default'}
-                    size={canResume ? 'icon' : 'default'}
+                    variant='ghost'
+                    size='icon'
                     aria-label={
-                      canResume
-                        ? mutation.isPending &&
-                          mutation.variables?.kind === 'retry'
-                          ? '正在恢复…'
-                          : '继续研究'
-                        : undefined
+                      mutation.isPending && mutation.variables?.kind === 'retry'
+                        ? '正在恢复…'
+                        : canResume
+                          ? '继续研究'
+                          : '重试此步骤'
                     }
-                    title={canResume ? '继续研究' : undefined}
+                    title={canResume ? '继续研究' : '重试此步骤'}
                     disabled={mutation.isPending}
                     onClick={() =>
                       void submit({
@@ -208,21 +208,16 @@ function RunWorkspace({
                       }).catch(() => undefined)
                     }
                   >
-                    {canResume ? (
-                      mutation.isPending &&
-                      mutation.variables?.kind === 'retry' ? (
-                        <LoaderCircle
-                          className='animate-spin'
-                          aria-hidden='true'
-                        />
-                      ) : (
-                        <Play aria-hidden='true' />
-                      )
-                    ) : mutation.isPending &&
-                      mutation.variables?.kind === 'retry' ? (
-                      '正在恢复…'
+                    {mutation.isPending &&
+                    mutation.variables?.kind === 'retry' ? (
+                      <LoaderCircle
+                        className='animate-spin'
+                        aria-hidden='true'
+                      />
+                    ) : canResume ? (
+                      <Play aria-hidden='true' />
                     ) : (
-                      '重试此步骤'
+                      <RotateCcw aria-hidden='true' />
                     )}
                   </Button>
                 )}
