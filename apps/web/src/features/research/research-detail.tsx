@@ -572,9 +572,6 @@ function RunWorkspace({
                 )}
                 {run.hasCompanies && (
                   <div className='flex flex-wrap items-center justify-between gap-3 border-t pt-3'>
-                    <p className='text-sm text-muted-foreground'>
-                      企业结果已可查看，继续核验相关主体。
-                    </p>
                     <Button asChild>
                       <Link
                         to='/research/$projectId/$stage'

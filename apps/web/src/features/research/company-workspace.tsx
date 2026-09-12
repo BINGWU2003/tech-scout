@@ -86,9 +86,6 @@ export function CompanyWorkspace({
             {controls}
             {report && (
               <div className='flex flex-wrap items-center justify-between gap-3 border-t pt-3'>
-                <p className='text-sm text-muted-foreground'>
-                  研究报告已生成，可查看企业名单与专利依据。
-                </p>
                 {report}
               </div>
             )}

@@ -117,7 +117,8 @@ export function ProjectConversation({
                 <div className='mt-3 space-y-3'>
                   {!message.recommendation && (
                     <p>
-                      专利公开年份：{message.plan.from_year}–{message.plan.to_year}
+                      专利公开年份：{message.plan.from_year}–
+                      {message.plan.to_year}
                     </p>
                   )}
                   {message.plan.directions.map((d) => (
@@ -173,25 +174,19 @@ export function ProjectConversation({
             )}
             {message.proposal &&
               message.runId &&
-              (message.applied || message.outdated ? (
-                <p className='text-xs text-muted-foreground'>
-                  {message.applied ? '已应用修改' : '建议已过期'}
-                </p>
+              (message.applied ? (
+                <p className='text-xs text-muted-foreground'>已应用修改</p>
               ) : (
-                <Button
-                  size='sm'
-                  variant='outline'
-                  disabled={
-                    busy || dirty || message.applied || message.outdated
-                  }
-                  onClick={() => onApply(message.runId!)}
-                >
-                  {message.applied
-                    ? '已应用修改'
-                    : message.outdated
-                      ? '建议已过期'
-                      : '应用修改'}
-                </Button>
+                !message.outdated && (
+                  <Button
+                    size='sm'
+                    variant='outline'
+                    disabled={busy || dirty}
+                    onClick={() => onApply(message.runId!)}
+                  >
+                    应用修改
+                  </Button>
+                )
               ))}
             {message.proposal &&
               !message.applied &&
