@@ -9,7 +9,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { ErrorNotice } from '@/features/research/shared'
 import { apiRequest } from '@/lib/api-client'
 import { type LibraryKind, withLibraryDetail } from './library-navigation'
 
@@ -183,12 +182,7 @@ export function LibraryDetailDialog({
         {detail.isPending && selectedId ? (
           <p role='status'>正在加载详情…</p>
         ) : null}
-        {detail.error ? (
-          <ErrorNotice
-            error={detail.error}
-            retry={() => void detail.refetch()}
-          />
-        ) : null}
+
         {detail.data ? (
           <DetailContent kind={kind} detail={detail.data} />
         ) : null}

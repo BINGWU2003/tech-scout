@@ -11,7 +11,7 @@ import {
 } from '@/components/ui/sheet'
 import { withLibraryDetail } from '@/features/library/library-navigation'
 import { researchApi } from '@/lib/research-api'
-import { ErrorNotice, Pager, SourceReference } from './shared'
+import { Pager, SourceReference } from './shared'
 
 export function PatentSnapshot({
   runId,
@@ -39,7 +39,7 @@ export function PatentSnapshot({
           <SheetTitle>专利 {patentId}</SheetTitle>
           <SheetDescription>本次研究引用的快照依据。</SheetDescription>
         </SheetHeader>
-        <ErrorNotice error={query.error} retry={() => void query.refetch()} />
+
         {query.isPending && <p role='status'>读取专利…</p>}
         {patent && (
           <div className='space-y-3 text-sm'>
@@ -108,7 +108,6 @@ export function PatentList({
   })
   return (
     <div className='space-y-3'>
-      <ErrorNotice error={query.error} retry={() => void query.refetch()} />
       {query.isPending && <p role='status'>读取快照专利…</p>}
       {query.data?.total === 0 && (
         <p className='rounded-xl border border-dashed p-6 text-sm text-muted-foreground'>
@@ -185,7 +184,7 @@ export function CompanySnapshot({
             这里展示本次研究保存的依据，不随目录更新而改变。
           </SheetDescription>
         </SheetHeader>
-        <ErrorNotice error={query.error} retry={() => void query.refetch()} />
+
         {query.isPending && <p role='status'>读取快照…</p>}
         {query.data && (
           <div className='space-y-5'>

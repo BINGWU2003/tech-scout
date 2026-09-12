@@ -1,7 +1,6 @@
 import { ArrowUp, LoaderCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
-import { ErrorNotice } from './shared'
 
 export function ResearchComposer({
   value,
@@ -10,7 +9,6 @@ export function ResearchComposer({
   busy,
   blocked,
   blockedReason,
-  error,
   followUp = false,
 }: {
   value: string
@@ -19,7 +17,6 @@ export function ResearchComposer({
   busy: boolean
   blocked?: boolean
   blockedReason?: string
-  error?: unknown
   followUp?: boolean
 }) {
   return (
@@ -75,7 +72,7 @@ export function ResearchComposer({
           </Button>
         </div>
       </div>
-      <ErrorNotice error={error} />
+
       <p className='text-center text-[11px] text-muted-foreground'>
         Enter 发送 · Shift + Enter 换行
       </p>

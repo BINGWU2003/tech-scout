@@ -10,6 +10,7 @@ import { createRequestId } from '@tech-scout/shared'
 import { useRef, useState, type ReactNode } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { resetApiErrors } from '@/lib/api-error-notifications'
 import { researchApi } from '@/lib/research-api'
 import { CompanyMatches } from './company-matches'
 import { EntityReview } from './entity-review'
@@ -25,7 +26,7 @@ import {
   type ResearchStage,
 } from './research-stage'
 import { ResearchTimeline } from './research-timeline'
-import { ErrorNotice, Pager, ResearchShell } from './shared'
+import { Pager, ResearchShell } from './shared'
 import { CompanySnapshot, PatentList, PatentSnapshot } from './snapshot-details'
 import { isExecuting, useResearchRun } from './use-research-run'
 
@@ -40,7 +41,7 @@ function ResultPanel({ run }: { run: ResearchSummaryView }) {
   return (
     <section className='space-y-4'>
       <h2 className='text-lg font-semibold'>本次研究结果</h2>
-      <ErrorNotice error={query.error} retry={() => void query.refetch()} />
+
       {query.isPending && <p role='status'>正在读取结果…</p>}
       {query.data && (
         <>
@@ -163,7 +164,7 @@ function PreviousResult({ id }: { id: string }) {
       <p role='status' className='rounded-lg bg-muted p-3 text-sm'>
         新结果尚未生成，以下结果基于此前确认的计划。
       </p>
-      <ErrorNotice error={summary.error} retry={() => void summary.refetch()} />
+
       {summary.data && <ResultPanel key={id} run={summary.data} />}
     </section>
   )
@@ -185,7 +186,6 @@ function ConflictList({ runId }: { runId: string }) {
         查看身份差异与冲突
       </summary>
       <div className='mt-3 space-y-3'>
-        <ErrorNotice error={query.error} retry={() => void query.refetch()} />
         {open && query.isPending && <p role='status'>读取冲突记录…</p>}
         {query.data?.items.map((c, i) => (
           <div key={i} className='rounded-md bg-muted p-3 text-sm'>
@@ -298,7 +298,10 @@ function RunWorkspace({
         <Button
           variant='ghost'
           size='sm'
-          onClick={() => void summary.refetch()}
+          onClick={() => {
+            resetApiErrors()
+            void summary.refetch()
+          }}
         >
           刷新状态
         </Button>
@@ -350,12 +353,7 @@ function RunWorkspace({
           <p>本次执行已停止，不会自动进入下一阶段。</p>
         </div>
       )}
-      <ErrorNotice error={mutation.error} />
-      {mutation.isError && (
-        <p className='text-xs text-muted-foreground'>
-          操作尚未确认成功。可刷新状态；重发相同动作会复用请求 ID。
-        </p>
-      )}
+
       {!readOnly && inCurrentStage && (
         <div className='flex flex-wrap gap-2'>
           {isExecuting(run.status) && (
@@ -438,16 +436,11 @@ function RunWorkspace({
         )}
         active={inCurrentStage && isExecuting(run.status)}
       />
-      <ErrorNotice error={events.error} retry={() => void events.refetch()} />
     </>
   )
   if (stage === 'plan')
     return (
       <div className='flex min-h-0 flex-1 flex-col'>
-        <ErrorNotice
-          error={summary.error}
-          retry={() => void summary.refetch()}
-        />
         {summary.isPending && <p role='status'>正在读取运行状态…</p>}
         {run && (
           <ResearchPlanLayout
@@ -466,7 +459,6 @@ function RunWorkspace({
     )
   return (
     <div className='space-y-6'>
-      <ErrorNotice error={summary.error} retry={() => void summary.refetch()} />
       {summary.isPending && <p role='status'>正在读取运行状态…</p>}
       {run && (
         <>
@@ -614,13 +606,6 @@ export function ResearchEntry({
     )
   return (
     <ResearchShell>
-      <ErrorNotice
-        error={project.error ?? summary.error}
-        retry={() => {
-          void project.refetch()
-          if (selected) void summary.refetch()
-        }}
-      />
       <p role='status'>
         {project.data && !selected
           ? '此记录不存在，请从左侧重新打开项目。'
@@ -850,11 +835,7 @@ function ProjectWorkspace({
           {researchStages[stage].description}
         </p>
       </div>
-      <ErrorNotice error={project.error} retry={() => void project.refetch()} />
-      <ErrorNotice
-        error={workspace.error ?? change.error}
-        retry={() => void workspace.refetch()}
-      />
+
       {project.isPending && <p role='status'>正在读取研究…</p>}
       {project.data && !selected && (
         <p role='alert'>此记录不属于当前项目，请从左侧重新打开研究。</p>
@@ -954,7 +935,6 @@ function ProjectWorkspace({
                   dirty ? '请先保存已选计划的调整，再继续对话' : undefined
                 }
                 followUp
-                error={create.error ?? current.error}
               />
             )
           }

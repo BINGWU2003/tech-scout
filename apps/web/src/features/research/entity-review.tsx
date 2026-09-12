@@ -18,7 +18,7 @@ import {
 import { Textarea } from '@/components/ui/textarea'
 import { researchApi } from '@/lib/research-api'
 import { candidateCountryLabel, countryName, decisionLabels } from './labels'
-import { ErrorNotice, Pager, SourceReference } from './shared'
+import { Pager, SourceReference } from './shared'
 
 type Decision = ResearchAction['decisions'][number]
 function CandidateEditor({
@@ -217,7 +217,7 @@ function CandidateSheet({
             核对决定保存在本次研究中，保留原始网页证据。
           </SheetDescription>
         </SheetHeader>
-        <ErrorNotice error={query.error} retry={() => void query.refetch()} />
+
         {query.isPending && <p role='status'>读取身份依据…</p>}
         {query.data && (
           <CandidateEditor
@@ -274,7 +274,7 @@ export function EntityReview({
             : '保留证据不足、非公司与已拒绝条目，避免把未核验主体算入名单。'}
         </p>
       </div>
-      <ErrorNotice error={query.error} retry={() => void query.refetch()} />
+
       {query.isPending && <p role='status'>读取主体列表…</p>}
       <div className='divide-y'>
         {query.data?.items.map((u) => (

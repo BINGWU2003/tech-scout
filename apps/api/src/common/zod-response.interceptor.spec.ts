@@ -67,6 +67,9 @@ describe('Zod 响应拦截器', () => {
       .expect(500)
 
     expect(response.body).toEqual({
+      status: 500,
+      action: 'none',
+      retryable: true,
       code: 'RESPONSE_VALIDATION_ERROR',
       message: '服务器响应校验失败',
       requestId: expect.any(String),

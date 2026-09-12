@@ -4,7 +4,12 @@ export class ApiClientError extends Error {
   readonly status: number
   readonly payload: ApiError
 
-  constructor(status: number, payload: ApiError) {
+  constructor(
+    status: number,
+    payload: ApiError,
+    readonly source = '',
+    readonly method = 'GET'
+  ) {
     const validatedPayload = apiErrorSchema.parse(payload)
     super(validatedPayload.message)
     this.name = 'ApiClientError'

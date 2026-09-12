@@ -6,7 +6,6 @@ import { Main } from '@/components/layout/main'
 import { ProfileDropdown } from '@/components/profile-dropdown'
 import { ThemeSwitch } from '@/components/theme-switch'
 import { Button } from '@/components/ui/button'
-import { ApiClientError } from '@/lib/api-client-error'
 
 export function ResearchShell({
   children,
@@ -100,34 +99,6 @@ export function ResearchShell({
         )}
       </Main>
     </>
-  )
-}
-export function ErrorNotice({
-  error,
-  retry,
-}: {
-  error: unknown
-  retry?: () => void
-}) {
-  if (!error) return null
-  return (
-    <div
-      role='alert'
-      className='rounded-lg border border-destructive/40 bg-destructive/5 p-4 text-sm'
-    >
-      <p>{error instanceof Error ? error.message : '请求失败，请稍后重试'}</p>
-      {error instanceof ApiClientError && error.status === 401 ? (
-        <a className='mt-2 inline-block underline' href='/sign-in'>
-          登录状态失效，请重新登录
-        </a>
-      ) : (
-        retry && (
-          <Button variant='outline' className='mt-2' onClick={retry}>
-            重新读取
-          </Button>
-        )
-      )}
-    </div>
   )
 }
 export function SourceReference({ source }: { source: ResearchSourceView }) {

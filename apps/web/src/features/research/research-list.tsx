@@ -38,7 +38,6 @@ export function ResearchList() {
           onChange={setQuestion}
           onSubmit={() => create.mutate()}
           busy={create.isPending}
-          error={create.error}
         />
       }
     >

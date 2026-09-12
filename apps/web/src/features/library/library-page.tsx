@@ -14,7 +14,6 @@ import { ProfileDropdown } from '@/components/profile-dropdown'
 import { Search } from '@/components/search'
 import { ThemeSwitch } from '@/components/theme-switch'
 import { Button } from '@/components/ui/button'
-import { ErrorNotice } from '@/features/research/shared'
 import { apiRequest } from '@/lib/api-client'
 import { LibraryDetailDialog } from './library-detail-dialog'
 import { type LibraryKind, type LibrarySearch } from './library-navigation'
@@ -114,12 +113,6 @@ export function LibraryPage({
           </Button>
         </div>
 
-        {runs.error ? (
-          <ErrorNotice error={runs.error} retry={() => void runs.refetch()} />
-        ) : null}
-        {list.error ? (
-          <ErrorNotice error={list.error} retry={() => void list.refetch()} />
-        ) : null}
         <LibraryTable
           kind={kind}
           data={list.data?.items ?? EMPTY_RECORDS}

@@ -1,14 +1,8 @@
-import {
-  QueryCache,
-  QueryClient,
-  QueryClientProvider,
-} from '@tanstack/react-query'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { RouterProvider, createRouter } from '@tanstack/react-router'
 import { StrictMode } from 'react'
 import ReactDOM from 'react-dom/client'
-import { toast } from 'sonner'
-import { ApiClientError } from '@/lib/api-client-error'
-import { handleServerError } from '@/lib/handle-server-error'
+import { configureApiErrors } from '@/lib/api-error-notifications'
 import { useAuthStore } from '@/stores/auth-store'
 import { DirectionProvider } from './context/direction-provider'
 import { FontProvider } from './context/font-provider'
@@ -21,54 +15,11 @@ import './styles/index.css'
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      retry: (failureCount, error) => {
-        // eslint-disable-next-line no-console
-        if (import.meta.env.DEV) console.log({ failureCount, error })
-
-        if (failureCount >= 0 && import.meta.env.DEV) return false
-        if (failureCount > 3 && import.meta.env.PROD) return false
-
-        return !(
-          error instanceof ApiClientError && [401, 403].includes(error.status)
-        )
-      },
+      retry: false,
       refetchOnWindowFocus: import.meta.env.PROD,
-      staleTime: 10 * 1000, // 10s
-    },
-    mutations: {
-      onError: (error) => {
-        handleServerError(error)
-
-        if (error instanceof ApiClientError) {
-          if (error.status === 304) {
-            toast.error('Content not modified!')
-          }
-        }
-      },
+      staleTime: 10 * 1000,
     },
   },
-  queryCache: new QueryCache({
-    onError: (error) => {
-      if (error instanceof ApiClientError) {
-        if (error.status === 401) {
-          toast.error('Session expired!')
-          useAuthStore.getState().auth.reset()
-          const redirect = `${router.history.location.href}`
-          router.navigate({ to: '/sign-in', search: { redirect } })
-        }
-        if (error.status === 500) {
-          toast.error('Internal Server Error!')
-          // Only navigate to error page in production to avoid disrupting HMR in development
-          if (import.meta.env.PROD) {
-            router.navigate({ to: '/500' })
-          }
-        }
-        if (error.status === 403) {
-          // router.navigate("/forbidden", { replace: true });
-        }
-      }
-    },
-  }),
 })
 
 // Create a new router instance
@@ -77,6 +28,24 @@ const router = createRouter({
   context: { queryClient },
   defaultPreload: 'intent',
   defaultPreloadStaleTime: 0,
+})
+
+configureApiErrors({
+  onAuthenticationRequired: () => {
+    const auth = useAuthStore.getState().auth
+    const hadSession = Boolean(auth.user)
+    auth.reset()
+    if (hadSession && router.state.location.pathname !== '/sign-in')
+      void router.navigate({
+        to: '/sign-in',
+        search: { redirect: router.history.location.href },
+      })
+  },
+  retryQueries: () =>
+    queryClient.refetchQueries({
+      type: 'active',
+      predicate: (query) => query.state.status === 'error',
+    }),
 })
 
 // Register the router instance for type safety

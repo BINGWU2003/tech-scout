@@ -1,4 +1,5 @@
 import { createFileRoute, redirect } from '@tanstack/react-router'
+import { requiresAuthentication } from '@tech-scout/contracts'
 import { AuthenticatedLayout } from '@/components/layout/authenticated-layout'
 import { ApiClientError } from '@/lib/api-client-error'
 import { authApi } from '@/lib/auth-api'
@@ -11,7 +12,10 @@ export const Route = createFileRoute('/_authenticated')({
     try {
       auth.setSession(await authApi.me())
     } catch (error) {
-      if (error instanceof ApiClientError && error.status === 401) {
+      if (
+        error instanceof ApiClientError &&
+        requiresAuthentication(error.payload)
+      ) {
         throw redirect({
           to: '/sign-in',
           search: { redirect: location.href },

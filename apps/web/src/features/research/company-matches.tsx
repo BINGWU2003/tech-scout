@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { researchApi } from '@/lib/research-api'
 import { countryName } from './labels'
-import { ErrorNotice, Pager } from './shared'
+import { Pager } from './shared'
 import { CompanySnapshot } from './snapshot-details'
 
 export function CompanyMatches({ runId }: { runId: string }) {
@@ -16,7 +16,7 @@ export function CompanyMatches({ runId }: { runId: string }) {
   return (
     <section className='space-y-4'>
       <h2 className='text-lg font-semibold'>已匹配企业</h2>
-      <ErrorNotice error={query.error} retry={() => void query.refetch()} />
+
       {query.isPending && <p role='status'>正在读取匹配企业…</p>}
       {query.data?.total === 0 && (
         <p className='rounded-xl border border-dashed p-6 text-sm text-muted-foreground'>

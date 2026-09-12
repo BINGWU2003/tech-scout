@@ -10,6 +10,7 @@ import {
   SidebarMenuButton,
   useSidebar,
 } from '@/components/ui/sidebar'
+import { resetApiErrors } from '@/lib/api-error-notifications'
 import { researchApi } from '@/lib/research-api'
 import { useResearchClient } from './research-cache'
 
@@ -50,9 +51,14 @@ export function ResearchSidebar() {
           </p>
         )}
         {query.isError && (
-          <SidebarMenuButton onClick={() => void query.refetch()}>
+          <SidebarMenuButton
+            onClick={() => {
+              resetApiErrors()
+              void query.refetch()
+            }}
+          >
             <RefreshCw />
-            <span>读取失败，点击重试</span>
+            <span>刷新研究记录</span>
           </SidebarMenuButton>
         )}
         {query.data?.length === 0 && (
