@@ -4,7 +4,14 @@ from langchain_core.runnables import RunnableConfig
 from langgraph.graph import END, START, StateGraph
 from langgraph.types import interrupt
 
-from .models import Analysis, DirectionProposal, Plan, ResearchError
+from .models import (
+    Analysis,
+    ConversationReply,
+    DirectionProposal,
+    Plan,
+    ResearchError,
+    SelectedPlan,
+)
 from .store import validate_decisions, validate_plan
 
 
@@ -23,6 +30,62 @@ class State(TypedDict, total=False):
     evidence_findings: dict
     result: dict
     acquisition: dict
+    candidate_plan: dict
+    proposal_plan: dict | None
+    reply: str
+    reply_intent: str
+
+
+def conversation_update(response, conversation):
+    """Apply a bounded patch; discussion never changes a plan."""
+    candidates = conversation.get("candidatePlan")
+    result = {
+        "candidate_plan": candidates,
+        "reply": response.reply,
+        "reply_intent": response.intent,
+        "proposal_plan": None,
+    }
+    if response.intent == "discuss":
+        return result
+    selected = response.intent == "propose_selected"
+    base = conversation.get("selectedPlan") if selected else candidates
+    if not base and response.intent == "refresh_candidates":
+        base = conversation.get("selectedPlan")
+    if not base:
+        raise ResearchError(
+            "MODEL_OUTPUT_INVALID", "没有可修改的计划，请先生成候选方向"
+        )
+    plan = SelectedPlan.model_validate(base).model_copy(deep=True)
+    updates = response.updates
+    ids = [d.domain_id for d in updates]
+    if len(ids) != len(set(ids)):
+        raise ResearchError("MODEL_OUTPUT_INVALID", "修改建议包含重复方向")
+    if response.intent == "refresh_candidates":
+        if not updates or response.remove_ids:
+            raise ResearchError("MODEL_OUTPUT_INVALID", "刷新候选需要完整候选方向")
+        directions = [d.model_dump() for d in updates]
+    else:
+        known = {d.domain_id for d in plan.directions}
+        if (set(ids) | set(response.remove_ids)) - known or set(ids) & set(
+            response.remove_ids
+        ):
+            raise ResearchError(
+                "MODEL_OUTPUT_INVALID", "修改建议引用了不存在或冲突的方向"
+            )
+        patches = {d.domain_id: d.model_dump() for d in updates}
+        directions = [
+            patches.get(d.domain_id, d.model_dump())
+            for d in plan.directions
+            if d.domain_id not in response.remove_ids
+        ]
+    data = {**plan.model_dump(), "directions": directions}
+    if response.from_year is not None:
+        data["from_year"] = response.from_year
+    if response.to_year is not None:
+        data["to_year"] = response.to_year
+    changed = SelectedPlan.model_validate(data).model_dump()
+    result["proposal_plan" if selected else "candidate_plan"] = changed
+    return result
 
 
 def patent_workset(snapshot, plan):
@@ -324,6 +387,56 @@ def build_graph(llm, store, checkpointer, acquisition):
 
     async def planner(state, config):
         run_id, lease = identity(config)
+        conversation = state.get("conversation", {})
+        if conversation.get("startSearch"):
+            plan = Plan.model_validate(conversation["selectedPlan"])
+            validate_plan(plan, state["context"])
+            return {
+                "plan": plan.model_dump(),
+                "confirmed_plan": plan.model_dump(),
+                "candidate_plan": conversation.get("candidatePlan"),
+                "reply": "已确认已选研究计划，开始检索。",
+            }
+        if conversation.get("workspace"):
+            response = await llm.generate(
+                run_id,
+                lease,
+                "你是研究对话助手。question 是用户本次请求，conversation 是历史上下文。"
+                "先区分讨论与修改：解释、比较、咨询、含糊请求用 discuss，"
+                "只回复，不更新方向。明确要求重新推荐或换一批方向时，"
+                "用 refresh_candidates，"
+                "updates 给出 1–3 个候选。明确修改某个候选时用 update_candidate，"
+                "只返回该项的完整名称、描述和原 domain_id。"
+                "要求修改已选计划时用 propose_selected，只返回用户指定项的修改，"
+                "删除放在 remove_ids，"
+                "不要加入新方向，不要改变其它项。已选和候选有同名时优先理解为已选；不清楚时先询问。"
+                "只有明确调整年份才设置 from_year/to_year，否则为 null。"
+                "updates/remove_ids 在 discuss 中必须为空。回复用中文，"
+                "修改已选时说明待用户应用，"
+                "不得声称已修改或已开始检索。不要生成专利、公司等未经检索的事实。",
+                {
+                    "question": state["question"],
+                    "conversation": conversation,
+                    "context": state["context"],
+                },
+                ConversationReply,
+            )
+            update = conversation_update(response, conversation)
+            for key in ("candidate_plan", "proposal_plan"):
+                value = update.get(key)
+                if value and (
+                    value["to_year"] > state["context"]["period_to_year"]
+                    or value["from_year"]
+                    < state["context"].get("period_from_year", 1800)
+                ):
+                    raise ResearchError(
+                        "MODEL_OUTPUT_INVALID", "建议年份超出可检索范围"
+                    )
+            candidate = update.get("candidate_plan")
+            return {
+                **update,
+                "plan": candidate if candidate and candidate["directions"] else None,
+            }
 
         async def explain(message, direction=None):
             current = await store.get(run_id)
@@ -372,7 +485,7 @@ def build_graph(llm, store, checkpointer, acquisition):
     async def plan_gate(state, config):
         confirmed = state.get("confirmed_plan")
         if confirmed is None:
-            payload = interrupt({"kind": "plan", "plan": state["plan"]})
+            payload = interrupt({"kind": "plan", "plan": state.get("plan")})
             confirmed = payload["plan"]
         plan = Plan.model_validate(confirmed)
         validate_plan(plan, state["context"])

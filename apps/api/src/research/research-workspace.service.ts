@@ -1,0 +1,330 @@
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common'
+import {
+  researchWorkspaceSchema,
+  researchSelectedPlanSchema,
+  type ResearchWorkspaceAction,
+  type ResearchWorkspace,
+} from '@tech-scout/contracts'
+import { PrismaService } from '../database/prisma.service.js'
+import { Prisma } from '../generated/prisma/client.js'
+import { object, rows } from './research-view.service.js'
+import { ResearchService } from './research.service.js'
+import { revision, selectedPlan } from './workspace-state.js'
+
+const json = (v: unknown) =>
+  JSON.parse(JSON.stringify(v)) as Prisma.InputJsonValue
+const scope = (v: unknown) => {
+  const p = object(v)
+  return {
+    from_year: p.from_year,
+    to_year: p.to_year,
+    directions: rows(p.directions).map((d) => ({
+      domain_id: d.domain_id,
+      name: d.name,
+      explanation: d.explanation,
+    })),
+  }
+}
+const same = (a: unknown, b: unknown): boolean => {
+  if (Array.isArray(a) && Array.isArray(b))
+    return a.length === b.length && a.every((v, i) => same(v, b[i]))
+  if (a && b && typeof a === 'object' && typeof b === 'object') {
+    const x = object(a),
+      y = object(b)
+    return (
+      Object.keys(x).length === Object.keys(y).length &&
+      Object.keys(x).every((k) => same(x[k], y[k]))
+    )
+  }
+  return a === b
+}
+
+@Injectable()
+export class ResearchWorkspaceService {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly research: ResearchService
+  ) {}
+
+  async get(userId: string, projectId: string): Promise<ResearchWorkspace> {
+    const project = await this.prisma.researchProject.findFirst({
+      where: { id: projectId, userId },
+    })
+    if (!project) throw new NotFoundException('研究项目不存在')
+    // Project history needs only messages/plans, never patent snapshots or model payloads.
+    const runs = await this.prisma.$queryRaw<
+      Record<string, unknown>[]
+    >(Prisma.sql`
+      SELECT id, question, status, created_at AS "createdAt", context,
+        state #> '{artifacts,plan}' AS plan,
+        state #> '{artifacts,candidate_plan}' AS candidates,
+        state #> '{artifacts,confirmed_plan}' AS confirmed,
+        state #> '{artifacts,reply}' AS reply,
+        state #>> '{artifacts,reply_intent}' AS intent,
+        state #> '{artifacts,proposal_plan}' AS proposal,
+        state #> '{artifacts,result}' IS NOT NULL AS "hasResult"
+      FROM app.research_run WHERE project_id = ${projectId}::uuid ORDER BY created_at, id`)
+    const ws = object(project.workspace)
+    const selected = selectedPlan(
+      ws,
+      runs.findLast((r) => r.confirmed)?.confirmed
+    )
+    const latest = runs.at(-1)
+    const messages: ResearchWorkspace['messages'] = []
+    let candidates: unknown = null
+    for (const r of runs) {
+      const id = String(r.id),
+        createdAt = (r.createdAt as Date).toISOString()
+      const ctx = object(r.context)
+      const nextCandidates = r.candidates ?? r.plan ?? ctx.candidatePlan
+      if (nextCandidates) candidates = nextCandidates
+      messages.push({
+        id: `${id}:question`,
+        runId: id,
+        role: 'user',
+        text: String(r.question),
+        createdAt,
+        plan: null,
+        proposal: false,
+        applied: false,
+        outdated: false,
+        hasResult: false,
+      })
+      const applied = rows(ws.changes).some((c) => c.proposalRunId === id)
+      const proposal = r.proposal != null
+      if (r.reply || r.plan || r.confirmed || r.hasResult) {
+        messages.push({
+          id: `${id}:reply`,
+          runId: id,
+          role: 'assistant',
+          text:
+            typeof r.reply === 'string'
+              ? r.reply
+              : r.confirmed
+                ? '已确认研究计划。'
+                : 'AI 候选方向已生成，可选择加入研究计划。',
+          createdAt,
+          plan: r.proposal
+            ? researchSelectedPlanSchema.parse(r.proposal)
+            : r.confirmed
+              ? researchSelectedPlanSchema.parse(r.confirmed)
+              : r.plan &&
+                  !['discuss', 'propose_selected'].includes(String(r.intent))
+                ? researchSelectedPlanSchema.parse(r.plan)
+                : null,
+          proposal,
+          applied,
+          outdated: proposal
+            ? revision(ws) !== Number(ctx.selectedRevision ?? 0) && !applied
+            : false,
+          hasResult: r.hasResult === true,
+        })
+      }
+    }
+    for (const message of messages) {
+      if (message.role === 'assistant' && message.plan && !message.proposal) {
+        const r = runs.find((r) => r.id === message.runId)
+        message.outdated = !same(
+          scope(message.plan),
+          scope(r?.confirmed ? selected : candidates)
+        )
+      }
+    }
+    for (const change of rows(ws.changes))
+      messages.push({
+        id: String(change.id),
+        runId: null,
+        role: 'user',
+        text: String(change.text),
+        createdAt: String(change.createdAt),
+        plan: researchSelectedPlanSchema.parse(change.plan),
+        proposal: false,
+        applied: false,
+        outdated: change.revision !== revision(ws),
+        hasResult: false,
+      })
+    const commands = await this.prisma.researchCommand.findMany({
+      where: { run: { projectId }, status: 'sent' },
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+    })
+    for (const command of commands) {
+      const payload = object(command.payload)
+      const labels: Record<string, string> = {
+        confirm_plan: '已确认计划并开始检索。',
+        start_companies: '开始企业发现。',
+        resolve_entities: '已提交主体核验并生成报告。',
+        retry: '重试当前步骤。',
+        pause: '已暂停研究。',
+        cancel: '已取消执行。',
+      }
+      messages.push({
+        id: command.id,
+        runId: command.runId,
+        role: 'user',
+        text: labels[String(payload.kind)] ?? '已调整研究。',
+        createdAt: command.createdAt.toISOString(),
+        plan: payload.plan
+          ? researchSelectedPlanSchema.parse(payload.plan)
+          : null,
+        proposal: false,
+        applied: false,
+        outdated: command.runId !== latest?.id,
+        hasResult: false,
+      })
+    }
+    messages.sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+    const result = runs.findLast((r) => r.hasResult)
+    const pending = await this.prisma.researchCommand.count({
+      where: { run: { projectId }, status: 'pending' },
+    })
+    return researchWorkspaceSchema.parse({
+      revision: revision(ws),
+      selectedPlan: selected,
+      candidates,
+      messages,
+      latestResultRunId: result?.id ?? null,
+      resultOutdated: Boolean(
+        result && !same(scope(selected), scope(result.confirmed))
+      ),
+      activeRunId: latest?.id ?? null,
+      executionRunId:
+        runs.findLast((r) => r.confirmed || object(r.context).startSearch)
+          ?.id ?? null,
+      blocked:
+        pending > 0 ||
+        runs.some((r) => ['queued', 'running'].includes(String(r.status))),
+    })
+  }
+
+  async action(
+    userId: string,
+    projectId: string,
+    input: ResearchWorkspaceAction
+  ) {
+    await this.research.project(userId, projectId)
+    if (input.kind === 'start_search') {
+      await this.research.newRun(
+        userId,
+        projectId,
+        {
+          question: '确认已选研究计划并开始检索',
+          requestKey: input.requestKey,
+        },
+        input.revision
+      )
+      return this.get(userId, projectId)
+    }
+    await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM app.research_project WHERE id = ${projectId}::uuid FOR UPDATE`
+      const project = await tx.researchProject.findUniqueOrThrow({
+        where: { id: projectId },
+      })
+      const ws = object(project.workspace),
+        changes = rows(ws.changes)
+      const existing = changes.find((c) => c.id === input.requestKey)
+      if (existing) {
+        if (!same(existing.input, input))
+          throw new ConflictException('请求 ID 已用于不同调整')
+        return
+      }
+      if (revision(ws) !== input.revision)
+        throw new ConflictException('已选计划已有更新，请刷新后再保存')
+      const active = await tx.researchRun.count({
+        where: { projectId, status: { in: ['queued', 'running'] } },
+      })
+      const pending = await tx.researchCommand.count({
+        where: { run: { projectId }, status: 'pending' },
+      })
+      if (active || pending)
+        throw new ConflictException('请等待当前研究结束或停止后再调整')
+      let next: unknown
+      if (input.kind === 'save_plan') next = input.plan
+      else {
+        const proposal = await tx.researchRun.findFirst({
+          where: { id: input.proposalRunId, projectId },
+        })
+        if (
+          !proposal ||
+          Number(object(proposal.context).selectedRevision ?? -1) !==
+            input.revision
+        )
+          throw new ConflictException('修改建议已过期，请重新提出修改')
+        next = object(object(proposal.state).artifacts).proposal_plan
+        if (!next) throw new ConflictException('修改建议尚未生成')
+      }
+      const plan = researchSelectedPlanSchema.parse(next)
+      if (plan.to_year > new Date().getFullYear())
+        throw new ConflictException('公开年份不能晚于当前年份')
+      if (
+        new Set(plan.directions.map((d) => d.domain_id)).size !==
+        plan.directions.length
+      )
+        throw new ConflictException('技术方向标识不能重复')
+      const previousRun = await tx.researchRun.findFirst({
+        where: {
+          projectId,
+          state: { path: ['artifacts', 'confirmed_plan'], not: Prisma.DbNull },
+        },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      })
+      const before = selectedPlan(
+        ws,
+        object(object(previousRun?.state).artifacts).confirmed_plan
+      )
+      const added = plan.directions
+        .filter(
+          (d) => !before.directions.some((p) => p.domain_id === d.domain_id)
+        )
+        .map((d) => d.name)
+      const removed = before.directions
+        .filter(
+          (d) => !plan.directions.some((p) => p.domain_id === d.domain_id)
+        )
+        .map((d) => d.name)
+      const updated = plan.directions
+        .filter((d) =>
+          before.directions.some(
+            (p) => p.domain_id === d.domain_id && !same(d, p)
+          )
+        )
+        .map((d) => d.name)
+      const text = [
+        input.kind === 'apply_proposal'
+          ? '已应用 AI 修改建议。'
+          : '已保存研究计划。',
+        added.length ? `加入：${added.join('、')}。` : '',
+        removed.length ? `移除：${removed.join('、')}。` : '',
+        updated.length ? `修改：${updated.join('、')}。` : '',
+        before.from_year !== plan.from_year || before.to_year !== plan.to_year
+          ? `公开年份：${plan.from_year}–${plan.to_year}。`
+          : '',
+      ].join('')
+      changes.push({
+        id: input.requestKey,
+        input,
+        proposalRunId:
+          input.kind === 'apply_proposal' ? input.proposalRunId : null,
+        revision: input.revision + 1,
+        createdAt: new Date().toISOString(),
+        text,
+        plan,
+      })
+      await tx.researchProject.update({
+        where: { id: projectId },
+        data: {
+          workspace: json({
+            ...ws,
+            revision: input.revision + 1,
+            selectedPlan: plan,
+            changes,
+          }),
+        },
+      })
+    })
+    return this.get(userId, projectId)
+  }
+}

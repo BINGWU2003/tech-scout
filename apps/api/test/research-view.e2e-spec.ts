@@ -449,5 +449,134 @@ describe.skipIf(!enabled)(
       expect(round.body).not.toHaveProperty('state')
       expect(round.body.status).toBe('awaiting_plan')
     })
+
+    it('连续对话独立保存已选计划，建议确认、并发版本和旧结果均可追溯', async () => {
+      const run = await prisma.researchRun.findUniqueOrThrow({ where: { id } })
+      const projectId = run.projectId
+      await prisma.researchRun.updateMany({
+        where: { projectId },
+        data: { status: 'awaiting_plan' },
+      })
+      const url = `/api/v1/research/ui/projects/${projectId}/workspace`
+      const post = (body: object) =>
+        owner
+          .post(url)
+          .set('Origin', 'http://localhost:5173')
+          .set('x-csrf-token', csrf)
+          .send(body)
+      await stranger.get(url).expect(404)
+      const before = (await owner.get(url).expect(200)).body
+      const selected = {
+        ...plan,
+        directions: [{ ...plan.directions[0], name: '我选定的视觉研究' }],
+      }
+      const save = {
+        kind: 'save_plan',
+        requestKey: randomUUID(),
+        revision: before.revision,
+        plan: selected,
+      }
+      const saved = (await post(save).expect(201)).body
+      expect(saved.selectedPlan).toEqual(selected)
+      expect(saved.revision).toBe(before.revision + 1)
+      expect(
+        saved.messages.some((m: { text: string }) =>
+          m.text.includes('已保存研究计划')
+        )
+      ).toBe(true)
+      expect((await post(save).expect(201)).body.revision).toBe(saved.revision)
+      await post({ ...save, requestKey: randomUUID() }).expect(409)
+      await post({ ...save, plan }).expect(409)
+      const proposalId = randomUUID()
+      const proposed = {
+        ...selected,
+        directions: [
+          { ...selected.directions[0], explanation: '只调整选定的这一项' },
+        ],
+      }
+      await prisma.researchRun.create({
+        data: {
+          id: proposalId,
+          projectId,
+          requestKey: randomUUID(),
+          question: '修改描述',
+          status: 'awaiting_plan',
+          context: {
+            workspace: true,
+            selectedRevision: saved.revision,
+            selectedPlan: selected,
+          },
+          state: {
+            artifacts: {
+              reply: '请应用修改',
+              reply_intent: 'propose_selected',
+              proposal_plan: proposed,
+              candidate_plan: plan,
+            },
+          },
+        },
+      })
+      const pending = (await owner.get(url).expect(200)).body
+      expect(pending.selectedPlan).toEqual(selected)
+      expect(pending.candidates).toEqual(plan)
+      expect(
+        pending.messages.find(
+          (m: { runId: string; proposal: boolean }) =>
+            m.runId === proposalId && m.proposal
+        ).applied
+      ).toBe(false)
+      const apply = {
+        kind: 'apply_proposal',
+        requestKey: randomUUID(),
+        revision: saved.revision,
+        proposalRunId: proposalId,
+      }
+      const applied = (await post(apply).expect(201)).body
+      expect(applied.selectedPlan).toEqual(proposed)
+      expect(applied.candidates).toEqual(plan)
+      expect(
+        applied.messages.find(
+          (m: { runId: string; proposal: boolean }) =>
+            m.runId === proposalId && m.proposal
+        ).applied
+      ).toBe(true)
+      await post({
+        ...apply,
+        requestKey: randomUUID(),
+        revision: applied.revision,
+      }).expect(409)
+      await prisma.researchRun.update({
+        where: { id: proposalId },
+        data: { status: 'running' },
+      })
+      await post({
+        kind: 'save_plan',
+        requestKey: randomUUID(),
+        revision: applied.revision,
+        plan,
+      }).expect(409)
+      await prisma.researchRun.update({
+        where: { id: proposalId },
+        data: { status: 'awaiting_plan' },
+      })
+      const start = {
+        kind: 'start_search',
+        requestKey: randomUUID(),
+        revision: applied.revision,
+      }
+      const started = (await post(start).expect(201)).body
+      const execution = await prisma.researchRun.findUniqueOrThrow({
+        where: { id: started.activeRunId },
+      })
+      expect(execution.context).toMatchObject({
+        startSearch: true,
+        selectedPlan: proposed,
+        selectedRevision: applied.revision,
+      })
+      expect((await post(start).expect(201)).body.activeRunId).toBe(
+        started.activeRunId
+      )
+      expect(JSON.stringify(started)).not.toContain('source_path')
+    })
   }
 )

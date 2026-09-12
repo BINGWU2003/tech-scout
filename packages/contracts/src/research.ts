@@ -148,3 +148,60 @@ export const researchStoredEventSchema = z.object({
   data: researchStateSchema,
   createdAt: z.iso.datetime(),
 })
+
+// A selected draft may be empty; an executable researchPlan must not be.
+export const researchSelectedPlanSchema = researchPlanSchema.safeExtend({
+  directions: z.array(researchDirectionSchema).max(3),
+})
+export const researchWorkspaceActionSchema = z.discriminatedUnion('kind', [
+  z
+    .object({
+      kind: z.literal('save_plan'),
+      requestKey: z.uuid(),
+      revision: z.number().int().nonnegative(),
+      plan: researchSelectedPlanSchema,
+    })
+    .strict(),
+  z
+    .object({
+      kind: z.literal('apply_proposal'),
+      requestKey: z.uuid(),
+      revision: z.number().int().nonnegative(),
+      proposalRunId: z.uuid(),
+    })
+    .strict(),
+  z
+    .object({
+      kind: z.literal('start_search'),
+      requestKey: z.uuid(),
+      revision: z.number().int().nonnegative(),
+    })
+    .strict(),
+])
+export const researchConversationMessageSchema = z.object({
+  id: z.string(),
+  runId: z.uuid().nullable(),
+  role: z.enum(['user', 'assistant']),
+  text: z.string(),
+  createdAt: z.string(),
+  plan: researchSelectedPlanSchema.nullable(),
+  proposal: z.boolean().default(false),
+  applied: z.boolean().default(false),
+  outdated: z.boolean().default(false),
+  hasResult: z.boolean().default(false),
+})
+export const researchWorkspaceSchema = z.object({
+  revision: z.number().int().nonnegative(),
+  selectedPlan: researchSelectedPlanSchema,
+  candidates: researchSelectedPlanSchema.nullable(),
+  messages: z.array(researchConversationMessageSchema),
+  latestResultRunId: z.uuid().nullable(),
+  resultOutdated: z.boolean(),
+  activeRunId: z.uuid().nullable(),
+  executionRunId: z.uuid().nullable(),
+  blocked: z.boolean(),
+})
+export type ResearchWorkspace = z.infer<typeof researchWorkspaceSchema>
+export type ResearchWorkspaceAction = z.infer<
+  typeof researchWorkspaceActionSchema
+>

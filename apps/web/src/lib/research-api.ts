@@ -1,5 +1,7 @@
 import {
   researchConflictPageSchema,
+  researchWorkspaceSchema,
+  type ResearchWorkspaceAction,
   researchProjectSchema,
   researchProjectSummarySchema,
   researchSummaryViewSchema,
@@ -18,6 +20,14 @@ import { apiRequest } from './api-client'
 
 const run = (id: string) => `research/ui/runs/${encodeURIComponent(id)}`
 export const researchApi = {
+  workspace: (id: string) =>
+    apiRequest(`research/ui/projects/${id}/workspace`, researchWorkspaceSchema),
+  workspaceAction: (id: string, input: ResearchWorkspaceAction) =>
+    apiRequest(
+      `research/ui/projects/${id}/workspace`,
+      researchWorkspaceSchema,
+      { method: 'POST', json: input, retry: 0 }
+    ),
   projects: () =>
     apiRequest('research/projects', z.array(researchProjectSummarySchema)),
   project: (id: string) =>

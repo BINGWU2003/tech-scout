@@ -457,3 +457,109 @@ async def test_changed_direction_identity_stops_before_search():
     with pytest.raises(ResearchError, match="改变了已确认方向"):
         await graph.ainvoke(Command(resume={"plan": plan().model_dump()}), config)
     assert catalog.reads == 0
+
+
+@pytest.mark.asyncio
+async def test_workspace_discussion_preserves_plans_without_acquisition():
+    from tech_scout_intelligence.models import ConversationReply
+
+    store, acquisition = runtime_store(), FakeAcquisition()
+    original = plan().model_dump()
+    llm = AsyncMock()
+    llm.generate.return_value = ConversationReply(
+        intent="discuss", reply="这是方向的含义。"
+    )
+    graph = build_graph(llm, store, InMemorySaver(), acquisition)
+    config = {"configurable": {"thread_id": str(uuid4()), "lease": "test"}}
+    result = await graph.ainvoke(
+        {
+            "question": "解释一下这个方向",
+            "conversation": {
+                "workspace": True,
+                "candidatePlan": original,
+                "selectedPlan": original,
+            },
+        },
+        config,
+    )
+    assert result["candidate_plan"] == original
+    assert result["proposal_plan"] is None
+    assert "confirmed_plan" not in result
+    assert acquisition.reads == 0
+    assert (await graph.aget_state(config)).next == ("plan_gate",)
+
+
+def test_workspace_refresh_and_partial_proposal_preserve_selected_directions():
+    from tech_scout_intelligence.models import ConversationReply
+    from tech_scout_intelligence.workflow import conversation_update
+
+    original = plan().model_dump()
+    other = {**original["directions"][0], "domain_id": "other", "name": "其它方向"}
+    original["directions"].append(other)
+    conversation = {
+        "candidatePlan": copy.deepcopy(original),
+        "selectedPlan": copy.deepcopy(original),
+    }
+    refreshed = conversation_update(
+        ConversationReply(
+            intent="refresh_candidates",
+            reply="新候选",
+            updates=[
+                {"domain_id": "new", "name": "新方向", "explanation": "新的推荐"},
+            ],
+        ),
+        conversation,
+    )
+    assert refreshed["candidate_plan"]["directions"][0]["domain_id"] == "new"
+    assert conversation["selectedPlan"] == original
+    proposal = conversation_update(
+        ConversationReply(
+            intent="propose_selected",
+            reply="请应用修改",
+            updates=[
+                {
+                    "domain_id": "vision",
+                    "name": "更新视觉",
+                    "explanation": "仅修改此项",
+                },
+            ],
+        ),
+        conversation,
+    )
+    assert proposal["proposal_plan"]["directions"][1] == other
+    assert proposal["candidate_plan"] == original
+    assert conversation["selectedPlan"] == original
+    with pytest.raises(ResearchError, match="不存在"):
+        conversation_update(
+            ConversationReply(
+                intent="update_candidate",
+                reply="修改",
+                updates=[
+                    {"domain_id": "unknown", "name": "不能覆盖", "explanation": "无效"},
+                ],
+            ),
+            conversation,
+        )
+
+
+@pytest.mark.asyncio
+async def test_confirm_selected_search_skips_candidate_generation():
+    acquisition, llm = FakeAcquisition(), FakeLLM()
+    graph = build_graph(llm, runtime_store(), InMemorySaver(), acquisition)
+    config = {"configurable": {"thread_id": str(uuid4()), "lease": "test"}}
+    result = await graph.ainvoke(
+        {
+            "question": "确认已选计划",
+            "conversation": {
+                "workspace": True,
+                "startSearch": True,
+                "selectedPlan": plan().model_dump(),
+                "candidatePlan": plan().model_dump(),
+            },
+        },
+        config,
+    )
+    assert llm.calls == ["Plan"]
+    assert acquisition.reads == 1
+    assert result["confirmed_plan"]["directions"][0]["name"] == "视觉"
+    assert (await graph.aget_state(config)).next == ("company_gate",)

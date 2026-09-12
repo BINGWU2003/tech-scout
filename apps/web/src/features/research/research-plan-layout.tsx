@@ -1,11 +1,12 @@
 import { GripVertical, MessageSquare, Shapes } from 'lucide-react'
-import { useEffect, useRef, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import {
   Group,
   Panel,
   Separator,
   useDefaultLayout,
 } from 'react-resizable-panels'
+import { Button } from '@/components/ui/button'
 import { useIsMobile } from '@/hooks/use-mobile'
 
 export function ResearchPlanLayout({
@@ -18,6 +19,9 @@ export function ResearchPlanLayout({
   composer?: ReactNode
 }) {
   const mobile = useIsMobile()
+  const [mobilePane, setMobilePane] = useState<'conversation' | 'directions'>(
+    'conversation'
+  )
   const { defaultLayout, onLayoutChanged } = useDefaultLayout({
     id: 'research-plan-layout-v1',
     onlySaveAfterUserInteractions: true,
@@ -85,9 +89,37 @@ export function ResearchPlanLayout({
   )
   if (mobile)
     return (
-      <div className='space-y-4 pb-4'>
-        {directionPane}
-        <div className='h-[36rem]'>{conversationPane}</div>
+      <div className='flex min-h-0 flex-1 flex-col gap-3 overflow-hidden'>
+        <div className='flex shrink-0 gap-2' aria-label='切换研究面板'>
+          <Button
+            size='sm'
+            variant={mobilePane === 'conversation' ? 'default' : 'outline'}
+            aria-pressed={mobilePane === 'conversation'}
+            onClick={() => setMobilePane('conversation')}
+          >
+            AI 对话
+          </Button>
+          <Button
+            size='sm'
+            variant={mobilePane === 'directions' ? 'default' : 'outline'}
+            aria-pressed={mobilePane === 'directions'}
+            onClick={() => setMobilePane('directions')}
+          >
+            候选与已选计划
+          </Button>
+        </div>
+        <div
+          className={mobilePane === 'directions' ? 'min-h-0 flex-1' : 'hidden'}
+        >
+          {directionPane}
+        </div>
+        <div
+          className={
+            mobilePane === 'conversation' ? 'min-h-0 flex-1' : 'hidden'
+          }
+        >
+          {conversationPane}
+        </div>
       </div>
     )
   return (

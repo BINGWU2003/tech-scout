@@ -8,6 +8,7 @@ import {
   type OnModuleInit,
 } from '@nestjs/common'
 import {
+  researchPlanSchema,
   type ResearchAction,
   type ResearchCreate,
   type ResearchEvent,
@@ -18,6 +19,7 @@ import { type Action } from '../generated/intelligence/types.gen.js'
 import { Prisma, type ResearchRun } from '../generated/prisma/client.js'
 import { IntelligenceClient } from './intelligence.client.js'
 import { object } from './research-view.service.js'
+import { revision, selectedPlan } from './workspace-state.js'
 
 const json = (value: unknown) =>
   JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue
@@ -126,7 +128,12 @@ export class ResearchService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  async newRun(userId: string, projectId: string, input: ResearchCreate) {
+  async newRun(
+    userId: string,
+    projectId: string,
+    input: ResearchCreate,
+    searchRevision?: number
+  ) {
     const project = await this.project(userId, projectId)
     const run = await this.prisma.$transaction(async (tx) => {
       // Serialize new rounds across tabs so a project has a single active branch.
@@ -139,12 +146,24 @@ export class ResearchService implements OnModuleInit, OnModuleDestroy {
       if (existing) {
         if (
           existing.question !== input.question ||
+          Boolean(object(existing.context).startSearch) !==
+            (searchRevision !== undefined) ||
+          (searchRevision !== undefined &&
+            object(existing.context).selectedRevision !== searchRevision) ||
           (input.parentRunId &&
             object(existing.context).parentRunId !== input.parentRunId)
         )
           throw new ConflictException('请求键已用于不同的追问')
         return existing
       }
+      const workspace = (
+        await tx.researchProject.findUniqueOrThrow({ where: { id: projectId } })
+      ).workspace
+      if (
+        searchRevision !== undefined &&
+        revision(workspace) !== searchRevision
+      )
+        throw new ConflictException('已选计划已有更新，请刷新后确认')
       const previous = await tx.researchRun.findFirst({
         where: { projectId },
         orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
@@ -163,6 +182,26 @@ export class ResearchService implements OnModuleInit, OnModuleDestroy {
         throw new ConflictException('请等待当前研究结束或停止后再发送')
       const previousContext = object(previous?.context)
       const artifacts = object(object(previous?.state).artifacts)
+      const confirmed = await tx.researchRun.findFirst({
+        where: {
+          projectId,
+          state: { path: ['artifacts', 'confirmed_plan'], not: Prisma.DbNull },
+        },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      })
+      const selected = selectedPlan(
+        workspace,
+        object(object(confirmed?.state).artifacts).confirmed_plan
+      )
+      if (
+        searchRevision !== undefined &&
+        !researchPlanSchema.safeParse(selected).success
+      )
+        throw new ConflictException('请先选择至少一个研究方向')
+      const messages = await tx.$queryRaw<Record<string, unknown>[]>(Prisma.sql`
+        SELECT question, state #>> '{artifacts,reply}' AS reply
+        FROM app.research_run WHERE project_id = ${projectId}::uuid
+        ORDER BY created_at DESC, id DESC LIMIT 20`)
       const history = Array.isArray(previousContext.questions)
         ? previousContext.questions
         : []
@@ -172,6 +211,16 @@ export class ResearchService implements OnModuleInit, OnModuleDestroy {
           requestKey: input.requestKey,
           question: input.question,
           context: json({
+            workspace: true,
+            selectedPlan: selected,
+            selectedRevision: revision(workspace),
+            messages: messages.reverse(),
+            candidatePlan:
+              artifacts.candidate_plan ??
+              artifacts.plan ??
+              previousContext.candidatePlan ??
+              null,
+            startSearch: searchRevision !== undefined,
             parentRunId: previous?.id,
             originalQuestion: project.question,
             questions: [...history, ...(previous ? [previous.question] : [])],
@@ -229,8 +278,42 @@ export class ResearchService implements OnModuleInit, OnModuleDestroy {
         orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
         select: { id: true },
       })
-      if (latest?.id !== runId && !['cancel', 'pause'].includes(input.kind))
-        throw new ConflictException('此轮已归入历史，请在最新轮次继续操作')
+      const execution = await tx.researchRun.findFirst({
+        where: {
+          projectId: owned.projectId,
+          OR: [
+            { context: { path: ['startSearch'], equals: true } },
+            {
+              state: {
+                path: ['artifacts', 'confirmed_plan'],
+                not: Prisma.DbNull,
+              },
+            },
+          ],
+        },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        select: { id: true },
+      })
+      const canContinue =
+        execution?.id === runId &&
+        ['start_companies', 'resolve_entities', 'retry'].includes(input.kind)
+      if (
+        latest?.id !== runId &&
+        !canContinue &&
+        !['cancel', 'pause'].includes(input.kind)
+      )
+        throw new ConflictException('此记录已归入历史，请返回当前研究继续操作')
+      if (!['cancel', 'pause'].includes(input.kind)) {
+        const otherActive = await tx.researchRun.count({
+          where: {
+            projectId: owned.projectId,
+            id: { not: runId },
+            status: { in: ['queued', 'running'] },
+          },
+        })
+        if (otherActive)
+          throw new ConflictException('请等待当前研究结束或停止后再操作')
+      }
       return tx.researchCommand.create({
         data: { id: input.action_id, runId, payload: json(payload) },
       })

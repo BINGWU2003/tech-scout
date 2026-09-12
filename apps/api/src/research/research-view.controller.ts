@@ -12,6 +12,9 @@ import {
 } from '@nestjs/common'
 import {
   researchConflictPageSchema,
+  researchWorkspaceSchema,
+  researchWorkspaceActionSchema,
+  type ResearchWorkspaceAction,
   researchActionSchema,
   researchCreateSchema,
   researchEventsQuerySchema,
@@ -37,6 +40,7 @@ import { CurrentAuth } from '../auth/current-auth.decorator.js'
 import { ZodResponse } from '../common/zod-response.decorator.js'
 import { ZodValidationPipe } from '../common/zod-validation.pipe.js'
 import { ResearchViewService } from './research-view.service.js'
+import { ResearchWorkspaceService } from './research-workspace.service.js'
 import { ResearchService } from './research.service.js'
 
 const uuid = new ZodValidationPipe(z.uuid())
@@ -48,8 +52,30 @@ type Auth = AuthenticatedRequest['auth']
 export class ResearchViewController {
   constructor(
     private readonly view: ResearchViewService,
-    private readonly research: ResearchService
+    private readonly research: ResearchService,
+    private readonly workspace: ResearchWorkspaceService
   ) {}
+
+  @Get('projects/:projectId/workspace')
+  @ZodResponse(researchWorkspaceSchema)
+  getWorkspace(
+    @CurrentAuth() auth: Auth,
+    @Param('projectId', uuid) id: string
+  ) {
+    return this.workspace.get(auth.user.id, id)
+  }
+
+  @Post('projects/:projectId/workspace')
+  @UseGuards(CsrfGuard)
+  @ZodResponse(researchWorkspaceSchema)
+  updateWorkspace(
+    @CurrentAuth() auth: Auth,
+    @Param('projectId', uuid) id: string,
+    @Body(new ZodValidationPipe(researchWorkspaceActionSchema))
+    input: ResearchWorkspaceAction
+  ) {
+    return this.workspace.action(auth.user.id, id, input)
+  }
 
   @Get('runs/:runId')
   @ZodResponse(researchSummaryViewSchema)

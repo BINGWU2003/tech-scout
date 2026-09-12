@@ -9,6 +9,7 @@ export function ResearchComposer({
   onSubmit,
   busy,
   blocked,
+  blockedReason,
   error,
   followUp = false,
 }: {
@@ -17,6 +18,7 @@ export function ResearchComposer({
   onSubmit: () => void
   busy: boolean
   blocked?: boolean
+  blockedReason?: string
   error?: unknown
   followUp?: boolean
 }) {
@@ -57,7 +59,7 @@ export function ResearchComposer({
         <div className='flex items-center justify-between gap-3 px-1'>
           <span className='text-xs text-muted-foreground'>
             {blocked
-              ? '研究执行中，可先编辑；结束或停止后发送'
+              ? (blockedReason ?? '研究执行中，可先编辑；结束或停止后发送')
               : followUp
                 ? '延续当前研究 · 确认计划后开始检索'
                 : '先生成技术方向，再由你确认检索'}

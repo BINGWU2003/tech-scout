@@ -56,6 +56,21 @@ class Start(Model):
     conversation: dict[str, Any] = Field(default_factory=dict)
 
 
+class SelectedPlan(Plan):
+    directions: list[Direction] = Field(default_factory=list, max_length=3)
+
+
+class ConversationReply(Model):
+    intent: Literal[
+        "discuss", "refresh_candidates", "update_candidate", "propose_selected"
+    ]
+    reply: str = Field(min_length=1, max_length=4000)
+    updates: list[DirectionDraft] = Field(default_factory=list, max_length=3)
+    remove_ids: list[str] = Field(default_factory=list, max_length=3)
+    from_year: int | None = Field(default=None, ge=1800, le=2100)
+    to_year: int | None = Field(default=None, ge=1800, le=2100)
+
+
 class IdentityDecision(Model):
     candidate_id: str = Field(min_length=1, max_length=255)
     action: Literal["confirm", "reject", "skip"]

@@ -112,7 +112,7 @@ export function PatentList({
       {query.isPending && <p role='status'>读取快照专利…</p>}
       {query.data?.total === 0 && (
         <p className='rounded-xl border border-dashed p-6 text-sm text-muted-foreground'>
-          本轮没有符合条件的专利，可以调整研究条件后重新检索。
+          本次没有符合条件的专利，可以调整研究条件后重新检索。
         </p>
       )}
       {query.data?.items.map((p) => (

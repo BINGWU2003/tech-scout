@@ -4,7 +4,10 @@ import {
   createRouter,
   RouterProvider,
 } from '@tanstack/react-router'
-import { researchSummaryViewSchema } from '@tech-scout/contracts'
+import {
+  researchSummaryViewSchema,
+  type ResearchWorkspace,
+} from '@tech-scout/contracts'
 import { useState } from 'react'
 import { afterEach, expect, it, vi } from 'vitest'
 import { render } from 'vitest-browser-react'
@@ -171,6 +174,42 @@ it('工作台从左侧切换项目，确认前追问保留上下文，并在手�
       candidateCount: 0,
       hasResult: false,
     })
+  const workspace: ResearchWorkspace = {
+    revision: 0,
+    selectedPlan: plan,
+    candidates: plan,
+    messages: [],
+    latestResultRunId: null,
+    resultOutdated: false,
+    activeRunId: firstId,
+    executionRunId: null,
+    blocked: false,
+  }
+  vi.spyOn(researchApi, 'workspace').mockImplementation(async () => ({
+    ...workspace,
+    messages: project.runs.map((run) => ({
+      id: run.id,
+      runId: run.id,
+      role: 'user' as const,
+      text: run.question,
+      createdAt: now,
+      plan: null,
+      proposal: false,
+      applied: false,
+      outdated: false,
+      hasResult: false,
+    })),
+  }))
+  const workspaceAction = vi
+    .spyOn(researchApi, 'workspaceAction')
+    .mockImplementation(async (_id, input) => {
+      if (input.kind === 'start_search') {
+        advanced = true
+        workspace.activeRunId = secondId
+        workspace.executionRunId = secondId
+      }
+      return structuredClone(workspace)
+    })
   vi.spyOn(researchApi, 'projects').mockImplementation(async () => [project])
   vi.spyOn(researchApi, 'project').mockImplementation(async () =>
     structuredClone(project)
@@ -258,7 +297,7 @@ it('工作台从左侧切换项目，确认前追问保留上下文，并在手�
     .getByRole('link', { name: '固态电池技术研究', exact: true })
     .click()
   await expect
-    .element(screen.getByRole('button', { name: '确认方向并开始检索' }))
+    .element(screen.getByRole('button', { name: '确认计划并开始检索' }))
     .toBeVisible()
   expect(action).not.toHaveBeenCalled()
   await page.screenshot({ path: '__screenshots__/research-desktop.png' })
@@ -271,7 +310,7 @@ it('工作台从左侧切换项目，确认前追问保留上下文，并在手�
   ])
   await expect
     .element(screen.getByRole('combobox', { name: '研究轮次' }))
-    .toHaveValue(secondId)
+    .not.toBeInTheDocument()
   expect(router.state.location.pathname).toBe(`/research/${projectId}/plan`)
   await page.viewport(390, 844)
   await expect
@@ -285,7 +324,7 @@ it('工作台从左侧切换项目，确认前追问保留上下文，并在手�
   expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(390)
   await page.screenshot({ path: '__screenshots__/research-mobile.png' })
   await page.viewport(1280, 900)
-  await screen.getByRole('button', { name: '确认方向并开始检索' }).click()
+  await screen.getByRole('button', { name: '确认计划并开始检索' }).click()
   await expect
     .element(screen.getByRole('heading', { name: '专利检索', exact: true }))
     .toBeVisible()
@@ -293,7 +332,7 @@ it('工作台从左侧切换项目，确认前追问保留上下文，并在手�
   await expect
     .element(screen.getByRole('button', { name: '开始企业发现 →' }))
     .toBeVisible()
-  expect(action).toHaveBeenCalledOnce()
+  expect(workspaceAction).toHaveBeenCalledOnce()
   await expect
     .element(screen.getByRole('textbox', { name: '继续研究' }))
     .not.toBeInTheDocument()
@@ -302,18 +341,14 @@ it('工作台从左侧切换项目，确认前追问保留上下文，并在手�
     .not.toBeInTheDocument()
   await page.screenshot({ path: '__screenshots__/research-patents.png' })
   await screen.getByRole('link', { name: '3. 企业发现与核验' }).click()
-  expect(action).toHaveBeenCalledOnce()
+  expect(workspaceAction).toHaveBeenCalledOnce()
   await expect
     .element(screen.getByText('请先在专利检索页点击“开始企业发现”。'))
     .toBeVisible()
   await screen.getByRole('link', { name: '1. 技术方向与计划' }).click()
-  await screen
-    .getByRole('combobox', { name: '研究轮次' })
-    .selectOptions(firstId)
-  await expect.element(screen.getByText(/正在查看历史轮次/)).toBeVisible()
   await expect
-    .element(screen.getByRole('button', { name: '确认方向并开始检索' }))
-    .not.toBeInTheDocument()
+    .element(screen.getByRole('button', { name: '确认计划并开始检索' }))
+    .toBeVisible()
   // A fresh route mount uses the address, without resetting to the current execution stage.
   await router.navigate({
     to: '/research/$projectId/$stage',

@@ -3,6 +3,8 @@ import { Link, Navigate, useNavigate } from '@tanstack/react-router'
 import {
   type ResearchAction,
   type ResearchSummaryView,
+  type ResearchWorkspace,
+  type ResearchWorkspaceAction,
 } from '@tech-scout/contracts'
 import { createRequestId } from '@tech-scout/shared'
 import { useRef, useState, type ReactNode } from 'react'
@@ -12,7 +14,8 @@ import { researchApi } from '@/lib/research-api'
 import { CompanyMatches } from './company-matches'
 import { EntityReview } from './entity-review'
 import { countryName, nodeLabels, statusLabels } from './labels'
-import { PlanEditor } from './plan-editor'
+import { SelectedPlanEditor } from './plan-editor'
+import { ProjectConversation } from './project-conversation'
 import { ResearchComposer } from './research-composer'
 import { ResearchPlanLayout } from './research-plan-layout'
 import {
@@ -63,10 +66,10 @@ function ResultPanel({ run }: { run: ResearchSummaryView }) {
           </div>
           {query.data.emptyReason && (
             <div role='status' className='rounded-xl border border-dashed p-6'>
-              <h3 className='font-semibold'>本轮没有可输出的匹配名单</h3>
+              <h3 className='font-semibold'>本次没有可输出的匹配名单</h3>
               <p className='mt-2 text-sm'>{query.data.emptyReason}</p>
               <p className='mt-2 text-sm text-muted-foreground'>
-                系统没有自动放宽条件。可在页面下方创建新一轮研究，重新检查计划。
+                可点击“调整研究”，在对话中修改要求并确认计划。
               </p>
             </div>
           )}
@@ -150,6 +153,21 @@ function ResultPanel({ run }: { run: ResearchSummaryView }) {
     </section>
   )
 }
+function PreviousResult({ id }: { id: string }) {
+  const summary = useQuery({
+    queryKey: ['research', id, 'summary'],
+    queryFn: () => researchApi.summary(id),
+  })
+  return (
+    <section className='space-y-4'>
+      <p role='status' className='rounded-lg bg-muted p-3 text-sm'>
+        新结果尚未生成，以下结果基于此前确认的计划。
+      </p>
+      <ErrorNotice error={summary.error} retry={() => void summary.refetch()} />
+      {summary.data && <ResultPanel key={id} run={summary.data} />}
+    </section>
+  )
+}
 function ConflictList({ runId }: { runId: string }) {
   const [page, setPage] = useState(1),
     [open, setOpen] = useState(false)
@@ -209,18 +227,23 @@ function RunWorkspace({
   stage,
   readOnly = false,
   composer,
+  directions,
+  conversation,
+  previousResultId,
 }: {
   id: string
   projectId: string
   stage: ResearchStage
   readOnly?: boolean
   composer?: ReactNode
+  directions?: ReactNode
+  conversation?: ReactNode
+  previousResultId?: string | null
 }) {
   const navigate = useNavigate()
   const { summary, events, disconnected } = useResearchRun(id)
   const client = useQueryClient()
-  const [manual, setManual] = useState(false),
-    [cancelConfirm, setCancelConfirm] = useState(false)
+  const [cancelConfirm, setCancelConfirm] = useState(false)
   const actionKey = useRef<{ signature: string; input: ResearchAction } | null>(
     null
   )
@@ -347,7 +370,7 @@ function RunWorkspace({
                 }).catch(() => undefined)
               }
             >
-              暂停本轮研究
+              暂停本次研究
             </Button>
           )}
           {['failed', 'recoverable'].includes(run.status) && (
@@ -364,27 +387,20 @@ function RunWorkspace({
               手动重试当前步骤
             </Button>
           )}
-          {run.status === 'failed' &&
-            (run.error?.node ?? run.node) === 'planner' &&
-            !manual && (
-              <Button variant='outline' onClick={() => setManual(true)}>
-                改为手工填写计划
-              </Button>
-            )}
           {!['completed', 'empty', 'cancelled'].includes(run.status) && (
             <Button
               variant='outline'
               disabled={mutation.isPending}
               onClick={() => setCancelConfirm(true)}
             >
-              取消本轮研究
+              取消本次研究
             </Button>
           )}
         </div>
       )}
       {cancelConfirm && (
         <div className='rounded-lg bg-muted p-3 text-sm'>
-          <p>取消后本轮不能继续执行，已有记录和已发生费用保留。</p>
+          <p>取消后本次不能继续执行，已有记录和已发生费用保留。</p>
           <div className='mt-2 flex gap-2'>
             <Button
               size='sm'
@@ -406,7 +422,7 @@ function RunWorkspace({
                 }).catch(() => undefined)
               }
             >
-              确认取消本轮
+              确认取消执行
             </Button>
           </div>
         </div>
@@ -435,79 +451,12 @@ function RunWorkspace({
         {summary.isPending && <p role='status'>正在读取运行状态…</p>}
         {run && (
           <ResearchPlanLayout
-            directions={
-              <>
-                {!readOnly &&
-                  (run.status === 'awaiting_plan' ||
-                    (manual &&
-                      run.status === 'failed' &&
-                      (run.error?.node ?? run.node) === 'planner')) && (
-                    <PlanEditor
-                      run={run}
-                      busy={mutation.isPending}
-                      onSubmit={submit}
-                    />
-                  )}
-                {(run.confirmedPlan ||
-                  (run.plan &&
-                    (readOnly || run.status !== 'awaiting_plan'))) && (
-                  <details open className='rounded-xl border p-4'>
-                    <summary className='cursor-pointer font-medium'>
-                      {run.confirmedPlan
-                        ? '已确认的技术方向'
-                        : '本轮生成的技术方向'}
-                    </summary>
-                    <div className='mt-3 space-y-3 text-sm'>
-                      {(run.confirmedPlan ?? run.plan)!.directions.map(
-                        (d, i) => (
-                          <div key={i}>
-                            <p className='font-medium'>{d.name}</p>
-                            <p className='text-muted-foreground'>
-                              {d.explanation}
-                            </p>
-                          </div>
-                        )
-                      )}
-                    </div>
-                  </details>
-                )}
-                {run.confirmedPlan && (
-                  <Button asChild variant='outline'>
-                    <Link
-                      to='/research/$projectId/$stage'
-                      params={{ projectId, stage: 'patents' }}
-                      search={{ runId: id }}
-                    >
-                      查看专利检索 →
-                    </Link>
-                  </Button>
-                )}
-
-                {!run.plan && !run.confirmedPlan && !manual && (
-                  <div className='rounded-xl border border-dashed p-6 text-sm text-muted-foreground'>
-                    {isExecuting(run.status)
-                      ? 'AI 正在整理技术方向，生成后将在这里显示。你可以在右侧查看过程。'
-                      : '尚未生成技术方向，请在右侧查看状态或继续对话。'}
-                  </div>
-                )}
-              </>
-            }
+            directions={directions}
             conversation={
               <>
-                <div className='ml-auto max-w-[90%] rounded-2xl rounded-tr-sm bg-muted px-4 py-3 text-sm leading-7 break-words whitespace-pre-wrap'>
-                  {run.question}
-                </div>
+                {conversation}
                 {statusContent}
                 {timeline}
-                {run.plan && !isExecuting(run.status) && (
-                  <p className='rounded-2xl border bg-muted/20 p-4 text-sm leading-6'>
-                    {readOnly
-                      ? '这是历史轮次的方向与过程记录。如需继续研究，请打开最新轮次。'
-                      : run.confirmedPlan
-                        ? '技术方向已确认。你可以查看左侧方向，或继续对话调整下一轮研究。'
-                        : '技术方向已整理在左侧。你可以直接修改名称和描述，或继续对话补充要求。'}
-                  </p>
-                )}
               </>
             }
             composer={composer}
@@ -527,7 +476,7 @@ function RunWorkspace({
             <>
               {run.hasPatents ? (
                 <section className='space-y-4'>
-                  <h2 className='text-lg font-semibold'>本轮专利</h2>
+                  <h2 className='text-lg font-semibold'>本次专利</h2>
                   <PatentList runId={id} />
                 </section>
               ) : (
@@ -605,6 +554,8 @@ function RunWorkspace({
           {stage === 'report' &&
             (run.hasResult ? (
               <ResultPanel run={run} />
+            ) : previousResultId ? (
+              <PreviousResult id={previousResultId} />
             ) : (
               <p className='rounded-xl border border-dashed p-5 text-sm text-muted-foreground'>
                 {inCurrentStage && isExecuting(run.status)
@@ -653,7 +604,10 @@ export function ResearchEntry({
     return (
       <Navigate
         to='/research/$projectId/$stage'
-        params={{ projectId, stage: stageForRun(summary.data) }}
+        params={{
+          projectId,
+          stage: runId ? stageForRun(summary.data) : 'plan',
+        }}
         search={{ runId: selected!.id }}
         replace
       />
@@ -669,7 +623,7 @@ export function ResearchEntry({
       />
       <p role='status'>
         {project.data && !selected
-          ? '此轮次不存在，请从左侧重新打开项目。'
+          ? '此记录不存在，请从左侧重新打开项目。'
           : '正在打开研究…'}
       </p>
     </ResearchShell>
@@ -711,20 +665,61 @@ function ProjectWorkspace({
   })
   const runs = project.data?.runs ?? []
   const latest = runs[runs.length - 1]
-  const selected = runId ? runs.find((run) => run.id === runId) : latest
-  const readOnly = selected?.id !== latest?.id
   const current = useQuery({
     queryKey: ['research', latest?.id, 'summary'],
     queryFn: () => researchApi.summary(latest!.id),
     enabled: Boolean(latest),
     refetchInterval: 5000,
   })
+  const workspace = useQuery({
+    queryKey: ['research', projectId, 'workspace'],
+    queryFn: () => researchApi.workspace(projectId),
+    refetchInterval: 5000,
+  })
+  const selectedId =
+    stage === 'plan'
+      ? latest?.id
+      : (runId ?? workspace.data?.executionRunId ?? latest?.id)
+  const selected = runs.find((run) => run.id === selectedId)
+  const readOnly =
+    stage !== 'plan' &&
+    selected?.id !== (workspace.data?.executionRunId ?? latest?.id)
+  const [draft, setDraft] = useState<{
+    revision: number
+    baseline: ResearchWorkspace['selectedPlan']
+    plan: ResearchWorkspace['selectedPlan']
+  } | null>(null)
+  const dirty = draft !== null
+  const editPlan = (
+    dirty: boolean,
+    plan?: ResearchWorkspace['selectedPlan']
+  ) => {
+    if (!dirty) setDraft(null)
+    else if (plan && workspace.data) {
+      const current = workspace.data
+      setDraft((previous) => ({
+        revision: previous?.revision ?? current.revision,
+        baseline: previous?.baseline ?? current.selectedPlan,
+        plan,
+      }))
+    }
+  }
+  const editorWorkspace =
+    workspace.data && draft
+      ? {
+          ...workspace.data,
+          revision: draft.revision,
+          selectedPlan: draft.baseline,
+        }
+      : workspace.data
+
   const [question, setQuestion] = useState('')
   const requestKey = useRef({ signature: '', id: createRequestId() })
   const client = useQueryClient(),
     navigate = useNavigate()
   const create = useMutation({
     mutationFn: () => {
+      if (dirty) throw new Error('请先保存已选计划的调整')
       const signature = JSON.stringify([question.trim(), latest?.id])
       if (requestKey.current.signature !== signature)
         requestKey.current = { signature, id: createRequestId() }
@@ -736,6 +731,9 @@ function ProjectWorkspace({
     },
     onSuccess: async (run) => {
       setQuestion('')
+      void client.invalidateQueries({
+        queryKey: ['research', projectId, 'workspace'],
+      })
       client.setQueryData(['research', run.id, 'summary'], run)
       await client.invalidateQueries({
         queryKey: ['research', projectId, 'project'],
@@ -750,11 +748,51 @@ function ProjectWorkspace({
       void project.refetch()
     },
   })
+  const workspaceKey = useRef<{
+    signature: string
+    input: ResearchWorkspaceAction
+  } | null>(null)
+  const change = useMutation({
+    mutationFn: (input: ResearchWorkspaceAction) =>
+      researchApi.workspaceAction(projectId, input),
+    onSuccess: async (data, input) => {
+      client.setQueryData(['research', projectId, 'workspace'], data)
+      editPlan(false)
+      workspaceKey.current = null
+      await client.invalidateQueries({
+        queryKey: ['research', projectId, 'project'],
+      })
+      if (input.kind === 'start_search' && data.activeRunId)
+        void navigate({
+          to: '/research/$projectId/$stage',
+          params: { projectId, stage: 'patents' },
+          search: { runId: data.activeRunId },
+        })
+    },
+  })
+  const updateWorkspace = (input: ResearchWorkspaceAction) => {
+    const signature = JSON.stringify({ ...input, requestKey: '' })
+    if (workspaceKey.current?.signature !== signature)
+      workspaceKey.current = { signature, input }
+    return change.mutateAsync(workspaceKey.current.input)
+  }
   const blocked =
-    !current.data || current.isError || isExecuting(current.data.status)
+    !current.data ||
+    current.isError ||
+    isExecuting(current.data.status) ||
+    !workspace.data ||
+    workspace.isError ||
+    workspace.data.blocked
+  const editingBusy = blocked || change.isPending || create.isPending
+  const savePlan = (plan: ResearchWorkspace['selectedPlan']) =>
+    updateWorkspace({
+      kind: 'save_plan',
+      plan,
+      requestKey: createRequestId(),
+      revision: draft?.revision ?? workspace.data!.revision,
+    })
   return (
     <ResearchShell
-      key={`${selected?.id}-${stage}`}
       title={project.data?.title ?? '研究工作台'}
       split={stage === 'plan'}
       navigation={
@@ -762,29 +800,6 @@ function ProjectWorkspace({
           className={`mx-auto space-y-3 ${stage === 'plan' ? 'w-full' : 'max-w-4xl'}`}
         >
           <div className='flex flex-wrap items-center justify-between gap-3'>
-            <label className='flex min-w-0 items-center gap-2 text-xs text-muted-foreground'>
-              研究轮次
-              <select
-                aria-label='研究轮次'
-                className='max-w-56 rounded-md border bg-background px-2 py-1.5 text-foreground'
-                value={selected?.id ?? ''}
-                onChange={(event) =>
-                  void navigate({
-                    to: '/research/$projectId/$stage',
-                    params: { projectId, stage },
-                    search: { runId: event.target.value },
-                  })
-                }
-              >
-                {!selected && <option value=''>请选择轮次</option>}
-                {runs.map((run, index) => (
-                  <option key={run.id} value={run.id}>
-                    第 {index + 1} 轮 · {statusLabels[run.status]}
-                    {run.id === latest?.id ? '（最新）' : ''}
-                  </option>
-                ))}
-              </select>
-            </label>
             {(stage !== 'plan' || readOnly) && latest && (
               <Button asChild variant='ghost' size='sm'>
                 <Link
@@ -811,7 +826,12 @@ function ProjectWorkspace({
                 key={key}
                 to='/research/$projectId/$stage'
                 params={{ projectId, stage: key }}
-                search={{ runId: selected?.id }}
+                search={{
+                  runId:
+                    key === 'plan'
+                      ? latest?.id
+                      : (workspace.data?.executionRunId ?? latest?.id),
+                }}
                 aria-current={stage === key ? 'page' : undefined}
                 className={`rounded-lg px-3 py-2.5 text-center text-xs transition-colors sm:text-sm ${stage === key ? 'bg-primary text-primary-foreground' : 'bg-muted/40 text-muted-foreground hover:bg-muted'}`}
               >
@@ -831,15 +851,26 @@ function ProjectWorkspace({
         </p>
       </div>
       <ErrorNotice error={project.error} retry={() => void project.refetch()} />
+      <ErrorNotice
+        error={workspace.error ?? change.error}
+        retry={() => void workspace.refetch()}
+      />
       {project.isPending && <p role='status'>正在读取研究…</p>}
       {project.data && !selected && (
-        <p role='alert'>此轮次不属于当前项目，请在顶部选择已有轮次。</p>
+        <p role='alert'>此记录不属于当前项目，请从左侧重新打开研究。</p>
       )}
       {readOnly && selected && (
         <p className='rounded-lg bg-muted p-3 text-sm text-muted-foreground'>
-          正在查看历史轮次，仅供回看。调整研究将从最新轮次继承条件。
+          正在查看历史记录。可返回调整研究，继续当前对话。
         </p>
       )}
+      {stage === 'report' &&
+        selected?.id === workspace.data?.latestResultRunId &&
+        workspace.data?.resultOutdated && (
+          <p className='rounded-lg bg-muted p-3 text-sm'>
+            以下结果基于调整前的计划，确认当前计划并检索后将更新。
+          </p>
+        )}
       {selected && (
         <RunWorkspace
           key={`${selected.id}-${stage}`}
@@ -847,6 +878,43 @@ function ProjectWorkspace({
           projectId={projectId}
           stage={stage}
           readOnly={readOnly}
+          previousResultId={workspace.data?.latestResultRunId}
+          directions={
+            editorWorkspace && (
+              <SelectedPlanEditor
+                key={editorWorkspace.revision}
+                workspace={editorWorkspace}
+                initialPlan={draft?.plan}
+                busy={editingBusy}
+                onDirty={editPlan}
+                onSave={savePlan}
+                onStart={() =>
+                  void updateWorkspace({
+                    kind: 'start_search',
+                    requestKey: createRequestId(),
+                    revision: workspace.data!.revision,
+                  }).catch(() => undefined)
+                }
+              />
+            )
+          }
+          conversation={
+            workspace.data && (
+              <ProjectConversation
+                workspace={workspace.data}
+                projectId={projectId}
+                busy={editingBusy || dirty}
+                onApply={(proposalRunId) =>
+                  void updateWorkspace({
+                    kind: 'apply_proposal',
+                    proposalRunId,
+                    requestKey: createRequestId(),
+                    revision: workspace.data!.revision,
+                  }).catch(() => undefined)
+                }
+              />
+            )
+          }
           composer={
             stage === 'plan' &&
             selected &&
@@ -856,7 +924,10 @@ function ProjectWorkspace({
                 onChange={setQuestion}
                 onSubmit={() => create.mutate()}
                 busy={create.isPending}
-                blocked={blocked}
+                blocked={blocked || dirty || change.isPending}
+                blockedReason={
+                  dirty ? '请先保存已选计划的调整，再继续对话' : undefined
+                }
                 followUp
                 error={create.error ?? current.error}
               />

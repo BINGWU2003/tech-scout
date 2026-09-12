@@ -20,7 +20,7 @@ export function CompanyMatches({ runId }: { runId: string }) {
       {query.isPending && <p role='status'>正在读取匹配企业…</p>}
       {query.data?.total === 0 && (
         <p className='rounded-xl border border-dashed p-6 text-sm text-muted-foreground'>
-          尚无已匹配企业，可在下方核验候选主体或生成本轮报告。
+          尚无已匹配企业，可在下方核验候选主体或生成报告。
         </p>
       )}
       {query.data?.items.map((company) => (
