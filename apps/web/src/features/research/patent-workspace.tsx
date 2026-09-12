@@ -80,233 +80,244 @@ export function PatentWorkspace({
     0
   )
   return (
-    <ResearchPlanLayout
-      variant='patents'
-      directions={
-        <div className='h-full space-y-5 overflow-y-auto overscroll-contain p-4'>
-          <dl className='grid grid-cols-2 gap-3'>
-            <Metric
-              label='去重专利'
-              value={total ?? '—'}
-              note={
-                run.hasPatents ? '本次检索最终纳入' : '按年份筛选后累计纳入'
-              }
-            />
-            <Metric label='详情已获取' value={detailText} note={detailLabel} />
-            <Metric
-              label='已检索词组'
-              value={`${data.groups.length}${searchCount ? ` / ${searchCount}` : ''}`}
-              note={`已完成 ${data.completedPages} 页检索`}
-            />
-            <Metric
-              label='已检索方向'
-              value={`${searchedDirections} / ${directions.length}`}
-              note={
-                run.fromYear && run.toYear
-                  ? `${run.fromYear}–${run.toYear} 年`
-                  : '按已确认计划检索'
-              }
-            />
-          </dl>
-          {!run.hasPatents && (
-            <p className='text-xs leading-5 text-muted-foreground'>
-              {run.confirmedPlan
-                ? '检索与详情获取进度会自动更新，完成后展示年份和技术分类分布。'
-                : '请先在技术方向与计划页确认检索计划。'}
-            </p>
-          )}
-          {run.hasPatents && stats.isPending && (
-            <p role='status' className='text-sm'>
-              正在汇总全部专利…
-            </p>
-          )}
-          {stats.isError && (
-            <div role='alert' className='text-sm'>
-              统计暂时无法加载。
-              <Button
-                variant='link'
-                size='sm'
-                onClick={() => void stats.refetch()}
-              >
-                重新加载统计
-              </Button>
-            </div>
-          )}
-          {stats.data && (
-            <Suspense
-              fallback={
-                <p role='status' className='text-sm'>
-                  正在加载统计图表…
-                </p>
-              }
-            >
-              <PatentCharts stats={stats.data} />
-            </Suspense>
-          )}
-          {actions}
-          {run.hasPatents && (
-            <section className='space-y-3'>
-              <h3 className='text-sm font-semibold'>本次专利</h3>
-              <PatentList runId={run.id} />
-            </section>
-          )}
-        </div>
-      }
-      conversation={
-        <>
-          <p className='text-xs leading-5 text-muted-foreground'>
-            按方向与检索词记录搜索结果，同一页的进度合并更新。
-          </p>
-          {eventsError && (
-            <div role='alert' className='text-sm'>
-              搜索记录加载失败。
-              <Button variant='link' size='sm' onClick={onRetryEvents}>
-                重新加载记录
-              </Button>
-            </div>
-          )}
-          {data.groups.length === 0 && (
-            <p className='rounded-lg border border-dashed p-5 text-sm text-muted-foreground'>
-              {active
-                ? '正在准备检索条件，搜索开始后将在这里显示记录。'
-                : '暂无专利搜索记录。'}
-            </p>
-          )}
-          {data.groups.map((group) => (
-            <section
-              key={JSON.stringify([group.direction, group.keyword])}
-              className='space-y-3 rounded-lg border p-4'
-            >
-              <div className='flex items-start gap-2'>
-                <Search
-                  className='mt-0.5 size-4 shrink-0 text-muted-foreground'
-                  aria-hidden='true'
-                />
-                <div className='min-w-0'>
-                  <p className='text-xs text-muted-foreground'>
-                    {group.direction}
-                  </p>
-                  <h3 className='mt-1 text-sm font-medium break-words'>
-                    {group.keyword}
-                  </h3>
-                </div>
-              </div>
-              <ol className='space-y-3'>
-                {[...group.pages.entries()]
-                  .sort(([a], [b]) => a - b)
-                  .map(([page, event]) => {
-                    const process = event.process!
-                    const failed = process.outcome === 'failed'
-                    const label =
-                      process.outcome === 'completed'
-                        ? `返回 ${process.count ?? 0} 条结果`
-                        : failed
-                          ? '检索失败'
-                          : process.outcome === 'stopped' || !active
-                            ? '检索已停止'
-                            : '正在检索'
-                    return (
-                      <li
-                        key={page}
-                        className='space-y-1 border-t pt-3 text-xs [content-visibility:auto]'
-                      >
-                        <div className='flex flex-wrap justify-between gap-2'>
-                          <p className={failed ? 'text-destructive' : ''}>
-                            第 {page} 页 · {label}
-                          </p>
-                          <time
-                            className='text-muted-foreground'
-                            dateTime={process.occurredAt ?? event.createdAt}
-                          >
-                            {new Date(
-                              process.occurredAt ?? event.createdAt
-                            ).toLocaleTimeString('zh-CN')}
-                          </time>
-                        </div>
-                        {process.completed != null && (
-                          <p className='text-muted-foreground'>
-                            累计纳入 {process.completed} 篇去重专利
-                          </p>
-                        )}
-                        {failed && (
-                          <p className='break-words text-destructive'>
-                            {process.message}
-                          </p>
-                        )}
-                        {process.url && (
-                          <a
-                            href={process.url}
-                            target='_blank'
-                            rel='noreferrer'
-                            className='inline-block underline underline-offset-4'
-                          >
-                            打开检索来源 ↗
-                          </a>
-                        )}
-                      </li>
-                    )
-                  })}
-              </ol>
-            </section>
-          ))}
-          <section
-            aria-label='专利详情获取进度'
-            className='space-y-3 rounded-lg border bg-muted/20 p-4'
-          >
-            <div className='flex items-center gap-2 text-sm font-medium'>
-              {active && data.details && !detailDone ? (
-                <LoaderCircle
-                  className='size-4 animate-spin text-primary'
-                  aria-hidden='true'
-                />
-              ) : detailDone ? (
-                <Check className='size-4 text-primary' aria-hidden='true' />
-              ) : null}
-              {detailLabel}
-            </div>
-            <p className='text-sm tabular-nums'>
-              {completed != null
-                ? `已获取 ${detailText}专利详情`
-                : '搜索完成后开始，进度将在此持续更新。'}
-            </p>
-            {detailTotal != null && detailTotal > 0 && completed != null && (
-              <progress
-                className='block h-2 w-full appearance-none overflow-hidden rounded-full [&::-moz-progress-bar]:bg-primary [&::-webkit-progress-bar]:bg-muted [&::-webkit-progress-value]:bg-primary'
-                aria-label='专利详情完成进度'
-                max={detailTotal}
-                value={Math.min(completed, detailTotal)}
+    <div className='flex min-h-0 flex-1 flex-col gap-3'>
+      <section
+        aria-label='研究状态与下一步'
+        className='max-h-[45%] shrink-0 space-y-3 overflow-y-auto rounded-xl border bg-card p-4'
+      >
+        {controls}
+        {actions}
+      </section>
+      <ResearchPlanLayout
+        variant='patents'
+        directions={
+          <div className='h-full space-y-5 overflow-y-auto overscroll-contain p-4'>
+            <dl className='grid grid-cols-2 gap-3'>
+              <Metric
+                label='去重专利'
+                value={total ?? '—'}
+                note={
+                  run.hasPatents ? '本次检索最终纳入' : '按年份筛选后累计纳入'
+                }
               />
+              <Metric
+                label='详情已获取'
+                value={detailText}
+                note={detailLabel}
+              />
+              <Metric
+                label='已检索词组'
+                value={`${data.groups.length}${searchCount ? ` / ${searchCount}` : ''}`}
+                note={`已完成 ${data.completedPages} 页检索`}
+              />
+              <Metric
+                label='已检索方向'
+                value={`${searchedDirections} / ${directions.length}`}
+                note={
+                  run.fromYear && run.toYear
+                    ? `${run.fromYear}–${run.toYear} 年`
+                    : '按已确认计划检索'
+                }
+              />
+            </dl>
+            {!run.hasPatents && (
+              <p className='text-xs leading-5 text-muted-foreground'>
+                {run.confirmedPlan
+                  ? '检索与详情获取进度会自动更新，完成后展示年份和技术分类分布。'
+                  : '请先在技术方向与计划页确认检索计划。'}
+              </p>
             )}
-          </section>
-          {data.notices.length > 0 && (
-            <details
-              className='rounded-lg border p-4 text-xs'
-              open={data.notices.some(
-                (event) => event.process?.outcome === 'failed'
-              )}
+            {run.hasPatents && stats.isPending && (
+              <p role='status' className='text-sm'>
+                正在汇总全部专利…
+              </p>
+            )}
+            {stats.isError && (
+              <div role='alert' className='text-sm'>
+                统计暂时无法加载。
+                <Button
+                  variant='link'
+                  size='sm'
+                  onClick={() => void stats.refetch()}
+                >
+                  重新加载统计
+                </Button>
+              </div>
+            )}
+            {stats.data && (
+              <Suspense
+                fallback={
+                  <p role='status' className='text-sm'>
+                    正在加载统计图表…
+                  </p>
+                }
+              >
+                <PatentCharts stats={stats.data} />
+              </Suspense>
+            )}
+            {run.hasPatents && (
+              <section className='space-y-3'>
+                <h3 className='text-sm font-semibold'>本次专利</h3>
+                <PatentList runId={run.id} />
+              </section>
+            )}
+          </div>
+        }
+        conversation={
+          <>
+            <p className='text-xs leading-5 text-muted-foreground'>
+              按方向与检索词记录搜索结果，同一页的进度合并更新。
+            </p>
+            {eventsError && (
+              <div role='alert' className='text-sm'>
+                搜索记录加载失败。
+                <Button variant='link' size='sm' onClick={onRetryEvents}>
+                  重新加载记录
+                </Button>
+              </div>
+            )}
+            {data.groups.length === 0 && (
+              <p className='rounded-lg border border-dashed p-5 text-sm text-muted-foreground'>
+                {active
+                  ? '正在准备检索条件，搜索开始后将在这里显示记录。'
+                  : '暂无专利搜索记录。'}
+              </p>
+            )}
+            {data.groups.map((group) => (
+              <section
+                key={JSON.stringify([group.direction, group.keyword])}
+                className='space-y-3 rounded-lg border p-4'
+              >
+                <div className='flex items-start gap-2'>
+                  <Search
+                    className='mt-0.5 size-4 shrink-0 text-muted-foreground'
+                    aria-hidden='true'
+                  />
+                  <div className='min-w-0'>
+                    <p className='text-xs text-muted-foreground'>
+                      {group.direction}
+                    </p>
+                    <h3 className='mt-1 text-sm font-medium break-words'>
+                      {group.keyword}
+                    </h3>
+                  </div>
+                </div>
+                <ol className='space-y-3'>
+                  {[...group.pages.entries()]
+                    .sort(([a], [b]) => a - b)
+                    .map(([page, event]) => {
+                      const process = event.process!
+                      const failed = process.outcome === 'failed'
+                      const label =
+                        process.outcome === 'completed'
+                          ? `返回 ${process.count ?? 0} 条结果`
+                          : failed
+                            ? '检索失败'
+                            : process.outcome === 'stopped' || !active
+                              ? '检索已停止'
+                              : '正在检索'
+                      return (
+                        <li
+                          key={page}
+                          className='space-y-1 border-t pt-3 text-xs [content-visibility:auto]'
+                        >
+                          <div className='flex flex-wrap justify-between gap-2'>
+                            <p className={failed ? 'text-destructive' : ''}>
+                              第 {page} 页 · {label}
+                            </p>
+                            <time
+                              className='text-muted-foreground'
+                              dateTime={process.occurredAt ?? event.createdAt}
+                            >
+                              {new Date(
+                                process.occurredAt ?? event.createdAt
+                              ).toLocaleTimeString('zh-CN')}
+                            </time>
+                          </div>
+                          {process.completed != null && (
+                            <p className='text-muted-foreground'>
+                              累计纳入 {process.completed} 篇去重专利
+                            </p>
+                          )}
+                          {failed && (
+                            <p className='break-words text-destructive'>
+                              {process.message}
+                            </p>
+                          )}
+                          {process.url && (
+                            <a
+                              href={process.url}
+                              target='_blank'
+                              rel='noreferrer'
+                              className='inline-block underline underline-offset-4'
+                            >
+                              打开检索来源 ↗
+                            </a>
+                          )}
+                        </li>
+                      )
+                    })}
+                </ol>
+              </section>
+            ))}
+            <section
+              aria-label='专利详情获取进度'
+              className='space-y-3 rounded-lg border bg-muted/20 p-4'
             >
-              <summary className='cursor-pointer font-medium'>
-                阶段摘要与异常
-              </summary>
-              <ol className='mt-3 space-y-3'>
-                {data.notices.map((event) => (
-                  <li
-                    key={event.sequence}
-                    className={
-                      event.process?.outcome === 'failed'
-                        ? 'text-destructive'
-                        : 'text-muted-foreground'
-                    }
-                  >
-                    {event.process?.message}
-                  </li>
-                ))}
-              </ol>
-            </details>
-          )}
-        </>
-      }
-      composer={controls}
-    />
+              <div className='flex items-center gap-2 text-sm font-medium'>
+                {active && data.details && !detailDone ? (
+                  <LoaderCircle
+                    className='size-4 animate-spin text-primary'
+                    aria-hidden='true'
+                  />
+                ) : detailDone ? (
+                  <Check className='size-4 text-primary' aria-hidden='true' />
+                ) : null}
+                {detailLabel}
+              </div>
+              <p className='text-sm tabular-nums'>
+                {completed != null
+                  ? `已获取 ${detailText}专利详情`
+                  : '搜索完成后开始，进度将在此持续更新。'}
+              </p>
+              {detailTotal != null && detailTotal > 0 && completed != null && (
+                <progress
+                  className='block h-2 w-full appearance-none overflow-hidden rounded-full [&::-moz-progress-bar]:bg-primary [&::-webkit-progress-bar]:bg-muted [&::-webkit-progress-value]:bg-primary'
+                  aria-label='专利详情完成进度'
+                  max={detailTotal}
+                  value={Math.min(completed, detailTotal)}
+                />
+              )}
+            </section>
+            {data.notices.length > 0 && (
+              <details
+                className='rounded-lg border p-4 text-xs'
+                open={data.notices.some(
+                  (event) => event.process?.outcome === 'failed'
+                )}
+              >
+                <summary className='cursor-pointer font-medium'>
+                  阶段摘要与异常
+                </summary>
+                <ol className='mt-3 space-y-3'>
+                  {data.notices.map((event) => (
+                    <li
+                      key={event.sequence}
+                      className={
+                        event.process?.outcome === 'failed'
+                          ? 'text-destructive'
+                          : 'text-muted-foreground'
+                      }
+                    >
+                      {event.process?.message}
+                    </li>
+                  ))}
+                </ol>
+              </details>
+            )}
+          </>
+        }
+      />
+    </div>
   )
 }

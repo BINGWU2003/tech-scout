@@ -78,134 +78,144 @@ export function CompanyWorkspace({
         saved,
         remaining,
       }) => (
-        <ResearchPlanLayout
-          variant='companies'
-          detailKey={selected}
-          autoFollow={!selected}
-          directions={
-            <div className='h-full space-y-5 overflow-y-auto overscroll-contain p-4'>
-              <dl className='grid grid-cols-2 gap-3'>
-                {[
-                  ['已匹配企业', stats.data?.total ?? '—'],
-                  ['待核验主体', run.pendingCandidateIds.length],
-                  ['已暂存决定', saved],
-                  ['尚待处理', remaining],
-                ].map(([label, value]) => (
-                  <div key={label} className='rounded-lg bg-muted/40 p-3'>
-                    <dt className='text-xs text-muted-foreground'>{label}</dt>
-                    <dd className='mt-2 text-2xl font-semibold tabular-nums'>
-                      {value}
-                    </dd>
-                  </div>
-                ))}
-              </dl>
-              {stats.isError && (
-                <p role='alert'>
-                  企业统计加载失败。
-                  <Button variant='link' onClick={() => void stats.refetch()}>
-                    重试统计
-                  </Button>
+        <div className='flex min-h-0 flex-1 flex-col gap-3'>
+          <section
+            aria-label='研究状态与下一步'
+            className='max-h-[45%] shrink-0 space-y-3 overflow-y-auto rounded-xl border bg-card p-4'
+          >
+            {controls}
+            {report && (
+              <div className='flex flex-wrap items-center justify-between gap-3 border-t pt-3'>
+                <p className='text-sm text-muted-foreground'>
+                  研究报告已生成，可查看企业名单与专利依据。
                 </p>
-              )}
-              {run.hasCompanies && stats.isPending && (
-                <p role='status'>正在汇总企业统计…</p>
-              )}
-              {stats.data && (
-                <Suspense fallback={<p role='status'>正在加载企业排行…</p>}>
-                  <CompanyRanking items={stats.data.ranking} />
-                </Suspense>
-              )}
-              {run.hasCompanies ? (
-                <>
-                  <div className='flex gap-2' aria-label='切换企业列表'>
-                    <Button
-                      size='sm'
-                      variant={tab === 'matched' ? 'default' : 'outline'}
-                      aria-pressed={tab === 'matched'}
-                      onClick={() => setTab('matched')}
-                    >
-                      已匹配企业
-                    </Button>
-                    <Button
-                      size='sm'
-                      variant={tab === 'review' ? 'default' : 'outline'}
-                      aria-pressed={tab === 'review'}
-                      onClick={() => setTab('review')}
-                    >
-                      {run.status === 'awaiting_entities'
-                        ? '待核验主体'
-                        : '核验记录'}
-                    </Button>
-                  </div>
-                  <div hidden={tab !== 'matched'}>
-                    <CompanyMatches runId={run.id} />
-                  </div>
-                  <div hidden={tab !== 'review'}>{list}</div>
-                </>
-              ) : (
-                <p className='rounded-lg border border-dashed p-4 text-sm text-muted-foreground'>
-                  {active
-                    ? '正在查询企业信息，完成后会显示匹配结果与待核验主体。'
-                    : '请先在专利检索页点击“开始企业发现”。'}
-                </p>
-              )}
-              {report}
-            </div>
-          }
-          conversation={
-            detail ?? (
-              <>
-                <section
-                  aria-label='企业信息采集进度'
-                  className='space-y-2 rounded-lg border bg-muted/20 p-4'
-                >
-                  <h3 className='text-sm font-semibold'>
-                    {run.hasCompanies
-                      ? '企业信息采集完成'
-                      : active
-                        ? '正在发现相关企业'
-                        : '企业发现进度'}
-                  </h3>
-                  <p className='text-sm'>
-                    {completed != null
-                      ? `已查询 ${completed}${total != null ? ` / ${total}` : ''} 个主体`
-                      : run.hasCompanies
-                        ? '可查看已匹配企业，并核验需要确认的主体。'
-                        : '查询开始后，进度将在这里持续更新。'}
-                  </p>
-                  {completed != null && total != null && total > 0 && (
-                    <progress
-                      aria-label='企业采集完成进度'
-                      className='w-full accent-primary'
-                      value={completed}
-                      max={total}
-                    />
-                  )}
-                </section>
-                {recordsError && (
+                {report}
+              </div>
+            )}
+          </section>
+          <ResearchPlanLayout
+            variant='companies'
+            detailKey={selected}
+            autoFollow={!selected}
+            directions={
+              <div className='h-full space-y-5 overflow-y-auto overscroll-contain p-4'>
+                <dl className='grid grid-cols-2 gap-3'>
+                  {[
+                    ['已匹配企业', stats.data?.total ?? '—'],
+                    ['待核验主体', run.pendingCandidateIds.length],
+                    ['已暂存决定', saved],
+                    ['尚待处理', remaining],
+                  ].map(([label, value]) => (
+                    <div key={label} className='rounded-lg bg-muted/40 p-3'>
+                      <dt className='text-xs text-muted-foreground'>{label}</dt>
+                      <dd className='mt-2 text-2xl font-semibold tabular-nums'>
+                        {value}
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
+                {stats.isError && (
                   <p role='alert'>
-                    发现记录加载失败。
-                    <Button variant='link' onClick={retryRecords}>
-                      重试记录
+                    企业统计加载失败。
+                    <Button variant='link' onClick={() => void stats.refetch()}>
+                      重试统计
                     </Button>
                   </p>
                 )}
-                <ResearchTimeline
-                  title='企业发现记录'
-                  initiallyOpen
-                  events={companyRecords(events)}
-                  active={active}
-                />
-              </>
-            )
-          }
-          composer={
-            <div className='space-y-3'>
-              {run.hasCompanies && footer}
-              {controls}
-            </div>
-          }
-        />
+                {run.hasCompanies && stats.isPending && (
+                  <p role='status'>正在汇总企业统计…</p>
+                )}
+                {stats.data && (
+                  <Suspense fallback={<p role='status'>正在加载企业排行…</p>}>
+                    <CompanyRanking items={stats.data.ranking} />
+                  </Suspense>
+                )}
+                {run.hasCompanies ? (
+                  <>
+                    <div className='flex gap-2' aria-label='切换企业列表'>
+                      <Button
+                        size='sm'
+                        variant={tab === 'matched' ? 'default' : 'outline'}
+                        aria-pressed={tab === 'matched'}
+                        onClick={() => setTab('matched')}
+                      >
+                        已匹配企业
+                      </Button>
+                      <Button
+                        size='sm'
+                        variant={tab === 'review' ? 'default' : 'outline'}
+                        aria-pressed={tab === 'review'}
+                        onClick={() => setTab('review')}
+                      >
+                        {run.status === 'awaiting_entities'
+                          ? '待核验主体'
+                          : '核验记录'}
+                      </Button>
+                    </div>
+                    <div hidden={tab !== 'matched'}>
+                      <CompanyMatches runId={run.id} />
+                    </div>
+                    <div hidden={tab !== 'review'}>{list}</div>
+                  </>
+                ) : (
+                  <p className='rounded-lg border border-dashed p-4 text-sm text-muted-foreground'>
+                    {active
+                      ? '正在查询企业信息，完成后会显示匹配结果与待核验主体。'
+                      : '请先在专利检索页点击“开始企业查询”。'}
+                  </p>
+                )}
+              </div>
+            }
+            conversation={
+              detail ?? (
+                <>
+                  <section
+                    aria-label='企业信息采集进度'
+                    className='space-y-2 rounded-lg border bg-muted/20 p-4'
+                  >
+                    <h3 className='text-sm font-semibold'>
+                      {run.hasCompanies
+                        ? '企业信息采集完成'
+                        : active
+                          ? '正在发现相关企业'
+                          : '企业发现进度'}
+                    </h3>
+                    <p className='text-sm'>
+                      {completed != null
+                        ? `已查询 ${completed}${total != null ? ` / ${total}` : ''} 个主体`
+                        : run.hasCompanies
+                          ? '可查看已匹配企业，并核验需要确认的主体。'
+                          : '查询开始后，进度将在这里持续更新。'}
+                    </p>
+                    {completed != null && total != null && total > 0 && (
+                      <progress
+                        aria-label='企业采集完成进度'
+                        className='w-full accent-primary'
+                        value={completed}
+                        max={total}
+                      />
+                    )}
+                  </section>
+                  {recordsError && (
+                    <p role='alert'>
+                      发现记录加载失败。
+                      <Button variant='link' onClick={retryRecords}>
+                        重试记录
+                      </Button>
+                    </p>
+                  )}
+                  <ResearchTimeline
+                    title='企业发现记录'
+                    initiallyOpen
+                    events={companyRecords(events)}
+                    active={active}
+                  />
+                </>
+              )
+            }
+            composer={run.hasCompanies ? footer : null}
+          />
+        </div>
       )}
     />
   )
