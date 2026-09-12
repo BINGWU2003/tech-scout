@@ -37,7 +37,7 @@ export function SelectedPlanEditor({
   const save = async () => {
     const parsed = researchSelectedPlanSchema.safeParse(plan)
     if (!parsed.success || plan.directions.some((d) => !d.explanation.trim())) {
-      setError('请填写方向名称、描述和有效的公开年份。')
+      setError('请检查研究计划，并填写有效的方向名称和描述。')
       return
     }
     setError('')
@@ -193,34 +193,6 @@ export function SelectedPlanEditor({
           >
             增加方向
           </Button>
-          <div className='grid grid-cols-2 gap-3'>
-            <div>
-              <Label htmlFor='selected-from'>公开年份从</Label>
-              <Input
-                id='selected-from'
-                type='number'
-                min={1800}
-                max={new Date().getFullYear()}
-                value={plan.from_year}
-                onChange={(e) =>
-                  update({ ...plan, from_year: Number(e.target.value) })
-                }
-              />
-            </div>
-            <div>
-              <Label htmlFor='selected-to'>至</Label>
-              <Input
-                id='selected-to'
-                type='number'
-                min={1800}
-                max={new Date().getFullYear()}
-                value={plan.to_year}
-                onChange={(e) =>
-                  update({ ...plan, to_year: Number(e.target.value) })
-                }
-              />
-            </div>
-          </div>
           {error && (
             <p role='alert' className='text-sm text-destructive'>
               {error}
