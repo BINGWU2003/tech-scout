@@ -299,6 +299,13 @@ describe.skipIf(!enabled)(
         title: 'Vision inspection',
         source: { sha256: 'a'.repeat(64) },
       })
+      const stats = await owner
+        .get(`/api/v1/research/ui/runs/${id}/patent-stats`)
+        .expect(200)
+      expect(stats.body).toMatchObject({
+        total: 1,
+        classifications: [{ code: 'G06V', count: 1 }],
+      })
       expect(
         (
           await owner
@@ -340,6 +347,7 @@ describe.skipIf(!enabled)(
         '/result',
         '/conflicts',
         '/patents',
+        '/patent-stats',
         '/candidates',
         '/candidates/u1',
         '/companies/c1',

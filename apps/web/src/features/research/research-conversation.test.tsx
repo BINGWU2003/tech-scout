@@ -277,6 +277,13 @@ it('工作台从左侧切换项目，确认前追问保留上下文，并在手�
     },
   ])
   let advanced = false
+  vi.spyOn(researchApi, 'patentStats').mockResolvedValue({
+    total: 0,
+    years: [],
+    unknownYearCount: 0,
+    classifications: [],
+    unclassifiedCount: 0,
+  })
   vi.spyOn(researchApi, 'patents').mockResolvedValue({
     items: [],
     total: 0,
@@ -417,6 +424,14 @@ it('工作台从左侧切换项目，确认前追问保留上下文，并在手�
     .element(screen.getByRole('heading', { name: '本次研究结果' }))
     .not.toBeInTheDocument()
   await page.screenshot({ path: '__screenshots__/research-patents.png' })
+  await page.viewport(390, 844)
+  await screen.getByRole('button', { name: '搜索记录', exact: true }).click()
+  await expect
+    .element(screen.getByRole('button', { name: '刷新状态' }))
+    .toBeVisible()
+  expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(390)
+  await page.screenshot({ path: '__screenshots__/research-patents-mobile.png' })
+  await page.viewport(1280, 900)
   await screen.getByRole('link', { name: '3. 企业发现与核验' }).click()
   expect(workspaceAction).toHaveBeenCalledTimes(3)
   await expect

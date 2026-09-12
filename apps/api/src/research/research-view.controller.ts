@@ -22,6 +22,7 @@ import {
   researchProgressViewSchema,
   researchResultViewSchema,
   researchPatentPageSchema,
+  researchPatentStatsSchema,
   researchCandidatePageSchema,
   researchCandidateDetailViewSchema,
   researchCompanyDetailViewSchema,
@@ -131,6 +132,12 @@ export class ResearchViewController {
     @Query(new ZodValidationPipe(researchViewQuerySchema)) q: ResearchViewQuery
   ) {
     return this.view.patents(auth.user.id, id, q)
+  }
+
+  @Get('runs/:runId/patent-stats')
+  @ZodResponse(researchPatentStatsSchema)
+  patentStats(@CurrentAuth() auth: Auth, @Param('runId', uuid) id: string) {
+    return this.view.patentStats(auth.user.id, id)
   }
 
   @Get('runs/:runId/candidates')

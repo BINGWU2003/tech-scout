@@ -115,6 +115,53 @@ const pageOf = <T>(items: T[], q: ResearchViewQuery) => ({
   pageSize: q.pageSize,
 })
 
+export function patentStatsView(value: unknown) {
+  const patents = rows(value)
+  const years = new Map<
+    string,
+    { year: number; dateKind: 'publication' | 'grant'; count: number }
+  >()
+  const classifications = new Map<string, number>()
+  let unknownYearCount = 0,
+    unclassifiedCount = 0
+  for (const patent of patents) {
+    const publication = num(patent.publication_year)
+    const year = publication ?? num(patent.grant_year)
+    const dateKind = publication != null ? 'publication' : 'grant'
+    if (year == null) unknownYearCount++
+    else {
+      const key = `${dateKind}:${year}`
+      const bucket = years.get(key) ?? { year, dateKind, count: 0 }
+      bucket.count++
+      years.set(key, bucket)
+    }
+    // Count each patent once per subclass, even when multiple groups match.
+    const codes = new Set(
+      strings(patent.cpcs).flatMap((code) => {
+        const subclass = code
+          .trim()
+          .toUpperCase()
+          .match(/^[A-HY]\d{2}[A-Z]/)?.[0]
+        return subclass ? [subclass] : []
+      })
+    )
+    if (!codes.size) unclassifiedCount++
+    for (const code of codes)
+      classifications.set(code, (classifications.get(code) ?? 0) + 1)
+  }
+  return {
+    total: patents.length,
+    years: [...years.values()].sort(
+      (a, b) => a.year - b.year || a.dateKind.localeCompare(b.dateKind)
+    ),
+    unknownYearCount,
+    classifications: [...classifications]
+      .map(([code, count]) => ({ code, count }))
+      .sort((a, b) => b.count - a.count || a.code.localeCompare(b.code)),
+    unclassifiedCount,
+  }
+}
+
 @Injectable()
 export class ResearchViewService {
   constructor(private readonly prisma: PrismaService) {}
@@ -308,6 +355,10 @@ export class ResearchViewService {
       })),
       q
     )
+  }
+
+  async patentStats(userId: string, id: string) {
+    return patentStatsView((await this.artifacts(userId, id)).patents)
   }
 
   async candidates(userId: string, id: string, q: ResearchViewQuery) {

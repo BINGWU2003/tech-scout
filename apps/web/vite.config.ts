@@ -27,6 +27,7 @@ export default defineConfig({
       '@tanstack/react-router-devtools',
       'react-top-loading-bar',
       'react-dom/client',
+      'recharts',
     ],
   },
   resolve: {

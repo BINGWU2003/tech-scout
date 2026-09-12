@@ -17,6 +17,7 @@ import { researchApi } from '@/lib/research-api'
 import { CompanyMatches } from './company-matches'
 import { EntityReview } from './entity-review'
 import { countryName, nodeLabels, statusLabels } from './labels'
+import { PatentWorkspace } from './patent-workspace'
 import { SelectedPlanEditor } from './plan-editor'
 import { PlanRunFeedback } from './plan-run-feedback'
 import { ProjectConversation } from './project-conversation'
@@ -297,10 +298,12 @@ function RunWorkspace({
         <Badge variant={run.status === 'failed' ? 'destructive' : 'secondary'}>
           {statusLabels[run.status]}
         </Badge>
-        <span className='text-sm text-muted-foreground'>
-          研究快照：
-          {run.releaseId ?? '采集完成后生成'}
-        </span>
+        {stage !== 'patents' && (
+          <span className='text-sm text-muted-foreground'>
+            研究快照：
+            {run.releaseId ?? '采集完成后生成'}
+          </span>
+        )}
         <Button
           variant='ghost'
           size='sm'
@@ -317,7 +320,7 @@ function RunWorkspace({
           等待研究服务接收请求，状态将自动刷新。
         </p>
       )}
-      {inCurrentStage && run.acquisition && (
+      {stage !== 'patents' && inCurrentStage && run.acquisition && (
         <div role='status' className='rounded-lg border p-4 text-sm'>
           <p className='font-medium'>
             数据采集：
@@ -475,6 +478,61 @@ function RunWorkspace({
         )}
       </div>
     )
+  if (stage === 'patents')
+    return (
+      <div className='flex min-h-0 flex-1 flex-col'>
+        {summary.isPending && <p role='status'>正在读取运行状态…</p>}
+        {summary.isError && (
+          <p role='alert'>运行状态加载失败，请刷新页面重试。</p>
+        )}
+        {run && (
+          <PatentWorkspace
+            run={run}
+            events={(events.data ?? []).filter(
+              (event) => stageForEvent(event) === 'patents'
+            )}
+            active={inCurrentStage && isExecuting(run.status)}
+            eventsError={events.isError}
+            onRetryEvents={() => void events.refetch()}
+            controls={statusContent}
+            actions={
+              <>
+                {!readOnly && run.status === 'awaiting_companies' && (
+                  <div className='rounded-2xl border bg-muted/20 p-5'>
+                    <p className='mb-3 text-sm'>
+                      专利采集已完成。查看结果后，可开始查询相关企业。
+                    </p>
+                    <Button
+                      disabled={mutation.isPending}
+                      onClick={() =>
+                        void submit({
+                          action_id: createRequestId(),
+                          kind: 'start_companies',
+                          decisions: [],
+                        }).catch(() => undefined)
+                      }
+                    >
+                      开始企业发现 →
+                    </Button>
+                  </div>
+                )}
+                {run.hasCompanies && (
+                  <Button asChild variant='outline'>
+                    <Link
+                      to='/research/$projectId/$stage'
+                      params={{ projectId, stage: 'companies' }}
+                      search={{ runId: id }}
+                    >
+                      查看企业发现与核验 →
+                    </Link>
+                  </Button>
+                )}
+              </>
+            }
+          />
+        )}
+      </div>
+    )
   return (
     <div className='space-y-6'>
       {summary.isPending && <p role='status'>正在读取运行状态…</p>}
@@ -482,52 +540,6 @@ function RunWorkspace({
         <>
           {statusContent}
           {timeline}
-          {stage === 'patents' && (
-            <>
-              {run.hasPatents ? (
-                <section className='space-y-4'>
-                  <h2 className='text-lg font-semibold'>本次专利</h2>
-                  <PatentList runId={id} />
-                </section>
-              ) : (
-                <p className='text-sm text-muted-foreground'>
-                  {run.confirmedPlan
-                    ? '专利采集完成后，列表将在这里显示。'
-                    : '请先在技术方向与计划页确认检索计划。'}
-                </p>
-              )}
-              {!readOnly && run.status === 'awaiting_companies' && (
-                <div className='rounded-2xl border bg-muted/20 p-5'>
-                  <p className='mb-3 text-sm'>
-                    专利采集已完成。查看结果后，可开始查询相关企业。
-                  </p>
-                  <Button
-                    disabled={mutation.isPending}
-                    onClick={() =>
-                      void submit({
-                        action_id: createRequestId(),
-                        kind: 'start_companies',
-                        decisions: [],
-                      }).catch(() => undefined)
-                    }
-                  >
-                    开始企业发现 →
-                  </Button>
-                </div>
-              )}
-              {run.hasCompanies && (
-                <Button asChild variant='outline'>
-                  <Link
-                    to='/research/$projectId/$stage'
-                    params={{ projectId, stage: 'companies' }}
-                    search={{ runId: id }}
-                  >
-                    查看企业发现与核验 →
-                  </Link>
-                </Button>
-              )}
-            </>
-          )}
           {stage === 'companies' && (
             <>
               {run.hasCompanies ? (
@@ -803,24 +815,11 @@ function ProjectWorkspace({
   return (
     <ResearchShell
       title={project.data?.title ?? '研究工作台'}
-      split={stage === 'plan'}
+      split={stage === 'plan' || stage === 'patents'}
       navigation={
         <div
-          className={`mx-auto space-y-3 ${stage === 'plan' ? 'w-full' : 'max-w-4xl'}`}
+          className={`mx-auto space-y-3 ${stage === 'plan' || stage === 'patents' ? 'w-full' : 'max-w-4xl'}`}
         >
-          <div className='flex flex-wrap items-center justify-between gap-3'>
-            {(stage !== 'plan' || readOnly) && latest && (
-              <Button asChild variant='ghost' size='sm'>
-                <Link
-                  to='/research/$projectId/$stage'
-                  params={{ projectId, stage: 'plan' }}
-                  search={{ runId: latest.id }}
-                >
-                  调整研究
-                </Link>
-              </Button>
-            )}
-          </div>
           <nav
             aria-label='研究流程'
             className='grid grid-cols-2 gap-2 sm:grid-cols-4'

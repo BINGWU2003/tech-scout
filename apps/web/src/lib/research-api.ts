@@ -8,6 +8,7 @@ import {
   researchProgressViewSchema,
   researchResultViewSchema,
   researchPatentPageSchema,
+  researchPatentStatsSchema,
   researchCandidatePageSchema,
   researchCandidateDetailViewSchema,
   researchCompanyDetailViewSchema,
@@ -76,6 +77,8 @@ export const researchApi = {
       `${run(id)}/patents?page=${page}${companyId ? `&companyId=${encodeURIComponent(companyId)}` : ''}`,
       researchPatentPageSchema
     ),
+  patentStats: (id: string) =>
+    apiRequest(`${run(id)}/patent-stats`, researchPatentStatsSchema),
   patent: (id: string, patentId: string) =>
     apiRequest(
       `${run(id)}/patents?patentId=${encodeURIComponent(patentId)}`,

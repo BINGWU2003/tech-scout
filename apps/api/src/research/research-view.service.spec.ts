@@ -1,5 +1,47 @@
 import { describe, expect, it } from 'vitest'
-import { candidateView, sourceView } from './research-view.service.js'
+import {
+  candidateView,
+  patentStatsView,
+  sourceView,
+} from './research-view.service.js'
+
+describe('全部专利统计', () => {
+  it('跨越分页汇总，同一篇的重复分类仅计一次，区分公开与授权年份', () => {
+    const patents = Array.from({ length: 61 }, (_, i) => ({
+      patent_id: `p${i}`,
+      publication_year: 2025,
+      grant_year: 2026,
+      cpcs: ['G06V10/10', 'G06V20/20', 'H04N'],
+    }))
+    const stats = patentStatsView([
+      ...patents,
+      { patent_id: 'legacy', grant_year: 2025, cpcs: ['G06V'] },
+      { patent_id: 'unknown', cpcs: [] },
+    ])
+    expect(stats).toEqual({
+      total: 63,
+      years: [
+        { year: 2025, dateKind: 'grant', count: 1 },
+        { year: 2025, dateKind: 'publication', count: 61 },
+      ],
+      unknownYearCount: 1,
+      classifications: [
+        { code: 'G06V', count: 62 },
+        { code: 'H04N', count: 61 },
+      ],
+      unclassifiedCount: 1,
+    })
+  })
+  it('空工作集没有虚构的年份或分类', () => {
+    expect(patentStatsView([])).toEqual({
+      total: 0,
+      years: [],
+      unknownYearCount: 0,
+      classifications: [],
+      unclassifiedCount: 0,
+    })
+  })
+})
 
 describe('研究来源链接', () => {
   it('只公开当前 Google Patents 与天眼查来源', () => {

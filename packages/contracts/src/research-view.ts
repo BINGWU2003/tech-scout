@@ -200,6 +200,24 @@ export const researchPatentPageSchema = z.object({
   page: z.number().int(),
   pageSize: z.number().int(),
 })
+export const researchPatentStatsSchema = z.object({
+  total: z.number().int().nonnegative(),
+  years: z.array(
+    z.object({
+      year: z.number().int(),
+      dateKind: z.enum(['publication', 'grant']),
+      count: z.number().int().nonnegative(),
+    })
+  ),
+  unknownYearCount: z.number().int().nonnegative(),
+  classifications: z.array(
+    z.object({
+      code: z.string(),
+      count: z.number().int().nonnegative(),
+    })
+  ),
+  unclassifiedCount: z.number().int().nonnegative(),
+})
 export const researchCandidatePageSchema = z.object({
   items: z.array(researchCandidateViewSchema),
   total: z.number().int(),

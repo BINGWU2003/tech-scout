@@ -1,4 +1,10 @@
-import { GripVertical, MessageSquare, Shapes } from 'lucide-react'
+import {
+  ChartNoAxesCombined,
+  GripVertical,
+  MessageSquare,
+  Search,
+  Shapes,
+} from 'lucide-react'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import {
   Group,
@@ -13,17 +19,24 @@ export function ResearchPlanLayout({
   directions,
   conversation,
   composer,
+  variant = 'plan',
 }: {
   directions: ReactNode
   conversation: ReactNode
   composer?: ReactNode
+  variant?: 'plan' | 'patents'
 }) {
   const mobile = useIsMobile()
+  const patents = variant === 'patents'
+  const leftTitle = patents ? '专利概览' : '已选方向'
+  const rightTitle = patents ? '专利搜索记录' : 'AI 对话'
+  const LeftIcon = patents ? ChartNoAxesCombined : Shapes
+  const RightIcon = patents ? Search : MessageSquare
   const [mobilePane, setMobilePane] = useState<'conversation' | 'directions'>(
-    'conversation'
+    patents ? 'directions' : 'conversation'
   )
   const { defaultLayout, onLayoutChanged } = useDefaultLayout({
-    id: 'research-plan-layout-v1',
+    id: `research-${variant}-layout-v1`,
     onlySaveAfterUserInteractions: true,
   })
   const viewport = useRef<HTMLDivElement>(null)
@@ -40,27 +53,27 @@ export function ResearchPlanLayout({
 
   const directionPane = (
     <section
-      aria-label='已选方向'
+      aria-label={leftTitle}
       className='flex h-full min-h-0 flex-col overflow-hidden rounded-xl border bg-card'
     >
       <div className='flex shrink-0 items-center gap-2 border-b px-5 py-4'>
-        <Shapes className='size-4 text-muted-foreground' aria-hidden='true' />
-        <h2 className='text-sm font-semibold'>已选方向</h2>
+        <LeftIcon className='size-4 text-muted-foreground' aria-hidden='true' />
+        <h2 className='text-sm font-semibold'>{leftTitle}</h2>
       </div>
       <div className='min-h-0 flex-1 overflow-hidden'>{directions}</div>
     </section>
   )
   const conversationPane = (
     <section
-      aria-label='AI 对话'
+      aria-label={rightTitle}
       className='flex h-full min-h-0 flex-col overflow-hidden rounded-xl border bg-card'
     >
       <div className='flex shrink-0 items-center gap-2 border-b px-5 py-4'>
-        <MessageSquare
+        <RightIcon
           className='size-4 text-muted-foreground'
           aria-hidden='true'
         />
-        <h2 className='text-sm font-semibold'>AI 对话</h2>
+        <h2 className='text-sm font-semibold'>{rightTitle}</h2>
         {!mobile && (
           <span className='ml-auto text-xs text-muted-foreground'>
             拖动分隔线调整宽度
@@ -81,7 +94,15 @@ export function ResearchPlanLayout({
         </div>
       </div>
       {composer && (
-        <div className='shrink-0 border-t bg-background p-3'>{composer}</div>
+        <div
+          className={
+            patents
+              ? 'max-h-[45%] shrink-0 overflow-y-auto border-t bg-background p-3'
+              : 'shrink-0 border-t bg-background p-3'
+          }
+        >
+          {composer}
+        </div>
       )}
     </section>
   )
@@ -95,7 +116,7 @@ export function ResearchPlanLayout({
             aria-pressed={mobilePane === 'conversation'}
             onClick={() => setMobilePane('conversation')}
           >
-            AI 对话
+            {patents ? '搜索记录' : rightTitle}
           </Button>
           <Button
             size='sm'
@@ -103,7 +124,7 @@ export function ResearchPlanLayout({
             aria-pressed={mobilePane === 'directions'}
             onClick={() => setMobilePane('directions')}
           >
-            已选计划
+            {patents ? leftTitle : '已选计划'}
           </Button>
         </div>
         <div
@@ -125,14 +146,16 @@ export function ResearchPlanLayout({
       orientation='horizontal'
       defaultLayout={defaultLayout}
       onLayoutChanged={onLayoutChanged}
-      id='research-plan-layout'
+      id={`research-${variant}-layout`}
       className='min-h-0 flex-1'
     >
       <Panel id='directions' defaultSize='55%' minSize='30%'>
         {directionPane}
       </Panel>
       <Separator
-        aria-label='调整方向与 AI 对话宽度'
+        aria-label={
+          patents ? '调整专利概览与搜索记录宽度' : '调整方向与 AI 对话宽度'
+        }
         className='group flex w-4 shrink-0 items-center justify-center rounded focus-visible:outline-2 focus-visible:outline-ring'
       >
         <span className='flex h-9 w-3 items-center justify-center rounded-full bg-muted text-muted-foreground group-hover:bg-primary/15 group-hover:text-primary'>
