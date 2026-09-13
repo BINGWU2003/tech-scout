@@ -5,6 +5,7 @@ import {
   type ResearchSummaryView,
 } from '@tech-scout/contracts'
 import { createRequestId } from '@tech-scout/shared'
+import { ChevronRight } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { ContentSkeleton, LoadingRegion } from '@/components/loading'
@@ -316,9 +317,9 @@ export function EntityReview({
       className='flex flex-col gap-4'
     >
       <div>
-        <h2 className='text-lg font-semibold'>
+        <h3 className='text-sm font-semibold'>
           {editable ? '确认待核验主体' : '未核验主体与处理记录'}
-        </h2>
+        </h3>
         <p className='mt-1 text-sm text-muted-foreground'>
           {editable
             ? `共 ${run.pendingCandidateIds.length} 项，尚有 ${remaining.length} 项未选择。暂存后可在本浏览器恢复，全部处理后统一提交。`
@@ -345,35 +346,41 @@ export function EntityReview({
       {query.data?.total === 0 && (
         <p className='text-sm text-muted-foreground'>暂无需要核验的主体。</p>
       )}
-      <div className='divide-y'>
+      <ul className='divide-y'>
         {query.data?.items.map((u) => (
-          <div
-            key={u.id}
-            className='flex flex-wrap items-center justify-between gap-3 py-3'
-          >
-            <div className='min-w-0'>
-              <p className='text-sm font-medium break-words'>{u.name}</p>
-              <p className='text-xs text-muted-foreground'>
-                中国专利 · 关联 {u.patentCount} 条 ·{' '}
-                {draft[u.id]
-                  ? `已暂存：${decisionLabels[draft[u.id].action]}`
-                  : (decisionLabels[u.decision ?? u.status] ?? '待核验')}
-              </p>
-              <p className='text-xs text-muted-foreground'>
-                {candidateCountryLabel(u)}
-              </p>
-            </div>
-            <Button
-              variant='outline'
-              size='sm'
+          <li key={u.id}>
+            <button
+              type='button'
+              aria-label={`${editable ? '查看并处理' : '查看依据'}：${u.name}`}
+              aria-pressed={selected === u.id}
               disabled={busy}
               onClick={() => setSelected(u.id)}
+              className='flex w-full items-center gap-3 rounded-md px-3 py-3 text-left transition-colors hover:bg-muted/50 focus-visible:outline-2 focus-visible:outline-ring disabled:pointer-events-none disabled:opacity-50 aria-pressed:bg-primary/10'
             >
-              {editable ? '查看并处理' : '查看依据'}
-            </Button>
-          </div>
+              <span className='min-w-0 flex-1 space-y-1'>
+                <span className='block text-sm font-medium break-words'>
+                  {u.name}
+                </span>
+                <span className='block text-xs text-muted-foreground'>
+                  中国专利 · 关联 {u.patentCount} 条
+                </span>
+                <span className='block text-xs text-muted-foreground'>
+                  {candidateCountryLabel(u)}
+                </span>
+                <span className='block text-xs font-medium text-primary'>
+                  {draft[u.id]
+                    ? `已暂存：${decisionLabels[draft[u.id].action]}`
+                    : (decisionLabels[u.decision ?? u.status] ?? '待核验')}
+                </span>
+              </span>
+              <ChevronRight
+                className='size-4 shrink-0 text-muted-foreground'
+                aria-hidden='true'
+              />
+            </button>
+          </li>
         ))}
-      </div>
+      </ul>
       {query.data && (
         <Pager page={page} total={query.data.total} onChange={setPage} />
       )}
@@ -388,8 +395,12 @@ export function EntityReview({
       )}
       {submitError && <p role='alert'>提交失败，草稿已保留，请重试。</p>}
       {editable && (
-        <div className='space-y-3'>
-          <div className='flex flex-wrap gap-3'>
+        <div className='w-full space-y-3'>
+          <p className='text-xs text-muted-foreground'>
+            已暂存 {run.pendingCandidateIds.length - remaining.length} 项 ·
+            尚待处理 {remaining.length} 项
+          </p>
+          <div className='flex flex-wrap justify-end gap-2'>
             <Button
               variant='outline'
               disabled={busy || !remaining.length}

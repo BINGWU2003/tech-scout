@@ -61,6 +61,7 @@ export function ResearchPlanLayout({
   if (previousDetail !== detailKey) {
     setPreviousDetail(detailKey)
     if (detailKey) setMobilePane('conversation')
+    else if (companies) setMobilePane('directions')
   }
   const { defaultLayout, onLayoutChanged } = useDefaultLayout({
     id: `research-${variant}-layout-v1`,

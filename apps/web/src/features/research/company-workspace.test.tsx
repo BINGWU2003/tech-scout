@@ -8,6 +8,7 @@ import { render } from 'vitest-browser-react'
 import { page } from 'vitest/browser'
 import { researchApi } from '@/lib/research-api'
 import { useAuthStore } from '@/stores/auth-store'
+import { CompanyDiscoveryRecords } from './company-discovery-records'
 import { companyRecords, loadReviewDraft } from './company-review-data'
 import { CompanyWorkspace } from './company-workspace'
 import { CandidateEditor } from './entity-review'
@@ -38,6 +39,67 @@ const run = researchSummaryViewSchema.parse({
   hasCompanies: true,
 })
 const key = `research-review-v1:${userId}:${run.id}`
+
+it('企业记录区分查询结果与执行状态，保留失败原因和来源', async () => {
+  await page.viewport(1280, 900)
+  const messages = [
+    '正在查询企业登记信息',
+    '企业信息查询完成',
+    '未找到可匹配的企业登记信息',
+    '企业查询接口暂时不可用',
+    '采集已停止，完成项已保留',
+  ]
+  const outcomes = [
+    'running',
+    'completed',
+    'completed',
+    'failed',
+    'stopped',
+  ] as const
+  const events: ResearchProgressView[] = outcomes.map((outcome, index) => ({
+    sequence: index,
+    kind: 'search_progress',
+    createdAt: now,
+    status: 'running',
+    node: 'company_snapshot',
+    error: null,
+    reasoning: null,
+    answer: null,
+    acquisition: null,
+    process: {
+      stage: 'companies',
+      direction: `示例企业 ${index + 1}`,
+      outcome,
+      message: messages[index],
+      ...(outcome === 'failed' ? { url: 'https://example.com/source' } : {}),
+    },
+  }))
+  const ui = (active: boolean) => (
+    <div className='h-[820px] w-[560px] overflow-y-auto p-4'>
+      <CompanyDiscoveryRecords events={events} active={active} />
+    </div>
+  )
+  const screen = await render(ui(true))
+  for (const label of ['查询中', '已完成', '未匹配', '失败', '已停止'])
+    await expect.element(screen.getByText(label, { exact: true })).toBeVisible()
+  await expect
+    .element(screen.getByText(messages[3], { exact: true }))
+    .toBeVisible()
+  await expect
+    .element(screen.getByRole('link', { name: '打开查询来源 ↗' }))
+    .toHaveAttribute('href', 'https://example.com/source')
+  expect(screen.getByRole('listitem').all()).toHaveLength(5)
+  await page.screenshot({
+    path: '__screenshots__/company-discovery-records.png',
+  })
+  await screen.rerender(ui(false))
+  await expect
+    .element(screen.getByText('已停止', { exact: true }).first())
+    .toBeVisible()
+  expect(screen.getByText('已停止', { exact: true }).all()).toHaveLength(2)
+  await screen.unmount()
+})
+
 const candidate = (id: string) => ({
   id,
   name: id === 'a' ? '甲科技候选主体' : '乙科技候选主体',
@@ -125,7 +187,45 @@ it('草稿恢复、连续核验、失败保留与成功清理，手机切换到�
     </QueryClientProvider>
   )
   let screen = await render(ui())
-  await screen.getByRole('button', { name: '查看并处理' }).first().click()
+  await expect
+    .element(screen.getByRole('tab', { name: '待核验主体' }))
+    .toHaveAttribute('aria-selected', 'true')
+  const submitButton = screen.getByRole('button', {
+    name: '确认主体并生成报告',
+  })
+  expect(
+    submitButton.element().closest('section')?.getAttribute('aria-label')
+  ).toBe('企业概览与核验')
+  await screen.getByRole('tab', { name: '概览', exact: true }).click()
+  await expect
+    .element(screen.getByText('已暂存决定', { exact: true }))
+    .toBeVisible()
+  await expect
+    .element(
+      screen
+        .getByRole('button', { name: /查看并处理/, includeHidden: true })
+        .first()
+    )
+    .not.toBeVisible()
+  await expect.element(submitButton).toBeVisible()
+  await screen.getByRole('tab', { name: '已匹配企业', exact: true }).click()
+  await expect
+    .element(
+      screen.getByRole('button', { name: '查看依据：示例新能源科技有限公司' })
+    )
+    .toBeVisible()
+  await expect
+    .element(screen.getByText('已暂存决定', { exact: true }))
+    .not.toBeVisible()
+  await page.screenshot({ path: '__screenshots__/company-matches-desktop.png' })
+  await screen.getByRole('tab', { name: '待核验主体' }).click()
+  await screen
+    .getByRole('button', { name: /查看并处理/ })
+    .first()
+    .click()
+  await expect
+    .element(screen.getByRole('button', { name: '查看并处理：甲科技候选主体' }))
+    .toHaveAttribute('aria-pressed', 'true')
   await expect
     .element(screen.getByRole('heading', { name: '甲科技候选主体' }))
     .toBeVisible()
@@ -147,7 +247,10 @@ it('草稿恢复、连续核验、失败保留与成功清理，手机切换到�
     .element(screen.getByText('已暂存：本次跳过', { exact: false }))
     .toBeVisible()
   await page.viewport(390, 844)
-  await screen.getByRole('button', { name: '查看并处理' }).last().click()
+  await screen
+    .getByRole('button', { name: /查看并处理/ })
+    .last()
+    .click()
   await expect
     .element(screen.getByRole('heading', { name: '乙科技候选主体' }))
     .toBeVisible()
