@@ -3,11 +3,13 @@ import {
   researchSummaryViewSchema,
   type ResearchProgressView,
 } from '@tech-scout/contracts'
+import { useState } from 'react'
 import { afterEach, expect, it, vi } from 'vitest'
 import { render } from 'vitest-browser-react'
-import { page } from 'vitest/browser'
+import { page, userEvent } from 'vitest/browser'
 import { researchApi } from '@/lib/research-api'
 import { useAuthStore } from '@/stores/auth-store'
+import { CompanyNavigation } from './company-dialog'
 import { CompanyDiscoveryRecords } from './company-discovery-records'
 import { CompanyMatches } from './company-matches'
 import { companyRecords, loadReviewDraft } from './company-review-data'
@@ -199,7 +201,7 @@ it.each(['matched', 'review'] as const)(
   }
 )
 
-it('草稿恢复、连续核验、失败保留与成功清理，手机切换到依据面板', async () => {
+it('草稿恢复、连续核验、失败保留与成功清理，手机打开核验弹窗', async () => {
   await page.viewport(1280, 900)
   useAuthStore.getState().auth.setSession({
     user: {
@@ -306,17 +308,36 @@ it('草稿恢复、连续核验、失败保留与成功清理，手机切换到�
     .first()
     .click()
   await expect
-    .element(screen.getByRole('button', { name: '查看并处理：甲科技候选主体' }))
+    .element(
+      screen.getByRole('button', {
+        name: '查看并处理：甲科技候选主体',
+        includeHidden: true,
+      })
+    )
     .toHaveAttribute('aria-pressed', 'true')
   await expect
     .element(screen.getByRole('heading', { name: '甲科技候选主体' }))
     .toBeVisible()
-  const choose = () =>
-    screen
-      .getByRole('combobox', { name: '本次决定' })
-      .element() as HTMLSelectElement
-  choose().value = 'skip'
-  choose().dispatchEvent(new Event('change', { bubbles: true }))
+  await expect
+    .element(screen.getByRole('dialog', { name: '主体核验' }))
+    .toBeVisible()
+  await expect
+    .element(screen.getByRole('button', { name: '上一家' }))
+    .toBeDisabled()
+  await screen.getByRole('button', { name: '下一家' }).click()
+  await expect
+    .element(screen.getByRole('heading', { name: '乙科技候选主体' }))
+    .toBeVisible()
+  await screen.getByRole('button', { name: '上一家' }).click()
+  await screen.getByRole('button', { name: '关闭', exact: true }).click()
+  await expect
+    .element(screen.getByRole('button', { name: '查看并处理：甲科技候选主体' }))
+    .toHaveFocus()
+  await screen
+    .getByRole('button', { name: '查看并处理：甲科技候选主体' })
+    .click()
+  await screen.getByRole('combobox', { name: '本次决定' }).click()
+  await screen.getByRole('option', { name: '依据不足，跳过' }).click()
   await screen.getByRole('button', { name: '暂存并继续核验' }).click()
   await expect
     .element(screen.getByRole('heading', { name: '乙科技候选主体' }))
@@ -336,8 +357,8 @@ it('草稿恢复、连续核验、失败保留与成功清理，手机切换到�
   await expect
     .element(screen.getByRole('heading', { name: '乙科技候选主体' }))
     .toBeVisible()
-  choose().value = 'reject'
-  choose().dispatchEvent(new Event('change', { bubbles: true }))
+  await screen.getByRole('combobox', { name: '本次决定' }).click()
+  await screen.getByRole('option', { name: '拒绝本次匹配' }).click()
   await screen.getByRole('button', { name: '暂存并继续核验' }).click()
   await screen.getByRole('button', { name: '确认主体并生成报告' }).click()
   await expect
@@ -477,8 +498,15 @@ it('仅支持所选公司的证据可确认，历史只读不显示操作', asyn
     note: '',
   }
   const screen = await render(
-    <CandidateEditor detail={detail} editable save={save} initial={initial} />
+    <CandidateEditor detail={detail} editable save={save} />
   )
+  await expect
+    .element(screen.getByRole('combobox', { name: '本次决定' }))
+    .toHaveTextContent('请选择，不默认确认')
+  await screen.getByRole('combobox', { name: '本次决定' }).click()
+  await screen.getByRole('option', { name: '确认匹配已有公司' }).click()
+  await screen.getByRole('combobox', { name: '选择快照中的公司' }).click()
+  await screen.getByRole('option', { name: /甲公司/ }).click()
   await screen.getByRole('checkbox', { name: '选择证据 e1' }).click()
   await screen.getByRole('button', { name: '暂存并继续核验' }).click()
   expect(save).toHaveBeenCalledWith({ ...initial, evidence_ids: ['e1'] })
@@ -500,4 +528,115 @@ it('仅支持所选公司的证据可确认，历史只读不显示操作', asyn
     .element(screen.getByRole('combobox', { name: '本次决定' }))
     .not.toBeInTheDocument()
   await screen.unmount()
+})
+
+it('已匹配企业以居中弹窗切换，关闭后恢复列表焦点', async () => {
+  await page.viewport(390, 844)
+  vi.spyOn(researchApi, 'companyMatches').mockResolvedValue({
+    items: ['a', 'b'].map(candidate),
+    total: 2,
+    page: 1,
+    pageSize: 20,
+  })
+  const detail = vi
+    .spyOn(researchApi, 'company')
+    .mockRejectedValue(new Error('offline'))
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  })
+  const screen = await render(
+    <QueryClientProvider client={client}>
+      <CompanyMatches runId={run.id} />
+    </QueryClientProvider>
+  )
+  const trigger = screen.getByRole('button', {
+    name: '查看依据：甲科技候选主体',
+  })
+  await trigger.click()
+  await expect
+    .element(screen.getByRole('dialog', { name: '主体快照' }))
+    .toBeVisible()
+  await expect.element(screen.getByText('企业快照加载失败。')).toBeVisible()
+  await expect
+    .element(screen.getByRole('button', { name: '上一家' }))
+    .toBeDisabled()
+  await screen.getByRole('button', { name: '下一家' }).click()
+  await expect
+    .poll(() => detail.mock.calls[detail.mock.calls.length - 1]?.[1])
+    .toBe('b')
+  await expect
+    .element(screen.getByRole('button', { name: '下一家' }))
+    .toBeDisabled()
+  await screen.getByRole('button', { name: '上一家' }).click()
+  await expect.element(screen.getByText('1 / 2 家')).toBeVisible()
+  expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(390)
+  await page.screenshot({ path: '__screenshots__/company-dialog-mobile.png' })
+  await userEvent.keyboard('{Escape}')
+  await expect.element(trigger).toHaveFocus()
+  await expect.element(screen.getByRole('dialog')).not.toBeInTheDocument()
+  await screen.unmount()
+  client.clear()
+})
+
+it('企业切换跨页失败可重试，关闭期间完成请求不会重新打开详情', async () => {
+  const select = vi.fn()
+  const loadMore = vi
+    .fn<() => Promise<string[]>>()
+    .mockRejectedValueOnce(new Error('offline'))
+    .mockResolvedValueOnce(['a', 'b'])
+  function Navigation() {
+    const [selected, setSelected] = useState('a')
+    const [ids, setIds] = useState(['a'])
+    return (
+      <CompanyNavigation
+        ids={ids}
+        selected={selected}
+        total={2}
+        hasNextPage={ids.length < 2}
+        select={(id) => {
+          select(id)
+          setSelected(id)
+        }}
+        loadMore={async () => {
+          const next = await loadMore()
+          setIds(next)
+          return next
+        }}
+      />
+    )
+  }
+  const screen = await render(<Navigation />)
+  await screen.getByRole('button', { name: '下一家' }).click()
+  await expect.element(screen.getByRole('alert')).toHaveTextContent('加载失败')
+  expect(select).not.toHaveBeenCalled()
+  await screen.getByRole('button', { name: '下一家' }).click()
+  await expect.element(screen.getByText('2 / 2 家')).toBeVisible()
+  await expect
+    .element(screen.getByRole('button', { name: '下一家' }))
+    .toBeDisabled()
+  expect(select).toHaveBeenLastCalledWith('b')
+  await screen.unmount()
+  select.mockClear()
+  let finish!: (ids: string[]) => void
+  const pending = new Promise<string[]>((resolve) => {
+    finish = resolve
+  })
+  const closing = await render(
+    <CompanyNavigation
+      ids={['a']}
+      selected='a'
+      select={select}
+      total={2}
+      hasNextPage
+      loadMore={() => pending}
+    />
+  )
+  await closing.getByRole('button', { name: '下一家' }).click()
+  await expect
+    .element(closing.getByRole('button', { name: '加载中…' }))
+    .toBeDisabled()
+  await closing.unmount()
+  finish(['a', 'b'])
+  await pending
+  expect(select).not.toHaveBeenCalled()
 })

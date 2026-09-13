@@ -79,6 +79,7 @@ export function CompanyWorkspace({
       }) => (
         <div className='flex min-h-0 flex-1 flex-col gap-3'>
           {controls}
+          {detail}
           <ResearchPlanLayout
             variant='companies'
             footerActions={
@@ -87,7 +88,6 @@ export function CompanyWorkspace({
                 {report}
               </>
             }
-            detailKey={selected}
             autoFollow={!selected}
             directions={
               <Tabs
@@ -192,57 +192,55 @@ export function CompanyWorkspace({
               </Tabs>
             }
             conversation={
-              detail ?? (
-                <>
-                  {recordsError && (
-                    <p role='alert'>
-                      发现记录加载失败。
-                      <Button variant='link' onClick={retryRecords}>
-                        重试记录
-                      </Button>
-                    </p>
-                  )}
-                  <CompanyDiscoveryRecords events={events} active={active} />
-                  <section
-                    aria-label='企业信息采集进度'
-                    className='space-y-3 rounded-lg border bg-muted/20 p-4'
-                  >
-                    <div className='flex items-center gap-2 text-sm font-medium'>
-                      {run.hasCompanies ? (
-                        <Check
-                          className='size-4 text-primary'
-                          aria-hidden='true'
-                        />
-                      ) : active ? (
-                        <LoaderCircle
-                          className='size-4 text-primary motion-safe:animate-spin'
-                          aria-hidden='true'
-                        />
-                      ) : null}
-                      {run.hasCompanies
-                        ? '企业信息采集完成'
-                        : active
-                          ? '正在发现相关企业'
-                          : '企业发现进度'}
-                    </div>
-                    <p className='text-sm tabular-nums'>
-                      {completed != null
-                        ? `已查询 ${completed}${total != null ? ` / ${total}` : ''} 个主体`
-                        : run.hasCompanies
-                          ? '可查看已匹配企业，并核验需要确认的主体。'
-                          : '查询开始后，进度将在这里持续更新。'}
-                    </p>
-                    {completed != null && total != null && total > 0 && (
-                      <progress
-                        aria-label='企业采集完成进度'
-                        className='block h-2 w-full appearance-none overflow-hidden rounded-full [&::-moz-progress-bar]:bg-primary [&::-webkit-progress-bar]:bg-muted [&::-webkit-progress-value]:bg-primary'
-                        value={Math.min(completed, total)}
-                        max={total}
+              <>
+                {recordsError && (
+                  <p role='alert'>
+                    发现记录加载失败。
+                    <Button variant='link' onClick={retryRecords}>
+                      重试记录
+                    </Button>
+                  </p>
+                )}
+                <CompanyDiscoveryRecords events={events} active={active} />
+                <section
+                  aria-label='企业信息采集进度'
+                  className='space-y-3 rounded-lg border bg-muted/20 p-4'
+                >
+                  <div className='flex items-center gap-2 text-sm font-medium'>
+                    {run.hasCompanies ? (
+                      <Check
+                        className='size-4 text-primary'
+                        aria-hidden='true'
                       />
-                    )}
-                  </section>
-                </>
-              )
+                    ) : active ? (
+                      <LoaderCircle
+                        className='size-4 text-primary motion-safe:animate-spin'
+                        aria-hidden='true'
+                      />
+                    ) : null}
+                    {run.hasCompanies
+                      ? '企业信息采集完成'
+                      : active
+                        ? '正在发现相关企业'
+                        : '企业发现进度'}
+                  </div>
+                  <p className='text-sm tabular-nums'>
+                    {completed != null
+                      ? `已查询 ${completed}${total != null ? ` / ${total}` : ''} 个主体`
+                      : run.hasCompanies
+                        ? '可查看已匹配企业，并核验需要确认的主体。'
+                        : '查询开始后，进度将在这里持续更新。'}
+                  </p>
+                  {completed != null && total != null && total > 0 && (
+                    <progress
+                      aria-label='企业采集完成进度'
+                      className='block h-2 w-full appearance-none overflow-hidden rounded-full [&::-moz-progress-bar]:bg-primary [&::-webkit-progress-bar]:bg-muted [&::-webkit-progress-value]:bg-primary'
+                      value={Math.min(completed, total)}
+                      max={total}
+                    />
+                  )}
+                </section>
+              </>
             }
           />
         </div>

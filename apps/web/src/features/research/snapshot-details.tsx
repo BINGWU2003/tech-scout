@@ -20,16 +20,10 @@ import {
   DialogTitle,
   DialogDescription,
 } from '@/components/ui/dialog'
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-} from '@/components/ui/sheet'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { withLibraryDetail } from '@/features/library/library-navigation'
 import { researchApi } from '@/lib/research-api'
+import { CompanyDialog } from './company-dialog'
 import { SourceReference } from './shared'
 
 export function PatentSnapshot({
@@ -476,33 +470,32 @@ export function CompanySnapshot({
   companyId,
   citations,
   close,
+  navigation,
+  returnFocus,
 }: {
   runId: string
   companyId: string
   citations: string[]
   close: () => void
+  navigation?: ReactNode
+  returnFocus?: () => void
 }) {
   return (
-    <Sheet
-      open
-      onOpenChange={(open) => {
-        if (!open) close()
-      }}
+    <CompanyDialog
+      contentKey={companyId}
+      title='主体快照'
+      description='这里展示本次研究保存的依据，不随目录更新而改变。'
+      close={close}
+      navigation={navigation}
+      returnFocus={returnFocus}
     >
-      <SheetContent className='w-full overflow-y-auto p-6 sm:max-w-3xl'>
-        <SheetHeader>
-          <SheetTitle>主体快照</SheetTitle>
-          <SheetDescription>
-            这里展示本次研究保存的依据，不随目录更新而改变。
-          </SheetDescription>
-        </SheetHeader>
-        <CompanySnapshotDetails
-          runId={runId}
-          companyId={companyId}
-          citations={citations}
-        />
-      </SheetContent>
-    </Sheet>
+      <CompanySnapshotDetails
+        key={companyId}
+        runId={runId}
+        companyId={companyId}
+        citations={citations}
+      />
+    </CompanyDialog>
   )
 }
 

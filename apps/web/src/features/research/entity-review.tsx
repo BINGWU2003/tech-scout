@@ -6,15 +6,23 @@ import {
 } from '@tech-scout/contracts'
 import { createRequestId } from '@tech-scout/shared'
 import { ChevronRight } from 'lucide-react'
-import { useState, type ReactNode } from 'react'
+import { useRef, useState, type ReactNode } from 'react'
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { ContentSkeleton } from '@/components/loading'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { researchApi } from '@/lib/research-api'
 import { useAuthStore } from '@/stores/auth-store'
+import { CompanyDialog, CompanyNavigation } from './company-dialog'
 import { nextCompanyListPage } from './company-list-data'
 import { CompanyListPagination } from './company-list-pagination'
 import { loadReviewDraft } from './company-review-data'
@@ -63,41 +71,46 @@ export function CandidateEditor({
       {editable && (
         <div className='space-y-2'>
           <Label htmlFor='identity-choice'>本次决定</Label>
-          <select
-            id='identity-choice'
-            className='h-9 w-full rounded-md border bg-background px-3'
+          <Select
             value={choice}
-            onChange={(e) =>
-              setChoice(e.target.value as Decision['action'] | '')
-            }
+            onValueChange={(value) => setChoice(value as Decision['action'])}
           >
-            <option value=''>请选择，不默认确认</option>
-            <option value='confirm' disabled={detail.terminalExclusion}>
-              确认匹配已有公司
-            </option>
-            <option value='reject'>拒绝本次匹配</option>
-            <option value='skip'>依据不足，跳过</option>
-          </select>
+            <SelectTrigger id='identity-choice' className='w-full'>
+              <SelectValue placeholder='请选择，不默认确认' />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value='confirm' disabled={detail.terminalExclusion}>
+                确认匹配已有公司
+              </SelectItem>
+              <SelectItem value='reject'>拒绝本次匹配</SelectItem>
+              <SelectItem value='skip'>依据不足，跳过</SelectItem>
+            </SelectContent>
+          </Select>
           {choice === 'confirm' && (
             <>
               <Label htmlFor='identity-company'>选择快照中的公司</Label>
-              <select
-                id='identity-company'
-                className='h-9 w-full rounded-md border bg-background px-3 text-sm'
+              <Select
                 value={company}
-                onChange={(e) => {
-                  setCompany(e.target.value)
+                onValueChange={(value) => {
+                  setCompany(value)
                   setEvidence([])
                 }}
               >
-                <option value=''>请选择公司</option>
-                {detail.companyOptions.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name} · 企业注册地：{countryName(c.country)}
-                    {c.supportingEvidenceIds.length ? '（有支持依据）' : ''}
-                  </option>
-                ))}
-              </select>
+                <SelectTrigger
+                  id='identity-company'
+                  className='w-full min-w-0 [&_[data-slot=select-value]]:truncate'
+                >
+                  <SelectValue placeholder='请选择公司' />
+                </SelectTrigger>
+                <SelectContent className='max-w-[calc(100vw-2rem)]'>
+                  {detail.companyOptions.map((c) => (
+                    <SelectItem key={c.id} value={c.id} className='break-words'>
+                      {c.name} · 企业注册地：{countryName(c.country)}
+                      {c.supportingEvidenceIds.length ? '（有支持依据）' : ''}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               <p className='text-xs text-muted-foreground'>
                 请选择至少一条支持所选公司身份的依据。
               </p>
@@ -199,14 +212,12 @@ function CandidatePanel({
   editable,
   initial,
   save,
-  close,
 }: {
   runId: string
   id: string
   editable: boolean
   initial?: Decision
   save: (v: Decision) => void
-  close: () => void
 }) {
   const query = useQuery({
     queryKey: ['research', runId, 'candidate', id],
@@ -214,9 +225,6 @@ function CandidatePanel({
   })
   return (
     <section className='space-y-4'>
-      <Button size='sm' variant='ghost' onClick={close}>
-        返回发现记录
-      </Button>
       <h3 className='text-base font-semibold break-words'>
         {query.data?.name ?? '主体依据'}
       </h3>
@@ -266,6 +274,7 @@ export function EntityReview({
 }) {
   const editable = !readOnly && run.status === 'awaiting_entities'
   const [selected, setSelected] = useState<string | null>(null)
+  const trigger = useRef<HTMLButtonElement | null>(null)
   const userId = useAuthStore((state) => state.auth.user?.id)
   const storageKey = userId ? `research-review-v1:${userId}:${run.id}` : null
   const [draft, updateDraft] = useState<Record<string, Decision>>(() =>
@@ -353,7 +362,10 @@ export function EntityReview({
               aria-label={`${editable ? '查看并处理' : '查看依据'}：${u.name}`}
               aria-pressed={selected === u.id}
               disabled={busy}
-              onClick={() => setSelected(u.id)}
+              onClick={(event) => {
+                trigger.current = event.currentTarget
+                setSelected(u.id)
+              }}
               className='flex w-full items-center gap-3 px-2 py-3 text-left transition-colors hover:bg-muted/30 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring disabled:pointer-events-none disabled:opacity-50 aria-pressed:bg-primary/10'
             >
               <span className='min-w-0 flex-1 space-y-1.5'>
@@ -389,7 +401,7 @@ export function EntityReview({
           isFetchingNextPage={query.isFetchingNextPage}
           isFetchNextPageError={query.isFetchNextPageError}
           fetchNextPage={query.fetchNextPage}
-          paused={busy}
+          paused={busy || Boolean(selected)}
         />
       )}
     </div>
@@ -465,19 +477,47 @@ export function EntityReview({
     </>
   )
   const detail = selected ? (
-    <CandidatePanel
-      key={selected}
-      runId={run.id}
-      id={selected}
-      editable={editable && !busy}
-      initial={draft[selected]}
+    <CompanyDialog
+      contentKey={selected}
+      title='主体核验'
+      description='查看本次研究的身份依据与核验记录。'
       close={() => setSelected(null)}
-      save={(value) => {
-        const next = { ...draft, [value.candidate_id]: value }
-        setDraft(next)
-        setSelected(run.pendingCandidateIds.find((id) => !next[id]) ?? null)
-      }}
-    />
+      returnFocus={() => trigger.current?.focus({ preventScroll: true })}
+      navigation={
+        <CompanyNavigation
+          ids={
+            editable ? run.pendingCandidateIds : items.map((item) => item.id)
+          }
+          selected={selected}
+          select={setSelected}
+          total={editable ? run.pendingCandidateIds.length : total}
+          disabled={busy}
+          hasNextPage={!editable && query.hasNextPage}
+          loadMore={async () => {
+            const result = await query.fetchNextPage()
+            if (result.isFetchNextPageError) throw result.error
+            return (
+              result.data?.pages.flatMap((page) =>
+                page.items.map((item) => item.id)
+              ) ?? []
+            )
+          }}
+        />
+      }
+    >
+      <CandidatePanel
+        key={selected}
+        runId={run.id}
+        id={selected}
+        editable={editable && !busy}
+        initial={draft[selected]}
+        save={(value) => {
+          const next = { ...draft, [value.candidate_id]: value }
+          setDraft(next)
+          setSelected(run.pendingCandidateIds.find((id) => !next[id]) ?? null)
+        }}
+      />
+    </CompanyDialog>
   ) : null
   return renderWorkspace({
     list,

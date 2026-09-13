@@ -1,9 +1,10 @@
 import { useInfiniteQuery } from '@tanstack/react-query'
 import { ChevronRight } from 'lucide-react'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { ContentSkeleton } from '@/components/loading'
 import { Button } from '@/components/ui/button'
 import { researchApi } from '@/lib/research-api'
+import { CompanyNavigation } from './company-dialog'
 import { nextCompanyListPage } from './company-list-data'
 import { CompanyListPagination } from './company-list-pagination'
 import { countryName } from './labels'
@@ -11,6 +12,7 @@ import { CompanySnapshot } from './snapshot-details'
 
 export function CompanyMatches({ runId }: { runId: string }) {
   const [selected, setSelected] = useState<string | null>(null)
+  const trigger = useRef<HTMLButtonElement | null>(null)
   const query = useInfiniteQuery({
     queryKey: ['research', runId, 'company-matches', 'infinite'],
     initialPageParam: 1,
@@ -48,7 +50,10 @@ export function CompanyMatches({ runId }: { runId: string }) {
               type='button'
               aria-label={`查看依据：${company.name}`}
               aria-pressed={selected === company.id}
-              onClick={() => setSelected(company.id)}
+              onClick={(event) => {
+                trigger.current = event.currentTarget
+                setSelected(company.id)
+              }}
               className='flex w-full items-center gap-3 px-2 py-3 text-left transition-colors hover:bg-muted/30 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring aria-pressed:bg-primary/10'
             >
               <span className='min-w-0 flex-1 space-y-1.5'>
@@ -84,6 +89,25 @@ export function CompanyMatches({ runId }: { runId: string }) {
         <CompanySnapshot
           runId={runId}
           companyId={selected}
+          returnFocus={() => trigger.current?.focus({ preventScroll: true })}
+          navigation={
+            <CompanyNavigation
+              ids={items.map((item) => item.id)}
+              selected={selected}
+              select={setSelected}
+              total={total}
+              hasNextPage={query.hasNextPage}
+              loadMore={async () => {
+                const result = await query.fetchNextPage()
+                if (result.isFetchNextPageError) throw result.error
+                return (
+                  result.data?.pages.flatMap((page) =>
+                    page.items.map((item) => item.id)
+                  ) ?? []
+                )
+              }}
+            />
+          }
           citations={[]}
           close={() => setSelected(null)}
         />
