@@ -9,9 +9,10 @@ import { page } from 'vitest/browser'
 import { researchApi } from '@/lib/research-api'
 import { useAuthStore } from '@/stores/auth-store'
 import { CompanyDiscoveryRecords } from './company-discovery-records'
+import { CompanyMatches } from './company-matches'
 import { companyRecords, loadReviewDraft } from './company-review-data'
 import { CompanyWorkspace } from './company-workspace'
-import { CandidateEditor } from './entity-review'
+import { CandidateEditor, EntityReview } from './entity-review'
 import '@/styles/index.css'
 const now = '2026-09-12T01:00:00Z'
 const userId = crypto.randomUUID()
@@ -117,6 +118,87 @@ afterEach(() => {
   localStorage.removeItem(key)
   useAuthStore.getState().auth.reset()
 })
+
+it.each(['matched', 'review'] as const)(
+  '%s 列表触底追加，失败保留条目，重试后结束加载',
+  async (kind) => {
+    await page.viewport(390, 844)
+    const records = Array.from({ length: 21 }, (_, index) => ({
+      ...candidate(`company-${index}`),
+      name: `示例企业 ${index + 1}`,
+    }))
+    let failNextPage = true
+    const response = async (_run: string, number: number) => {
+      if (number === 2 && failNextPage) {
+        failNextPage = false
+        throw new Error('offline')
+      }
+      return {
+        items: records.slice((number - 1) * 20, number * 20),
+        total: records.length,
+        page: number,
+        pageSize: 20,
+      }
+    }
+    const matches = vi
+      .spyOn(researchApi, 'companyMatches')
+      .mockImplementation(response)
+    const candidates = vi
+      .spyOn(researchApi, 'candidates')
+      .mockImplementation(response)
+    const request = kind === 'matched' ? matches : candidates
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    })
+    const screen = await render(
+      <QueryClientProvider client={client}>
+        <div data-testid='company-scroll' className='h-[400px] overflow-y-auto'>
+          {kind === 'matched' ? (
+            <CompanyMatches runId={run.id} />
+          ) : (
+            <EntityReview
+              run={run}
+              busy={false}
+              onSubmit={async () => {}}
+              renderWorkspace={({ list }) => list}
+            />
+          )}
+        </div>
+      </QueryClientProvider>
+    )
+    await expect
+      .element(screen.getByText(records[0].name, { exact: true }))
+      .toBeVisible()
+    expect(request).toHaveBeenCalledTimes(1)
+    expect(screen.getByRole('listitem').all()).toHaveLength(20)
+    expect(
+      screen.getByRole('button', { name: /上一页|下一页|加载更多/ }).all()
+    ).toHaveLength(0)
+    const panel = screen.getByTestId('company-scroll').element() as HTMLElement
+    panel.scrollTop = panel.scrollHeight
+    await expect
+      .element(screen.getByText('加载失败，已保留现有列表。'))
+      .toBeVisible()
+    expect(request).toHaveBeenCalledTimes(2)
+    expect(screen.getByRole('listitem').all()).toHaveLength(20)
+    const previousScroll = panel.scrollTop
+    await screen.getByRole('button', { name: '重试加载' }).click()
+    await expect.poll(() => screen.getByRole('listitem').all().length).toBe(21)
+    expect(panel.scrollTop).toBe(previousScroll)
+    panel.scrollTop = panel.scrollHeight
+    await expect.element(screen.getByText('已全部加载')).toBeVisible()
+    await expect.element(screen.getByText('已加载 21 / 21 项')).toBeVisible()
+    expect(request).toHaveBeenCalledTimes(3)
+    expect(request.mock.calls.map((call) => call[1])).toEqual([1, 2, 2])
+    expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(390)
+    await page.screenshot({
+      path: `__screenshots__/company-${kind}-infinite-mobile.png`,
+    })
+    await screen.unmount()
+    client.clear()
+  }
+)
+
 it('草稿恢复、连续核验、失败保留与成功清理，手机切换到依据面板', async () => {
   await page.viewport(1280, 900)
   useAuthStore.getState().auth.setSession({
@@ -145,7 +227,7 @@ it('草稿恢复、连续核验、失败保留与成功清理，手机切换到�
         patentCount: 36,
       },
     ],
-    total: 30,
+    total: 1,
     page: 1,
     pageSize: 20,
   })

@@ -9,6 +9,10 @@ from .models import Budget, ResearchError, RunView
 
 DDL = """
 CREATE SCHEMA IF NOT EXISTS agent_runtime;
+-- Keep only the identifier so delayed start requests cannot recreate deleted work.
+CREATE TABLE IF NOT EXISTS agent_runtime.deleted_run (
+    run_id uuid PRIMARY KEY
+);
 CREATE TABLE IF NOT EXISTS agent_runtime.research_run (
     run_id uuid PRIMARY KEY,
     question text NOT NULL,
@@ -52,6 +56,15 @@ class Store:
             max_cny=self.config.research_max_cny,
         ).model_dump()
         async with self.pool.connection() as conn, conn.transaction():
+            await conn.execute(
+                "SELECT pg_advisory_xact_lock(hashtextextended(%s, 2))",
+                (str(run_id),),
+            )
+            deleted = await conn.execute(
+                "SELECT 1 FROM agent_runtime.deleted_run WHERE run_id=%s", (run_id,)
+            )
+            if await deleted.fetchone():
+                raise ResearchError("RUN_NOT_FOUND", "研究运行已删除")
             await conn.execute(
                 "INSERT INTO agent_runtime.research_run"
                 "(run_id, question, budget, artifacts) "
@@ -97,6 +110,42 @@ class Store:
         async with self.pool.connection() as conn:
             return self.view(await self.row(conn, run_id))
 
+    async def begin_delete(self, run_id):
+        async with self.pool.connection() as conn, conn.transaction():
+            await conn.execute(
+                "SELECT pg_advisory_xact_lock(hashtextextended(%s, 2))",
+                (str(run_id),),
+            )
+            await conn.execute(
+                "INSERT INTO agent_runtime.deleted_run VALUES (%s) "
+                "ON CONFLICT DO NOTHING",
+                (run_id,),
+            )
+            await conn.execute(
+                "UPDATE agent_runtime.research_run SET status='cancelled',lease=NULL,"
+                "command=NULL WHERE run_id=%s",
+                (run_id,),
+            )
+
+    async def delete(self, run_id, acquisition_store):
+        # Wait for checkpoint writers, including workers in another process, to exit.
+        async with self.pool.connection() as conn, conn.transaction():
+            await conn.execute("SET LOCAL lock_timeout = '10s'")
+            await conn.execute(
+                "SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))",
+                (str(run_id),),
+            )
+            await acquisition_store.delete(run_id)
+            for table in ("checkpoint_writes", "checkpoint_blobs", "checkpoints"):
+                await conn.execute(
+                    f"DELETE FROM agent_runtime.{table} WHERE thread_id=%s",
+                    (str(run_id),),
+                )
+            for table in ("research_event", "research_action", "research_run"):
+                await conn.execute(
+                    f"DELETE FROM agent_runtime.{table} WHERE run_id=%s", (run_id,)
+                )
+
     async def publish(self, run_id, *, lease=None, kind="state", **changes):
         async with self.pool.connection() as conn, conn.transaction():
             row = await self.row(conn, run_id, lock=True)
@@ -133,7 +182,12 @@ class Store:
 
     async def claim(self, run_id, lease):
         async with self.pool.connection() as conn, conn.transaction():
-            row = await self.row(conn, run_id, lock=True)
+            try:
+                row = await self.row(conn, run_id, lock=True)
+            except ResearchError as error:
+                if error.code == "RUN_NOT_FOUND":
+                    return None
+                raise
             if row["status"] != "queued":
                 return None
             await conn.execute(

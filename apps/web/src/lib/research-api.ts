@@ -32,6 +32,12 @@ export const researchApi = {
     ),
   projects: () =>
     apiRequest('research/projects', z.array(researchProjectSummarySchema)),
+  deleteProject: (id: string) =>
+    apiRequest(
+      `research/projects/${id}`,
+      z.object({ deleted: z.literal(true), runIds: z.array(z.uuid()) }),
+      { method: 'DELETE', retry: 0, timeout: 125000 }
+    ),
   project: (id: string) =>
     apiRequest(`research/projects/${id}`, researchProjectSchema),
   create: (input: ResearchCreate) =>

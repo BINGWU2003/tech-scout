@@ -338,6 +338,46 @@ export type StartRunResponses = {
 
 export type StartRunResponse = StartRunResponses[keyof StartRunResponses];
 
+export type DeleteRunData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string;
+    };
+    path: {
+        /**
+         * Run Id
+         */
+        run_id: string;
+    };
+    query?: never;
+    url: '/runs/{run_id}';
+};
+
+export type DeleteRunErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DeleteRunError = DeleteRunErrors[keyof DeleteRunErrors];
+
+export type DeleteRunResponses = {
+    /**
+     * Response Delete Run
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: boolean;
+    };
+};
+
+export type DeleteRunResponse = DeleteRunResponses[keyof DeleteRunResponses];
+
 export type GetRunData = {
     body?: never;
     headers?: {

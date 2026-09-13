@@ -2,7 +2,7 @@
 
 import { client } from './client.gen.js';
 import type { Client, ClientMeta, Options as Options2, RequestResult, TDataShape } from './client/index.js';
-import type { ActOnRunData, ActOnRunErrors, ActOnRunResponses, GetRunData, GetRunErrors, GetRunResponses, HealthData, HealthErrors, HealthResponses, ListEventsData, ListEventsErrors, ListEventsResponses, StartRunData, StartRunErrors, StartRunResponses, StreamEventsData, StreamEventsErrors, StreamEventsResponses } from './types.gen.js';
+import type { ActOnRunData, ActOnRunErrors, ActOnRunResponses, DeleteRunData, DeleteRunErrors, DeleteRunResponses, GetRunData, GetRunErrors, GetRunResponses, HealthData, HealthErrors, HealthResponses, ListEventsData, ListEventsErrors, ListEventsResponses, StartRunData, StartRunErrors, StartRunResponses, StreamEventsData, StreamEventsErrors, StreamEventsResponses } from './types.gen.js';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -34,6 +34,11 @@ export const startRun = <ThrowOnError extends boolean = false>(options: Options<
         ...options.headers
     }
 });
+
+/**
+ * Delete Run
+ */
+export const deleteRun = <ThrowOnError extends boolean = false>(options: Options<DeleteRunData, ThrowOnError>): RequestResult<DeleteRunResponses, DeleteRunErrors, ThrowOnError> => (options.client ?? client).delete<DeleteRunResponses, DeleteRunErrors, ThrowOnError>({ url: '/runs/{run_id}', ...options });
 
 /**
  * Get Run

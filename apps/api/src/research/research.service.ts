@@ -185,6 +185,27 @@ export class ResearchService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
+  async deleteProject(userId: string, projectId: string) {
+    const runIds = await this.prisma.$transaction(
+      async (tx) => {
+        // Use the same lock as new rounds/actions so deletion includes every run.
+        await tx.$queryRaw`SELECT id FROM app.research_project WHERE id = ${projectId}::uuid AND user_id = ${userId}::uuid FOR UPDATE`
+        const project = await tx.researchProject.findFirst({
+          where: { id: projectId, userId },
+          include: { runs: { select: { id: true } } },
+        })
+        // Idempotent retries also cover a lost successful response; disclose no ownership.
+        if (!project) return []
+        for (const run of project.runs) await this.intelligence.delete(run.id)
+        await tx.researchProject.delete({ where: { id: projectId } })
+        return project.runs.map((run) => run.id)
+      },
+      { timeout: 120000 }
+    )
+    for (const runId of runIds) this.streams.get(runId)?.abort()
+    return { deleted: true as const, runIds }
+  }
+
   async newRun(
     userId: string,
     projectId: string,
@@ -434,6 +455,11 @@ export class ResearchService implements OnModuleInit, OnModuleDestroy {
     if (event.sequence !== state.sequence)
       throw new Error('Event sequence mismatch')
     await this.prisma.$transaction(async (tx) => {
+      // Fence late stream events against the cascading project deletion.
+      const runs = await tx.$queryRaw<
+        { id: string }[]
+      >`SELECT id FROM app.research_run WHERE id = ${state.run_id}::uuid FOR KEY SHARE`
+      if (!runs.length) return
       await tx.researchEvent.upsert({
         where: {
           runId_sequence: { runId: state.run_id, sequence: event.sequence },
@@ -473,13 +499,13 @@ export class ResearchService implements OnModuleInit, OnModuleDestroy {
     try {
       const state = await this.intelligence.action(runId, payload)
       await this.save(state)
-      await this.prisma.researchCommand.update({
-        where: { id },
+      await this.prisma.researchCommand.updateMany({
+        where: { id, status: 'pending' },
         data: { status: 'sent' },
       })
     } catch (error) {
       if (error instanceof HttpException && error.getStatus() === 409) {
-        await this.prisma.researchCommand.update({
+        await this.prisma.researchCommand.updateMany({
           where: { id },
           data: { status: 'rejected', error: json(error.getResponse()) },
         })
@@ -512,9 +538,10 @@ export class ResearchService implements OnModuleInit, OnModuleDestroy {
         where: { runId: run.id },
         orderBy: { sequence: 'desc' },
       })
-      const current = await this.prisma.researchRun.findUniqueOrThrow({
+      const current = await this.prisma.researchRun.findUnique({
         where: { id: run.id },
       })
+      if (!current) return
       if (
         !(
           lastEvent?.kind === 'execution_stopped' &&

@@ -2,7 +2,9 @@ import {
   Body,
   BadRequestException,
   Controller,
+  Delete,
   Get,
+  NotFoundException,
   Param,
   Post,
   Query,
@@ -52,6 +54,18 @@ export class ResearchController {
   @ZodResponse(z.array(researchProjectSummarySchema))
   list(@CurrentAuth() auth: AuthenticatedRequest['auth']) {
     return this.research.list(auth.user.id)
+  }
+
+  @Delete('projects/:projectId')
+  @ZodResponse(
+    z.object({ deleted: z.literal(true), runIds: z.array(z.uuid()) })
+  )
+  @UseGuards(CsrfGuard)
+  deleteProject(
+    @CurrentAuth() auth: AuthenticatedRequest['auth'],
+    @Param('projectId', uuid) id: string
+  ) {
+    return this.research.deleteProject(auth.user.id, id)
   }
 
   @Get('projects/:projectId')
@@ -145,6 +159,8 @@ export class ResearchController {
         if (!events.length) response.write(': keepalive\n\n')
         await new Promise((resolve) => setTimeout(resolve, 1000))
       }
+    } catch (error) {
+      if (!(error instanceof NotFoundException)) throw error
     } finally {
       response.end()
     }

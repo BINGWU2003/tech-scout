@@ -3,6 +3,7 @@ import {
   Body,
   Controller,
   Get,
+  NotFoundException,
   Param,
   Post,
   Query,
@@ -236,6 +237,8 @@ export class ResearchViewController {
         await new Promise((resolve) => setTimeout(resolve, 1500))
         if (!closed) events = await this.view.events(auth.user.id, id, after)
       }
+    } catch (error) {
+      if (!(error instanceof NotFoundException)) throw error
     } finally {
       response.end()
     }

@@ -47,6 +47,7 @@ class Runtime:
         task = self.tasks.get(run_id)
         if task:
             task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
 
     async def execute(self, run_id):
         # A session lock fences checkpoint writers even during lease handover.

@@ -7,6 +7,7 @@ import { researchEventSchema, researchStateSchema } from '@tech-scout/contracts'
 import { createClient } from '../generated/intelligence/client/index.js'
 import {
   actOnRun,
+  deleteRun,
   getRun,
   listEvents,
   startRun,
@@ -86,6 +87,12 @@ export class IntelligenceClient {
       await this.unwrap(() =>
         getRun({ ...this.options(), path: { run_id: runId } })
       )
+    )
+  }
+
+  async delete(runId: string) {
+    return this.unwrap(() =>
+      deleteRun({ ...this.options(), path: { run_id: runId } })
     )
   }
 

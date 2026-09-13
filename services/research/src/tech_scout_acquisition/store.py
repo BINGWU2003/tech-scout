@@ -29,7 +29,8 @@ class Store:
     async def migrate(self):
         async with self.pool.connection() as conn:
             await conn.execute(
-                Path(__file__).with_name("schema.sql").read_text(encoding="utf-8")
+                Path(__file__).with_name("schema.sql").read_text(encoding="utf-8"),
+                prepare=False,
             )
             jobs = await (
                 await conn.execute(
@@ -90,6 +91,25 @@ class Store:
                 "SELECT * FROM ingestion.job WHERE run_id=%s", (run_id,)
             )
             return await cur.fetchone()
+
+    async def delete(self, run_id):
+        async with self.pool.connection() as conn, conn.transaction():
+            await conn.execute("SET LOCAL lock_timeout = '10s'")
+            await conn.execute(
+                "SELECT pg_advisory_xact_lock(hashtextextended(%s, 1))",
+                (str(run_id),),
+            )
+            await conn.execute(
+                "DELETE FROM catalog_v2.release WHERE release_id=%s", (run_id,)
+            )
+            for table in (
+                "catalog_v2.record_source",
+                "catalog_v2.run_projection",
+                "ingestion.item",
+                "ingestion.event",
+                "ingestion.job",
+            ):
+                await conn.execute(f"DELETE FROM {table} WHERE run_id=%s", (run_id,))
 
     async def update(self, run_id, status, progress=None, error=None):
         async with self.pool.connection() as conn:

@@ -36,7 +36,9 @@ class Worker:
                     row = await cur.fetchone()
                     if row:
                         self.active_run = row["run_id"]
-                        self.active = asyncio.create_task(self.execute(row["run_id"]))
+                        self.active = asyncio.create_task(
+                            self.guarded_execute(row["run_id"])
+                        )
                         await asyncio.gather(self.active, return_exceptions=True)
                         self.active = None
                         self.active_run = None
@@ -48,6 +50,20 @@ class Worker:
         await self.store.checkpoint(
             run_id, {"stage": stage, "completed": count, "total": total}
         )
+
+    async def guarded_execute(self, run_id):
+        async with self.store.pool.connection() as guard:
+            await guard.execute(
+                "SELECT pg_advisory_lock(hashtextextended(%s, 1))", (str(run_id),)
+            )
+            try:
+                job = await self.store.get(run_id)
+                if job and job["status"] in {"queued", "running"}:
+                    await self.execute(run_id)
+            finally:
+                await guard.execute(
+                    "SELECT pg_advisory_unlock(hashtextextended(%s, 1))", (str(run_id),)
+                )
 
     async def execute(self, run_id):
         job = await self.store.get(run_id)

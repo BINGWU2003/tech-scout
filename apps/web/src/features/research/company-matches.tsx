@@ -1,32 +1,31 @@
-import { useQuery } from '@tanstack/react-query'
+import { useInfiniteQuery } from '@tanstack/react-query'
 import { ChevronRight } from 'lucide-react'
 import { useState } from 'react'
-import { ContentSkeleton, LoadingRegion } from '@/components/loading'
+import { ContentSkeleton } from '@/components/loading'
 import { Button } from '@/components/ui/button'
 import { researchApi } from '@/lib/research-api'
+import { nextCompanyListPage } from './company-list-data'
+import { CompanyListPagination } from './company-list-pagination'
 import { countryName } from './labels'
-import { Pager } from './shared'
 import { CompanySnapshot } from './snapshot-details'
 
 export function CompanyMatches({ runId }: { runId: string }) {
-  const [page, setPage] = useState(1)
   const [selected, setSelected] = useState<string | null>(null)
-  const query = useQuery({
-    placeholderData: (previous, previousQuery) =>
-      previousQuery?.queryKey[1] === runId ? previous : undefined,
-    queryKey: ['research', runId, 'company-matches', page],
-    queryFn: () => researchApi.companyMatches(runId, page),
+  const query = useInfiniteQuery({
+    queryKey: ['research', runId, 'company-matches', 'infinite'],
+    initialPageParam: 1,
+    queryFn: ({ pageParam }) => researchApi.companyMatches(runId, pageParam),
+    getNextPageParam: nextCompanyListPage,
   })
+  const items = query.data?.pages.flatMap((page) => page.items) ?? []
+  const total = query.data?.pages[0].total ?? 0
   return (
-    <LoadingRegion
-      busy={query.isPlaceholderData && query.isFetching}
-      className='flex flex-col gap-4'
-    >
+    <div className='flex flex-col gap-4'>
       <h3 className='text-sm font-semibold'>
-        已匹配企业{query.data ? ` · ${query.data.total} 家` : ''}
+        已匹配企业{query.data ? ` · ${total} 家` : ''}
       </h3>
 
-      {query.isError && (
+      {query.isError && !query.isFetchNextPageError && (
         <p role='alert'>
           企业列表加载失败。
           <Button variant='link' onClick={() => void query.refetch()}>
@@ -37,26 +36,26 @@ export function CompanyMatches({ runId }: { runId: string }) {
       {query.isPending && (
         <ContentSkeleton variant='list' label='正在读取匹配企业…' />
       )}
-      {query.data?.total === 0 && (
+      {query.data && total === 0 && (
         <p className='rounded-xl border border-dashed p-6 text-sm text-muted-foreground'>
           尚无已匹配企业，可切换到核验列表处理候选主体。
         </p>
       )}
-      <ul className='divide-y'>
-        {query.data?.items.map((company) => (
+      <ul aria-label='已匹配企业列表' className='divide-y border-y'>
+        {items.map((company) => (
           <li key={company.id}>
             <button
               type='button'
               aria-label={`查看依据：${company.name}`}
               aria-pressed={selected === company.id}
               onClick={() => setSelected(company.id)}
-              className='flex w-full items-center gap-3 rounded-md px-3 py-3 text-left transition-colors hover:bg-muted/50 focus-visible:outline-2 focus-visible:outline-ring aria-pressed:bg-primary/10'
+              className='flex w-full items-center gap-3 px-2 py-3 text-left transition-colors hover:bg-muted/30 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring aria-pressed:bg-primary/10'
             >
-              <span className='min-w-0 flex-1 space-y-1'>
-                <span className='block text-sm font-medium break-words'>
+              <span className='min-w-0 flex-1 space-y-1.5'>
+                <span className='block text-sm leading-6 font-medium break-words'>
                   {company.name}
                 </span>
-                <span className='block text-xs text-muted-foreground'>
+                <span className='block text-xs leading-5 break-words text-muted-foreground'>
                   {countryName(company.country)} · {company.patentCount}{' '}
                   条相关专利
                 </span>
@@ -69,8 +68,17 @@ export function CompanyMatches({ runId }: { runId: string }) {
           </li>
         ))}
       </ul>
-      {query.data && query.data.total > 0 && (
-        <Pager page={page} total={query.data.total} onChange={setPage} />
+      {query.data && total > 0 && (
+        <CompanyListPagination
+          loaded={items.length}
+          total={total}
+          hasNextPage={query.hasNextPage}
+          isFetching={query.isFetching}
+          isFetchingNextPage={query.isFetchingNextPage}
+          isFetchNextPageError={query.isFetchNextPageError}
+          fetchNextPage={query.fetchNextPage}
+          paused={Boolean(selected)}
+        />
       )}
       {selected && (
         <CompanySnapshot
@@ -80,6 +88,6 @@ export function CompanyMatches({ runId }: { runId: string }) {
           close={() => setSelected(null)}
         />
       )}
-    </LoadingRegion>
+    </div>
   )
 }

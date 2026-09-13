@@ -2,8 +2,11 @@ import type { ResearchWorkspace } from '@tech-scout/contracts'
 import { useState } from 'react'
 import { expect, it, vi } from 'vitest'
 import { render } from 'vitest-browser-react'
+import { page } from 'vitest/browser'
 import { SelectedPlanEditor } from './plan-editor'
 import { ProjectConversation } from './project-conversation'
+import { ResearchPlanLayout } from './research-plan-layout'
+import '@/styles/index.css'
 
 const direction = (id: string) => ({
   domain_id: id,
@@ -32,6 +35,87 @@ const initial: ResearchWorkspace = {
   resultOutdated: false,
   blocked: false,
 }
+
+it.each([1280, 390])(
+  '宽度 %i 时研究对话回到底部按钮按距离显示，回看不受新消息打断',
+  async (width) => {
+    await page.viewport(width, 844)
+    const messages: ResearchWorkspace['messages'] = Array.from(
+      { length: 25 },
+      (_, index) => ({
+        id: `message-${index}`,
+        runId: null,
+        role: 'assistant',
+        reasoning: null,
+        answer: null,
+        pending: false,
+        text: `研究建议 ${index + 1}`,
+        createdAt: '2026-09-12T00:00:00Z',
+        plan: null,
+        recommendation: false,
+        proposal: false,
+        applied: false,
+        outdated: false,
+        hasResult: false,
+      })
+    )
+    const ui = (currentMessages: typeof messages) => (
+      <div className='flex h-[700px] flex-col p-4'>
+        <ResearchPlanLayout
+          directions={<p>已选方向</p>}
+          composer={<textarea aria-label='研究需求' />}
+          conversation={
+            <ProjectConversation
+              workspace={{ ...initial, messages: currentMessages }}
+              projectId='project'
+              busy={false}
+              selectedPlan={plan}
+              onApply={() => {}}
+              onAdd={() => {}}
+            />
+          }
+        />
+      </div>
+    )
+    const screen = await render(ui(messages))
+    const last = screen.getByText('研究建议 25', { exact: true })
+    await expect.element(last).toBeVisible()
+    const viewport = last.element().closest('[aria-label="研究对话记录"]')!
+      .parentElement!.parentElement!
+    const button = screen.getByRole('button', { name: '回到底部' })
+    expect(button.all()).toHaveLength(0)
+    viewport.scrollTop = viewport.scrollHeight - viewport.clientHeight - 100
+    viewport.dispatchEvent(new Event('scroll', { bubbles: true }))
+    expect(button.all()).toHaveLength(0)
+    viewport.scrollTop = 0
+    viewport.dispatchEvent(new Event('scroll', { bubbles: true }))
+    await expect.element(button).toBeVisible()
+    await screen.rerender(
+      ui([...messages, { ...messages[0], id: 'new', text: '最新研究建议' }])
+    )
+    expect(viewport.scrollTop).toBe(0)
+    await expect.element(button).toBeVisible()
+    expect(button.element().getBoundingClientRect().bottom).toBeLessThan(
+      screen
+        .getByRole('textbox', { name: '研究需求' })
+        .element()
+        .getBoundingClientRect().top
+    )
+    await page.screenshot({
+      path: `__screenshots__/project-scroll-to-bottom-${width}.png`,
+    })
+    await button.click()
+    await expect
+      .element(screen.getByText('最新研究建议', { exact: true }))
+      .toBeVisible()
+    await expect.poll(() => button.all().length).toBe(0)
+    await expect
+      .element(screen.getByRole('textbox', { name: '研究需求' }))
+      .toBeVisible()
+    expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(width)
+    await screen.unmount()
+  }
+)
 
 it.each([false, true])(
   '已开始研究后锁定编辑和重复启动（完成：%s）',

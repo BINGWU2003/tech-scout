@@ -1,4 +1,5 @@
 import {
+  ArrowDown,
   ChartNoAxesCombined,
   GripVertical,
   FileText,
@@ -35,6 +36,7 @@ export function ResearchPlanLayout({
 }) {
   const mobile = useIsMobile()
   const patents = variant === 'patents'
+  const canScrollToBottom = patents || variant === 'plan'
   const companies = variant === 'companies'
   const report = variant === 'report'
   const results = patents || companies || report
@@ -70,14 +72,21 @@ export function ResearchPlanLayout({
   const viewport = useRef<HTMLDivElement>(null)
   const messages = useRef<HTMLDivElement>(null)
   const following = useRef(true)
+  const [showScrollToBottom, setShowScrollToBottom] = useState(false)
   useEffect(() => {
     const observer = new ResizeObserver(() => {
       if (autoFollow && following.current && viewport.current)
         viewport.current.scrollTop = viewport.current.scrollHeight
+      const el = viewport.current
+      if (canScrollToBottom && el)
+        setShowScrollToBottom(
+          el.scrollHeight - el.scrollTop - el.clientHeight > 200
+        )
     })
     if (messages.current) observer.observe(messages.current)
+    if (viewport.current) observer.observe(viewport.current)
     return () => observer.disconnect()
-  }, [mobile, autoFollow])
+  }, [mobile, autoFollow, canScrollToBottom])
   useEffect(() => {
     if (detailKey) {
       viewport.current?.scrollTo({ top: 0 })
@@ -118,18 +127,38 @@ export function ResearchPlanLayout({
           </span>
         )}
       </div>
-      <div
-        ref={viewport}
-        className='min-h-0 flex-1 overflow-y-auto overscroll-contain'
-        onScroll={(event) => {
-          const el = event.currentTarget
-          following.current =
-            el.scrollHeight - el.scrollTop - el.clientHeight < 100
-        }}
-      >
-        <div ref={messages} className='space-y-5 p-4'>
-          {conversation}
+      <div className='relative min-h-0 flex-1'>
+        <div
+          ref={viewport}
+          className='h-full overflow-y-auto overscroll-contain'
+          onScroll={(event) => {
+            const el = event.currentTarget
+            const distance = el.scrollHeight - el.scrollTop - el.clientHeight
+            following.current = distance < 100
+            if (canScrollToBottom) setShowScrollToBottom(distance > 200)
+          }}
+        >
+          <div ref={messages} className='space-y-5 p-4'>
+            {conversation}
+          </div>
         </div>
+        {canScrollToBottom && showScrollToBottom && (
+          <Button
+            size='sm'
+            variant='outline'
+            className='absolute right-4 bottom-4 z-10 rounded-full shadow-md'
+            onClick={() => {
+              const el = viewport.current
+              if (!el) return
+              following.current = true
+              el.scrollTo({ top: el.scrollHeight, behavior: 'instant' })
+              setShowScrollToBottom(false)
+            }}
+          >
+            <ArrowDown className='size-4' aria-hidden='true' />
+            回到底部
+          </Button>
+        )}
       </div>
       {composer && (
         <div

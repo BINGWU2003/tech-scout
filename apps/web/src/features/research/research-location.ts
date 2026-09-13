@@ -2,6 +2,18 @@ import { researchStages, type ResearchStage } from './research-stage'
 
 type ResearchLocation = { stage: ResearchStage; runId: string }
 
+export function clearResearchLocation(
+  userId: string | undefined,
+  projectId: string
+) {
+  if (!userId) return
+  try {
+    localStorage.removeItem(storageKey(userId, projectId))
+  } catch {
+    // 存储不可用不应阻止删除任务。
+  }
+}
+
 function storageKey(userId: string, projectId: string) {
   return `research-location-v1:${userId}:${projectId}`
 }

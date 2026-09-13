@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query'
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import {
   type ResearchAction,
   type ResearchCandidateDetailView,
@@ -8,15 +8,18 @@ import { createRequestId } from '@tech-scout/shared'
 import { ChevronRight } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
 import { ConfirmDialog } from '@/components/confirm-dialog'
-import { ContentSkeleton, LoadingRegion } from '@/components/loading'
+import { ContentSkeleton } from '@/components/loading'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { researchApi } from '@/lib/research-api'
 import { useAuthStore } from '@/stores/auth-store'
+import { nextCompanyListPage } from './company-list-data'
+import { CompanyListPagination } from './company-list-pagination'
 import { loadReviewDraft } from './company-review-data'
 import { candidateCountryLabel, countryName, decisionLabels } from './labels'
-import { Pager, SourceReference } from './shared'
+import { SourceReference } from './shared'
 
 type Decision = ResearchAction['decisions'][number]
 export function CandidateEditor({
@@ -262,8 +265,7 @@ export function EntityReview({
   }) => ReactNode
 }) {
   const editable = !readOnly && run.status === 'awaiting_entities'
-  const [page, setPage] = useState(1),
-    [selected, setSelected] = useState<string | null>(null)
+  const [selected, setSelected] = useState<string | null>(null)
   const userId = useAuthStore((state) => state.auth.user?.id)
   const storageKey = userId ? `research-review-v1:${userId}:${run.id}` : null
   const [draft, updateDraft] = useState<Record<string, Decision>>(() =>
@@ -288,16 +290,16 @@ export function EntityReview({
     }
   }
   const [skipConfirm, setSkipConfirm] = useState(false)
-  const query = useQuery({
-    placeholderData: (previous, previousQuery) =>
-      previousQuery?.queryKey[1] === run.id &&
-      previousQuery.queryKey[4] === editable
-        ? previous
-        : undefined,
-    queryKey: ['research', run.id, 'candidates', page, editable],
-    queryFn: () => researchApi.candidates(run.id, page, editable),
+  const query = useInfiniteQuery({
+    queryKey: ['research', run.id, 'candidates', 'infinite', editable],
+    initialPageParam: 1,
+    queryFn: ({ pageParam }) =>
+      researchApi.candidates(run.id, pageParam, editable),
+    getNextPageParam: nextCompanyListPage,
     enabled: run.hasCompanies,
   })
+  const items = query.data?.pages.flatMap((page) => page.items) ?? []
+  const total = query.data?.pages[0].total ?? 0
   const remaining = run.pendingCandidateIds.filter((id) => !draft[id])
   const [submitError, setSubmitError] = useState(false)
   const submit = async () => {
@@ -312,10 +314,7 @@ export function EntityReview({
       .catch(() => setSubmitError(true))
   }
   const list = (
-    <LoadingRegion
-      busy={query.isPlaceholderData && query.isFetching}
-      className='flex flex-col gap-4'
-    >
+    <div className='flex flex-col gap-4'>
       <div>
         <h3 className='text-sm font-semibold'>
           {editable ? '确认待核验主体' : '未核验主体与处理记录'}
@@ -332,7 +331,7 @@ export function EntityReview({
           本地保存失败，当前决定仅保留在本页，请勿刷新或离开。
         </p>
       )}
-      {query.isError && (
+      {query.isError && !query.isFetchNextPageError && (
         <p role='alert'>
           主体列表加载失败。
           <Button variant='link' onClick={() => void query.refetch()}>
@@ -343,11 +342,11 @@ export function EntityReview({
       {query.isPending && (
         <ContentSkeleton variant='list' label='读取主体列表…' />
       )}
-      {query.data?.total === 0 && (
+      {query.data && total === 0 && (
         <p className='text-sm text-muted-foreground'>暂无需要核验的主体。</p>
       )}
-      <ul className='divide-y'>
-        {query.data?.items.map((u) => (
+      <ul aria-label='待核验主体与处理记录列表' className='divide-y border-y'>
+        {items.map((u) => (
           <li key={u.id}>
             <button
               type='button'
@@ -355,22 +354,22 @@ export function EntityReview({
               aria-pressed={selected === u.id}
               disabled={busy}
               onClick={() => setSelected(u.id)}
-              className='flex w-full items-center gap-3 rounded-md px-3 py-3 text-left transition-colors hover:bg-muted/50 focus-visible:outline-2 focus-visible:outline-ring disabled:pointer-events-none disabled:opacity-50 aria-pressed:bg-primary/10'
+              className='flex w-full items-center gap-3 px-2 py-3 text-left transition-colors hover:bg-muted/30 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring disabled:pointer-events-none disabled:opacity-50 aria-pressed:bg-primary/10'
             >
-              <span className='min-w-0 flex-1 space-y-1'>
-                <span className='block text-sm font-medium break-words'>
-                  {u.name}
+              <span className='min-w-0 flex-1 space-y-1.5'>
+                <span className='flex flex-wrap items-start gap-x-2 gap-y-1'>
+                  <span className='min-w-0 text-sm leading-6 font-medium break-words'>
+                    {u.name}
+                  </span>
+                  <Badge variant='secondary' className='mt-1 shrink-0'>
+                    {draft[u.id]
+                      ? `已暂存：${decisionLabels[draft[u.id].action]}`
+                      : (decisionLabels[u.decision ?? u.status] ?? '待核验')}
+                  </Badge>
                 </span>
-                <span className='block text-xs text-muted-foreground'>
-                  中国专利 · 关联 {u.patentCount} 条
-                </span>
-                <span className='block text-xs text-muted-foreground'>
+                <span className='block text-xs leading-5 break-words text-muted-foreground'>
+                  中国专利 · 关联 {u.patentCount} 条 ·{' '}
                   {candidateCountryLabel(u)}
-                </span>
-                <span className='block text-xs font-medium text-primary'>
-                  {draft[u.id]
-                    ? `已暂存：${decisionLabels[draft[u.id].action]}`
-                    : (decisionLabels[u.decision ?? u.status] ?? '待核验')}
                 </span>
               </span>
               <ChevronRight
@@ -381,10 +380,19 @@ export function EntityReview({
           </li>
         ))}
       </ul>
-      {query.data && (
-        <Pager page={page} total={query.data.total} onChange={setPage} />
+      {query.data && total > 0 && (
+        <CompanyListPagination
+          loaded={items.length}
+          total={total}
+          hasNextPage={query.hasNextPage}
+          isFetching={query.isFetching}
+          isFetchingNextPage={query.isFetchingNextPage}
+          isFetchNextPageError={query.isFetchNextPageError}
+          fetchNextPage={query.fetchNextPage}
+          paused={busy}
+        />
       )}
-    </LoadingRegion>
+    </div>
   )
   const footer = (
     <>

@@ -196,7 +196,134 @@ it('120 次详情更新只显示一张进度卡，双栏可调整，手机切换
   await page.viewport(1280, 900)
 })
 
-it('完成后统计使用全量结果，保留分页和详情，并允许统计失败后重试', async () => {
+it.each([1280, 390])(
+  '宽度 %i 时回看记录显示回到底部按钮，更新不打断滚动，点击返回最新进度',
+  async (width) => {
+    await page.viewport(width, 844)
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    })
+    const history = [
+      event(1, {
+        process: {
+          stage: 'search',
+          outcome: 'completed',
+          message: '普通阶段摘要',
+        },
+      }),
+      event(2, {
+        process: { ...search, outcome: 'failed', message: '历史检索失败' },
+      }),
+      ...Array.from({ length: 20 }, (_, index) =>
+        event(index + 3, {
+          process: {
+            ...search,
+            page: index + 1,
+            outcome: 'completed',
+            count: 10,
+          },
+        })
+      ),
+      ...events.filter((item) => item.acquisition),
+    ]
+    const ui = (currentEvents: ResearchProgressView[]) => (
+      <QueryClientProvider client={client}>
+        <div className='flex h-[780px] flex-col p-4'>
+          <PatentWorkspace
+            run={run}
+            events={currentEvents}
+            active
+            eventsError={false}
+            onRetryEvents={() => {}}
+            controls={null}
+            actions={null}
+          />
+        </div>
+      </QueryClientProvider>
+    )
+    const screen = await render(ui(history))
+    if (width === 390)
+      await screen
+        .getByRole('button', { name: '搜索记录', exact: true })
+        .click()
+    const card = screen.getByRole('region', {
+      name: '专利详情获取进度',
+      includeHidden: true,
+    })
+    await expect.element(card).toBeVisible()
+    const viewport = card.element().parentElement!.parentElement!
+    expect(viewport.scrollHeight).toBeGreaterThan(viewport.clientHeight)
+    const backToBottom = screen.getByRole('button', { name: '回到底部' })
+    expect(backToBottom.all()).toHaveLength(0)
+    viewport.scrollTop = viewport.scrollHeight - viewport.clientHeight - 100
+    viewport.dispatchEvent(new Event('scroll', { bubbles: true }))
+    expect(backToBottom.all()).toHaveLength(0)
+    viewport.scrollTop = 0
+    viewport.dispatchEvent(new Event('scroll', { bubbles: true }))
+    await expect.poll(() => viewport.scrollTop).toBe(0)
+    await expect.element(backToBottom).toBeVisible()
+    expect(card.element().getBoundingClientRect().top).toBeGreaterThan(
+      viewport.getBoundingClientRect().bottom
+    )
+    await expect
+      .element(screen.getByText('第 1 页 · 返回 10 条结果'))
+      .toBeVisible()
+    expect(screen.getByText('普通阶段摘要').all()).toHaveLength(0)
+    expect(screen.getByText('阶段摘要与异常').all()).toHaveLength(0)
+    expect(
+      screen.getByRole('region', { name: '专利详情获取进度' }).all()
+    ).toHaveLength(1)
+    await screen.rerender(
+      ui([
+        ...history,
+        event(250, {
+          kind: 'acquisition_progress',
+          acquisition: {
+            stage: 'patents',
+            status: 'running',
+            completed: 130,
+            total: 150,
+          },
+        }),
+      ])
+    )
+    await expect
+      .element(screen.getByText('已获取 130 / 150 篇专利详情'))
+      .toBeInTheDocument()
+    expect(viewport.scrollTop).toBe(0)
+    await expect.element(backToBottom).toBeVisible()
+    await page.screenshot({
+      path: `__screenshots__/patent-scroll-to-bottom-${width}.png`,
+    })
+    await backToBottom.click()
+    await expect
+      .poll(
+        () => viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight
+      )
+      .toBeLessThanOrEqual(1)
+    await expect.poll(() => backToBottom.all().length).toBe(0)
+    await expect
+      .element(screen.getByText('已获取 130 / 150 篇专利详情'))
+      .toBeVisible()
+    await expect.element(screen.getByText('历史检索失败')).toBeVisible()
+    await expect
+      .element(screen.getByText('第 20 页 · 返回 10 条结果'))
+      .toBeVisible()
+    expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(width)
+    if (width === 390) {
+      await screen
+        .getByRole('button', { name: '专利概览', exact: true })
+        .click()
+    }
+    await expect
+      .poll(() => card.element().getClientRects().length > 0)
+      .toBe(width !== 390)
+    await screen.unmount()
+    client.clear()
+  }
+)
+
+it('完成后统计使用全量结果，保留列表和详情，并允许统计失败后重试', async () => {
   await page.viewport(1280, 900)
   const stats = vi
     .spyOn(researchApi, 'patentStats')
@@ -227,7 +354,14 @@ it('完成后统计使用全量结果，保留分页和详情，并允许统计�
   const list = vi
     .spyOn(researchApi, 'patents')
     .mockImplementation(async (_id, page) => ({
-      items: [{ ...patent, id: page === 1 ? 'CN123A' : 'CN456A' }],
+      items: Array.from(
+        { length: Math.min(20, 63 - (page - 1) * 20) },
+        (_, index) => ({
+          ...patent,
+          id: `CN${(page - 1) * 20 + index + 1}A`,
+          title: `${patent.title} ${(page - 1) * 20 + index + 1}`,
+        })
+      ),
       page,
       pageSize: 20,
       total: 63,
@@ -267,17 +401,20 @@ it('完成后统计使用全量结果，保留分页和详情，并允许统计�
     .toBeVisible()
   await page.screenshot({ path: '__screenshots__/patent-search-results.png' })
   await screen
-    .getByText('CN123A · 固态电解质材料及其制备方法', { exact: true })
+    .getByRole('button', { name: `${patent.title} 1`, exact: true })
     .click()
-  await screen.getByRole('button', { name: '查看专利详情' }).click()
   await expect.element(screen.getByRole('dialog')).toBeVisible()
-  await page.getByRole('button', { name: 'Close' }).click()
-  await screen.getByRole('button', { name: '下一页' }).click()
+  await page.getByRole('button', { name: '关闭详情', exact: true }).click()
+  const patentList = screen
+    .getByRole('list', { name: '本次专利列表' })
+    .element()
+  const scrollPanel = patentList.closest('section')!.parentElement!
+  scrollPanel.scrollTop = scrollPanel.scrollHeight
   await expect
     .element(
-      screen.getByText('CN456A · 固态电解质材料及其制备方法', { exact: true })
+      screen.getByRole('button', { name: `${patent.title} 21`, exact: true })
     )
-    .toBeVisible()
+    .toBeInTheDocument()
   expect(list).toHaveBeenLastCalledWith(run.id, 2, undefined)
   await screen.unmount()
   client.clear()

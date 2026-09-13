@@ -80,6 +80,11 @@ export function PatentWorkspace({
     (sum, direction) => sum + new Set(direction.keywords).size,
     0
   )
+  const issues = data.notices.filter(
+    (event) =>
+      event.process?.outcome === 'failed' ||
+      event.process?.outcome === 'stopped'
+  )
   return (
     <div className='flex min-h-0 flex-1 flex-col gap-3'>
       {controls}
@@ -252,6 +257,18 @@ export function PatentWorkspace({
                 </ol>
               </section>
             ))}
+            {issues.length > 0 && (
+              <ul aria-label='专利检索异常' className='space-y-2 text-xs'>
+                {issues.map((event) => (
+                  <li
+                    key={event.sequence}
+                    className='border-l-2 border-destructive/40 pl-3 leading-5 break-words text-destructive'
+                  >
+                    {event.process?.message}
+                  </li>
+                ))}
+              </ul>
+            )}
             <section
               aria-label='专利详情获取进度'
               className='space-y-3 rounded-lg border bg-muted/20 p-4'
@@ -281,32 +298,6 @@ export function PatentWorkspace({
                 />
               )}
             </section>
-            {data.notices.length > 0 && (
-              <details
-                className='rounded-lg border p-4 text-xs'
-                open={data.notices.some(
-                  (event) => event.process?.outcome === 'failed'
-                )}
-              >
-                <summary className='cursor-pointer font-medium'>
-                  阶段摘要与异常
-                </summary>
-                <ol className='mt-3 space-y-3'>
-                  {data.notices.map((event) => (
-                    <li
-                      key={event.sequence}
-                      className={
-                        event.process?.outcome === 'failed'
-                          ? 'text-destructive'
-                          : 'text-muted-foreground'
-                      }
-                    >
-                      {event.process?.message}
-                    </li>
-                  ))}
-                </ol>
-              </details>
-            )}
           </>
         }
       />

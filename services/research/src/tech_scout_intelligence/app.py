@@ -117,6 +117,20 @@ async def get_run(run_id: UUID, request: Request):
     return await request.app.state.store.get(run_id)
 
 
+@app.delete("/runs/{run_id}", operation_id="delete_run")
+async def delete_run(run_id: UUID, request: Request) -> dict[str, bool]:
+    state = request.app.state
+    await state.store.begin_delete(run_id)
+    await state.runtime.cancel(run_id)
+    await state.acquisition_store.update(run_id, "paused")
+    worker = state.acquisition_worker
+    if worker.active_run == run_id and worker.active:
+        worker.active.cancel()
+        await asyncio.gather(worker.active, return_exceptions=True)
+    await state.store.delete(run_id, state.acquisition_store)
+    return {"deleted": True}
+
+
 @app.post("/runs/{run_id}/actions", response_model=RunView, operation_id="act_on_run")
 async def act_on_run(run_id: UUID, body: Action, request: Request):
     view = await request.app.state.store.action(run_id, body)
@@ -143,7 +157,12 @@ async def stream_events(
     async def generate():
         cursor = after
         while not await request.is_disconnected():
-            events = await request.app.state.store.events(run_id, cursor)
+            try:
+                events = await request.app.state.store.events(run_id, cursor)
+            except ResearchError as error:
+                if error.code == "RUN_NOT_FOUND":
+                    return
+                raise
             for event in events:
                 cursor = event["sequence"]
                 yield f"id: {cursor}\ndata: {json.dumps(event, ensure_ascii=False)}\n\n"

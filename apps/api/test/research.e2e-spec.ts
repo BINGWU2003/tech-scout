@@ -1,5 +1,8 @@
 import { randomUUID } from 'node:crypto'
-import { type INestApplication } from '@nestjs/common'
+import {
+  ServiceUnavailableException,
+  type INestApplication,
+} from '@nestjs/common'
 import { Test } from '@nestjs/testing'
 import { type ResearchState } from '@tech-scout/contracts'
 import request from 'supertest'
@@ -16,6 +19,10 @@ describeDb('阶段 2 产品 API：所有权、幂等与持久化', () => {
   const states = new Map<string, ResearchState>()
   const client = {
     configured: false,
+    delete: vi.fn(async (id: string) => {
+      states.delete(id)
+      return { deleted: true }
+    }),
     start: vi.fn(async (id: string) => {
       if (!states.has(id))
         states.set(id, {
@@ -97,6 +104,69 @@ describeDb('阶段 2 产品 API：所有权、幂等与持久化', () => {
       .expect(201)
     return { agent, csrf: registration.body.csrfToken }
   }
+
+  it('删除要求身份及 CSRF；失败保留任务；成功级联删除且忽略迟到事件', async () => {
+    const owner = await account()
+    const other = await account()
+    const created = await owner.agent
+      .post('/api/v1/research/projects')
+      .set('Origin', 'http://localhost:5173')
+      .set('x-csrf-token', owner.csrf)
+      .send({
+        thinking: true,
+        requestKey: randomUUID(),
+        question: '待删除研究',
+      })
+      .expect(201)
+    const projectId = created.body.id
+    const runId = created.body.runs[0].id
+    const state = states.get(runId)!
+    const url = `/api/v1/research/projects/${projectId}`
+    await request(app.getHttpServer()).delete(url).expect(401)
+    await owner.agent
+      .delete(url)
+      .set('Origin', 'http://localhost:5173')
+      .expect(401)
+    await other.agent
+      .delete(url)
+      .set('Origin', 'http://localhost:5173')
+      .set('x-csrf-token', other.csrf)
+      .expect(200)
+    expect(
+      await prisma.researchProject.findUnique({ where: { id: projectId } })
+    ).not.toBeNull()
+    client.delete.mockRejectedValueOnce(
+      new ServiceUnavailableException('停止失败')
+    )
+    await owner.agent
+      .delete(url)
+      .set('Origin', 'http://localhost:5173')
+      .set('x-csrf-token', owner.csrf)
+      .expect(503)
+    await owner.agent.get(url).expect(200)
+    const deleted = await owner.agent
+      .delete(url)
+      .set('Origin', 'http://localhost:5173')
+      .set('x-csrf-token', owner.csrf)
+      .expect(200)
+    expect(deleted.body).toEqual({ deleted: true, runIds: [runId] })
+    await owner.agent.get(url).expect(404)
+    await owner.agent.get(`/api/v1/research/runs/${runId}`).expect(404)
+    await app
+      .get(ResearchService)
+      .receive({
+        sequence: state.sequence,
+        kind: 'state',
+        created_at: new Date().toISOString(),
+        data: state,
+      })
+    expect(await prisma.researchEvent.count({ where: { runId } })).toBe(0)
+    await owner.agent
+      .delete(url)
+      .set('Origin', 'http://localhost:5173')
+      .set('x-csrf-token', owner.csrf)
+      .expect(200)
+  })
 
   it('项目请求幂等；跨用户读取、写入和事件均被隔离；写入要求 CSRF', async () => {
     const owner = await account()
