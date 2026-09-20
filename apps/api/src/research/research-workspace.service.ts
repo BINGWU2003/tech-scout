@@ -94,6 +94,7 @@ export class ResearchWorkspaceService {
       const ctx = object(r.context)
       const nextCandidates = r.candidates ?? r.plan ?? ctx.candidatePlan
       if (nextCandidates) candidates = nextCandidates
+      if (ctx.startSearch) continue
       messages.push({
         id: `${id}:question`,
         runId: id,
@@ -147,6 +148,8 @@ export class ResearchWorkspaceService {
         reasoning ||
         answer
       ) {
+        const failed =
+          typeof r.reply !== 'string' && !r.confirmed && !pending && !answer
         messages.push({
           id: `${id}:reply`,
           runId: id,
@@ -154,6 +157,7 @@ export class ResearchWorkspaceService {
           reasoning,
           answer,
           pending,
+          failed,
           text:
             typeof r.reply === 'string'
               ? r.reply
@@ -199,57 +203,10 @@ export class ResearchWorkspaceService {
         )
       }
     }
-    for (const change of rows(ws.changes))
-      messages.push({
-        id: String(change.id),
-        runId: null,
-        role: 'user',
-        reasoning: null,
-        answer: null,
-        pending: false,
-        text: String(change.text),
-        createdAt: String(change.createdAt),
-        plan: researchSelectedPlanSchema.parse(change.plan),
-        proposal: false,
-        applied: false,
-        outdated: change.revision !== revision(ws),
-        hasResult: false,
-      })
     const commands = await this.prisma.researchCommand.findMany({
       where: { run: { projectId }, status: 'sent' },
       orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
     })
-    for (const command of commands) {
-      const payload = object(command.payload)
-      if (
-        ['start_companies', 'resolve_entities'].includes(String(payload.kind))
-      )
-        continue
-      const labels: Record<string, string> = {
-        confirm_plan: '已确认计划并开始检索。',
-        retry: '重试当前步骤。',
-        pause: '已暂停研究。',
-        cancel: '已取消执行。',
-      }
-      messages.push({
-        id: command.id,
-        runId: command.runId,
-        role: 'user',
-        reasoning: null,
-        answer: null,
-        pending: false,
-        text: labels[String(payload.kind)] ?? '已调整研究。',
-        createdAt: command.createdAt.toISOString(),
-        plan: payload.plan
-          ? researchSelectedPlanSchema.parse(payload.plan)
-          : null,
-        proposal: false,
-        applied: false,
-        outdated: command.runId !== latest?.id,
-        hasResult: false,
-      })
-    }
-    messages.sort((a, b) => a.createdAt.localeCompare(b.createdAt))
     const result = runs.findLast((r) => r.hasResult)
     const pending = await this.prisma.researchCommand.count({
       where: { run: { projectId }, status: 'pending' },

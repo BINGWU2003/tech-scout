@@ -1,4 +1,3 @@
-import { Link } from '@tanstack/react-router'
 import type {
   ResearchProgressView,
   ResearchWorkspace,
@@ -8,7 +7,6 @@ import { ReasoningPanel } from './reasoning-panel'
 
 export function ProjectConversation({
   workspace,
-  projectId,
   busy,
   onApply,
   onAdd,
@@ -17,7 +15,6 @@ export function ProjectConversation({
   events = [],
 }: {
   workspace: ResearchWorkspace
-  projectId: string
   busy: boolean
   onApply: (id: string) => void
   onAdd: (
@@ -90,7 +87,14 @@ export function ProjectConversation({
               <ReasoningPanel reasoning={message.reasoning} />
             )}
             {(message.text || message.answer?.text) && (
-              <p className='leading-7 break-words whitespace-pre-wrap'>
+              <p
+                role={message.failed ? 'alert' : undefined}
+                className={
+                  message.failed
+                    ? 'rounded-lg bg-destructive/10 p-3 leading-7 break-words whitespace-pre-wrap text-destructive'
+                    : 'leading-7 break-words whitespace-pre-wrap'
+                }
+              >
                 {message.text || message.answer?.text}
               </p>
             )}
@@ -196,17 +200,6 @@ export function ProjectConversation({
                   应用建议前，请保存或撤销当前计划调整。
                 </p>
               )}
-            {message.hasResult && message.runId && (
-              <Button asChild size='sm' variant='outline'>
-                <Link
-                  to='/research/$projectId/$stage'
-                  params={{ projectId, stage: 'report' }}
-                  search={{ runId: message.runId }}
-                >
-                  查看当时的结果
-                </Link>
-              </Button>
-            )}
           </article>
         ))}
     </div>

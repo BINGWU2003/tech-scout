@@ -878,7 +878,6 @@ function ProjectWorkspace({
               workspace.data && (
                 <ProjectConversation
                   workspace={workspace.data}
-                  projectId={projectId}
                   busy={editingBusy}
                   dirty={dirty}
                   events={events}

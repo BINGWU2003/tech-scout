@@ -80,6 +80,60 @@ describe('多轮推荐卡片', () => {
     expect(result.reachedStage).toBe(stage)
     expect(result.currentStageStatus).toBe('queued')
   })
+  it.each(['confirm_plan', 'retry', 'pause', 'cancel'])(
+    '隐藏 %s 操作消息',
+    async (kind) => {
+      const current = run()
+      const command = {
+        id: randomUUID(),
+        runId: current.id,
+        payload: { kind },
+        createdAt: new Date(),
+      }
+      const result = await workspace([current], [command])
+      expect(result.messages.some((message) => message.id === command.id)).toBe(
+        false
+      )
+    }
+  )
+  it('隐藏开始检索产生的合成问答，但保留运行进度', async () => {
+    const execution = run({
+      context: { workspace: true, startSearch: true },
+      status: 'running',
+      confirmed: plan,
+      hasResult: true,
+    })
+    const result = await workspace([execution])
+    expect(result.messages).toEqual([])
+    expect(result).toMatchObject({
+      activeRunId: execution.id,
+      executionRunId: execution.id,
+      reachedStage: 'report',
+    })
+  })
+  it('把真实提问后的未完成回复标记为失败反馈', async () => {
+    const failed = run({
+      status: 'failed',
+      plan: null,
+      reply: null,
+      intent: null,
+      reasoning: {
+        id: randomUUID(),
+        status: 'interrupted',
+        text: '正在分析',
+        startedAt: '2026-09-12T00:00:00Z',
+        durationMs: 1000,
+        truncated: false,
+      },
+    })
+    const result = await workspace([failed])
+    expect(
+      result.messages.find((message) => message.id === `${failed.id}:reply`)
+    ).toMatchObject({
+      failed: true,
+      text: '本次回复未完成，可重试。',
+    })
+  })
   it.each(['completed', 'empty'])(
     '历史 %s 后继续对话不会解锁研究',
     async (status) => {
@@ -265,7 +319,6 @@ describe('多轮推荐卡片', () => {
   )
 
   it.each([
-    { context: { workspace: true, startSearch: true } },
     { context: { workspace: true }, confirmed: plan },
     { context: { workspace: true }, proposal: plan },
     { context: { workspace: true }, hasResult: true },

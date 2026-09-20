@@ -496,7 +496,7 @@ describe.skipIf(!enabled)(
         saved.messages.some((m: { text: string }) =>
           m.text.includes('已保存研究计划')
         )
-      ).toBe(true)
+      ).toBe(false)
       expect((await post(save).expect(201)).body.revision).toBe(saved.revision)
       await post({ ...save, requestKey: randomUUID() }).expect(409)
       await post({ ...save, plan }).expect(409)
@@ -586,6 +586,11 @@ describe.skipIf(!enabled)(
         selectedPlan: proposed,
         selectedRevision: applied.revision,
       })
+      expect(
+        started.messages.some(
+          (message: { runId: string }) => message.runId === started.activeRunId
+        )
+      ).toBe(false)
       expect((await post(start).expect(201)).body.activeRunId).toBe(
         started.activeRunId
       )

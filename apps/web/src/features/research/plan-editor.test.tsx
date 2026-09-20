@@ -67,7 +67,6 @@ it.each([1280, 390])(
           conversation={
             <ProjectConversation
               workspace={{ ...initial, messages: currentMessages }}
-              projectId='project'
               busy={false}
               selectedPlan={plan}
               onApply={() => {}}
@@ -231,7 +230,6 @@ it('候选加入与删除由保存提交，空计划不能执行', async () => {
             ...workspace,
             messages: [message('old', true), message('latest', false)],
           }}
-          projectId={crypto.randomUUID()}
           busy={false}
           selectedPlan={selected}
           onApply={() => {}}

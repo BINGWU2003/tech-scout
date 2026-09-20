@@ -212,6 +212,7 @@ export const researchConversationMessageSchema = z.object({
   reasoning: researchReasoningSchema.nullable(),
   answer: researchAnswerSchema.nullable(),
   pending: z.boolean(),
+  failed: z.boolean().optional(),
   createdAt: z.string(),
   plan: researchSelectedPlanSchema.nullable(),
   proposal: z.boolean().default(false),

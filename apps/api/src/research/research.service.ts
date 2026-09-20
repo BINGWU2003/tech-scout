@@ -280,11 +280,11 @@ export class ResearchService implements OnModuleInit, OnModuleDestroy {
         throw new ConflictException('请先选择至少一个研究方向')
       const messages = await tx.$queryRaw<Record<string, unknown>[]>(Prisma.sql`
         SELECT question, state #>> '{artifacts,reply}' AS reply
-        FROM app.research_run WHERE project_id = ${projectId}::uuid
+        FROM app.research_run
+        WHERE project_id = ${projectId}::uuid
+          AND COALESCE(context ->> 'startSearch', 'false') = 'false'
         ORDER BY created_at DESC, id DESC LIMIT 20`)
-      const history = Array.isArray(previousContext.questions)
-        ? previousContext.questions
-        : []
+      const messageHistory = messages.reverse()
       return tx.researchRun.create({
         data: {
           projectId,
@@ -295,7 +295,7 @@ export class ResearchService implements OnModuleInit, OnModuleDestroy {
             thinking: input.thinking,
             selectedPlan: selected,
             selectedRevision: revision(workspace),
-            messages: messages.reverse(),
+            messages: messageHistory,
             candidatePlan:
               artifacts.candidate_plan ??
               artifacts.plan ??
@@ -304,7 +304,9 @@ export class ResearchService implements OnModuleInit, OnModuleDestroy {
             startSearch: searchRevision !== undefined,
             parentRunId: previous?.id,
             originalQuestion: project.question,
-            questions: [...history, ...(previous ? [previous.question] : [])],
+            questions: messageHistory.map((message) =>
+              String(message.question)
+            ),
             plan:
               artifacts.confirmed_plan ??
               artifacts.plan ??

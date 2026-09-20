@@ -83,7 +83,6 @@ it('先思考，再流式说明，最后展示方向卡片，正文顺序保持�
   }
   const props = {
     workspace,
-    projectId: crypto.randomUUID(),
     busy: true,
     selectedPlan: workspace.selectedPlan,
     onAdd: () => {},
@@ -216,7 +215,6 @@ it('事件补充消息内实时思考，但旧事件不能覆盖刷新后已完�
   }
   const props = {
     workspace,
-    projectId: crypto.randomUUID(),
     busy: true,
     selectedPlan: plan,
     onAdd: () => {},
@@ -256,4 +254,51 @@ it('事件补充消息内实时思考，但旧事件不能覆盖刷新后已完�
   await expect
     .element(screen.getByRole('button', { name: /思考已完成/ }))
     .toHaveAttribute('aria-expanded', 'false')
+})
+
+it('未完成回复显示为错误状态，研究结果入口不进入对话', async () => {
+  const plan = { directions: [], from_year: 2020, to_year: 2026, risks: [] }
+  const workspace: ResearchWorkspace = {
+    researchCompleted: false,
+    reachedStage: 'plan',
+    revision: 0,
+    selectedPlan: plan,
+    candidates: null,
+    activeRunId: null,
+    executionRunId: null,
+    latestResultRunId: crypto.randomUUID(),
+    blocked: false,
+    resultOutdated: false,
+    messages: [
+      {
+        id: 'failed-reply',
+        role: 'assistant',
+        runId: crypto.randomUUID(),
+        text: '本次回复未完成，可重试。',
+        createdAt: reasoning.startedAt,
+        pending: false,
+        failed: true,
+        reasoning: null,
+        answer: null,
+        plan: null,
+        proposal: false,
+        applied: false,
+        outdated: false,
+        hasResult: true,
+      },
+    ],
+  }
+  const screen = await render(
+    <ProjectConversation
+      workspace={workspace}
+      busy={false}
+      selectedPlan={plan}
+      onAdd={() => {}}
+      onApply={() => {}}
+    />
+  )
+  await expect
+    .element(screen.getByRole('alert'))
+    .toHaveTextContent('本次回复未完成，可重试。')
+  expect(screen.getByText('查看当时的结果').all()).toHaveLength(0)
 })
