@@ -11,7 +11,7 @@ import { ReasoningPanel } from './reasoning-panel'
 const reasoning: ResearchReasoning = {
   id: crypto.randomUUID(),
   status: 'thinking',
-  text: '比较不同方向的技术范围。',
+  text: '比较不同方向的技术范围、应用边界、研究价值以及后续检索重点。',
   startedAt: '2026-09-12T00:00:00Z',
   durationMs: 2000,
   truncated: false,
@@ -22,6 +22,12 @@ it('思考实时展开，进入回答时折叠，仍可回看思考内容', asyn
   await expect
     .element(screen.getByRole('button', { name: /正在思考/ }))
     .toHaveAttribute('aria-expanded', 'true')
+  await expect
+    .element(screen.getByTestId('typewriter-cursor'))
+    .toBeInTheDocument()
+  await expect
+    .element(screen.getByTestId('typewriter-cursor'))
+    .not.toBeInTheDocument()
   await expect.element(screen.getByText(reasoning.text)).toBeVisible()
   await screen.rerender(
     <ReasoningPanel
@@ -111,7 +117,7 @@ it('先思考，再流式说明，最后展示方向卡片，正文顺序保持�
     id: reasoning.id,
     startedAt: reasoning.startedAt,
     status: 'streaming' as const,
-    text: '结合你的需求，',
+    text: '结合你的需求，先明确研究目标、应用场景和关键约束，再逐步评估候选技术方向。',
   }
   events.push({
     ...events[0],
@@ -124,11 +130,17 @@ it('先思考，再流式说明，最后展示方向卡片，正文顺序保持�
   await expect
     .element(screen.getByRole('button', { name: /思考已完成/ }))
     .toHaveAttribute('aria-expanded', 'false')
+  await expect
+    .element(screen.getByTestId('typewriter-cursor'))
+    .toBeInTheDocument()
+  await expect
+    .element(screen.getByTestId('typewriter-cursor'))
+    .not.toBeInTheDocument()
   await expect.element(screen.getByText(answer.text)).toBeVisible()
   expect(
     screen.getByRole('button', { name: '加入计划：边缘推理' }).all()
   ).toHaveLength(0)
-  const text = '结合你的需求，建议优先研究以下方向。'
+  const text = `${answer.text}建议优先研究以下方向。`
   await screen.rerender(
     <ProjectConversation
       {...props}

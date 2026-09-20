@@ -4,6 +4,7 @@ import type {
 } from '@tech-scout/contracts'
 import { Button } from '@/components/ui/button'
 import { ReasoningPanel } from './reasoning-panel'
+import { StreamingText } from './streaming-text'
 
 export function ProjectConversation({
   workspace,
@@ -95,7 +96,11 @@ export function ProjectConversation({
                     : 'leading-7 break-words whitespace-pre-wrap'
                 }
               >
-                {message.text || message.answer?.text}
+                <StreamingText
+                  key={message.answer?.id ?? message.id}
+                  text={message.text || message.answer?.text || ''}
+                  streaming={message.answer?.status === 'streaming'}
+                />
               </p>
             )}
             {message.answer?.status === 'interrupted' && (

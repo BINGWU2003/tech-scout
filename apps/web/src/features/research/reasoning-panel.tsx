@@ -1,6 +1,7 @@
 import type { ResearchReasoning } from '@tech-scout/contracts'
 import { Brain, ChevronDown } from 'lucide-react'
 import { useId, useState } from 'react'
+import { StreamingText } from './streaming-text'
 
 export function ReasoningPanel({
   reasoning,
@@ -20,6 +21,9 @@ export function ReasoningPanel({
     : reasoning.status === 'interrupted'
       ? '思考已中断'
       : '思考已完成'
+  const text =
+    reasoning.text ||
+    (active ? '正在等待模型返回内容…' : '本次未返回可展示的思考内容。')
   return (
     <div>
       <button
@@ -46,10 +50,11 @@ export function ReasoningPanel({
           className='mt-1 space-y-2 border-l-2 pl-3 text-xs leading-6 text-muted-foreground'
         >
           <p className='break-words whitespace-pre-wrap'>
-            {reasoning.text ||
-              (active
-                ? '正在等待模型返回内容…'
-                : '本次未返回可展示的思考内容。')}
+            <StreamingText
+              key={reasoning.id}
+              text={text}
+              streaming={active && Boolean(reasoning.text)}
+            />
           </p>
           {reasoning.truncated && <p>思考内容较长，仅保留前 64,000 个字符。</p>}
         </div>
