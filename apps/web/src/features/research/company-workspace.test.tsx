@@ -488,6 +488,7 @@ it('仅支持所选公司的证据可确认，历史只读不显示操作', asyn
     reviewNote: null,
     companyOptions: [
       { id: 'c', name: '甲公司', country: 'CN', supportingEvidenceIds: ['e1'] },
+      { id: 'd', name: '乙公司', country: 'US', supportingEvidenceIds: [] },
     ],
   }
   const initial = {
@@ -506,6 +507,10 @@ it('仅支持所选公司的证据可确认，历史只读不显示操作', asyn
   await screen.getByRole('combobox', { name: '本次决定' }).click()
   await screen.getByRole('option', { name: '确认匹配已有公司' }).click()
   await screen.getByRole('combobox', { name: '选择快照中的公司' }).click()
+  await userEvent.fill(screen.getByRole('combobox', { name: '搜索公司' }), '甲')
+  await expect
+    .element(screen.getByRole('option', { name: /乙公司/ }))
+    .not.toBeInTheDocument()
   await screen.getByRole('option', { name: /甲公司/ }).click()
   await screen.getByRole('checkbox', { name: '选择证据 e1' }).click()
   await screen.getByRole('button', { name: '暂存并继续核验' }).click()

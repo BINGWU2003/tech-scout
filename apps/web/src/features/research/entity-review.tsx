@@ -5,13 +5,26 @@ import {
   type ResearchSummaryView,
 } from '@tech-scout/contracts'
 import { createRequestId } from '@tech-scout/shared'
-import { ChevronRight } from 'lucide-react'
+import { Check, ChevronsUpDown, ChevronRight } from 'lucide-react'
 import { useRef, useState, type ReactNode } from 'react'
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { ContentSkeleton } from '@/components/loading'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command'
 import { Label } from '@/components/ui/label'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover'
 import {
   Select,
   SelectContent,
@@ -21,6 +34,7 @@ import {
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { researchApi } from '@/lib/research-api'
+import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth-store'
 import { CompanyDialog, CompanyNavigation } from './company-dialog'
 import { nextCompanyListPage } from './company-list-data'
@@ -45,6 +59,7 @@ export function CandidateEditor({
     initial?.action ?? ''
   )
   const [company, setCompany] = useState(initial?.company_id ?? '')
+  const [companyOpen, setCompanyOpen] = useState(false)
   const [evidence, setEvidence] = useState<string[]>(
     initial?.evidence_ids ?? []
   )
@@ -89,28 +104,65 @@ export function CandidateEditor({
           {choice === 'confirm' && (
             <>
               <Label htmlFor='identity-company'>选择快照中的公司</Label>
-              <Select
-                value={company}
-                onValueChange={(value) => {
-                  setCompany(value)
-                  setEvidence([])
-                }}
-              >
-                <SelectTrigger
-                  id='identity-company'
-                  className='w-full min-w-0 [&_[data-slot=select-value]]:truncate'
+              <Popover open={companyOpen} onOpenChange={setCompanyOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    id='identity-company'
+                    variant='outline'
+                    role='combobox'
+                    aria-expanded={companyOpen}
+                    className='w-full min-w-0 justify-between font-normal'
+                  >
+                    <span className='truncate'>
+                      {option
+                        ? `${option.name} · 企业注册地：${countryName(option.country)}`
+                        : '请选择公司'}
+                    </span>
+                    <ChevronsUpDown className='opacity-50' />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent
+                  align='start'
+                  className='w-[var(--radix-popover-trigger-width)] max-w-[calc(100vw-2rem)] p-0'
                 >
-                  <SelectValue placeholder='请选择公司' />
-                </SelectTrigger>
-                <SelectContent className='max-w-[calc(100vw-2rem)]'>
-                  {detail.companyOptions.map((c) => (
-                    <SelectItem key={c.id} value={c.id} className='break-words'>
-                      {c.name} · 企业注册地：{countryName(c.country)}
-                      {c.supportingEvidenceIds.length ? '（有支持依据）' : ''}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                  <Command>
+                    <CommandInput
+                      aria-label='搜索公司'
+                      placeholder='搜索公司名称、注册地或 ID…'
+                    />
+                    <CommandList>
+                      <CommandEmpty>未找到匹配的公司</CommandEmpty>
+                      <CommandGroup>
+                        {detail.companyOptions.map((c) => (
+                          <CommandItem
+                            key={c.id}
+                            value={`${c.name} ${countryName(c.country)} ${c.id}`}
+                            onSelect={() => {
+                              setCompany(c.id)
+                              setEvidence([])
+                              setCompanyOpen(false)
+                            }}
+                            className='items-start'
+                          >
+                            <Check
+                              className={cn(
+                                'mt-0.5',
+                                company === c.id ? 'opacity-100' : 'opacity-0'
+                              )}
+                            />
+                            <span className='min-w-0 break-words'>
+                              {c.name} · 企业注册地：{countryName(c.country)}
+                              {c.supportingEvidenceIds.length
+                                ? '（有支持依据）'
+                                : ''}
+                            </span>
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
               <p className='text-xs text-muted-foreground'>
                 请选择至少一条支持所选公司身份的依据。
               </p>
