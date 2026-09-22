@@ -609,6 +609,16 @@
       },
       "Plan": {
         "properties": {
+          "pages_per_keyword": {
+            "type": "integer",
+            "enum": [
+              3,
+              5,
+              10
+            ],
+            "title": "Pages Per Keyword",
+            "default": 5
+          },
           "directions": {
             "items": {
               "$ref": "#/components/schemas/Direction"

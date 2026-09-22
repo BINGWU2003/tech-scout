@@ -21,11 +21,22 @@ export function patentSearchData(
   const groups = new Map<
     string,
     {
+      domainId: string
       direction: string
       keyword: string
       pages: Map<number, ResearchProgressView>
     }
   >()
+  for (const direction of run.confirmedPlan?.directions ?? []) {
+    for (const keyword of new Set(direction.keywords)) {
+      groups.set(JSON.stringify([direction.domain_id, keyword]), {
+        domainId: direction.domain_id,
+        direction: direction.name,
+        keyword,
+        pages: new Map(),
+      })
+    }
+  }
   const notices = new Map<string, ResearchProgressView>()
   let discovered: number | null = null
   let details: ResearchSummaryView['acquisition'] = null
@@ -33,8 +44,14 @@ export function patentSearchData(
   for (const event of [...events].sort((a, b) => a.sequence - b.sequence)) {
     const process = event.process
     if (process?.stage === 'search' && process.keyword) {
-      const key = JSON.stringify([process.direction ?? '', process.keyword])
+      const domainId =
+        process.domainId ??
+        run.confirmedPlan?.directions.find((d) => d.name === process.direction)
+          ?.domain_id ??
+        ''
+      const key = JSON.stringify([domainId, process.keyword])
       const group = groups.get(key) ?? {
+        domainId,
         direction: process.direction ?? '专利检索',
         keyword: process.keyword,
         pages: new Map(),
@@ -46,7 +63,7 @@ export function patentSearchData(
         notices.set(`issue:${event.sequence}`, event)
     } else if (process) {
       // Keep search-condition generation separate from detail acquisition.
-      const key = `${event.node}:${process.stage}:${process.outcome}`
+      const key = `${event.node}:${process.stage}:${process.publicationNumber ?? ''}:${process.outcome}`
       notices.set(key, event)
     }
     if (
@@ -67,7 +84,26 @@ export function patentSearchData(
   if (run.acquisition?.stage === 'patents' && run.sequence >= detailSequence)
     details = mergeDetails(details, run.acquisition)
   return {
-    groups: [...groups.values()],
+    groups: [...groups.values()].map((group) => {
+      const latest = [...group.pages.values()].sort(
+        (a, b) => b.sequence - a.sequence
+      )[0]?.process
+      const finishReason = latest?.finishReason
+      return {
+        ...group,
+        finishReason,
+        status:
+          finishReason === 'failed'
+            ? 'failed'
+            : finishReason
+              ? 'completed'
+              : latest?.outcome === 'stopped'
+                ? 'stopped'
+                : latest
+                  ? 'running'
+                  : 'pending',
+      }
+    }),
     notices: [...notices.values()],
     discovered: details?.total ?? discovered,
     details,

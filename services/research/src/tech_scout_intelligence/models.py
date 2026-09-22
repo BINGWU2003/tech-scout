@@ -31,6 +31,7 @@ class Direction(Model):
 
 
 class Plan(Model):
+    pages_per_keyword: Literal[3, 5, 10] = 5
     directions: list[Direction] = Field(min_length=1, max_length=3)
     from_year: int = Field(ge=1800, le=2100)
     to_year: int = Field(ge=1800, le=2100)

@@ -44,6 +44,7 @@ it('思考实时展开，进入回答时折叠，仍可回看思考内容', asyn
 it('先思考，再流式说明，最后展示方向卡片，正文顺序保持一致', async () => {
   const runId = crypto.randomUUID()
   const plan = {
+    pages_per_keyword: 5 as const,
     from_year: 2020,
     to_year: 2026,
     risks: [],
@@ -195,7 +196,13 @@ it('新一次尝试重新展开，无内容时显示等待状态', async () => {
 
 it('事件补充消息内实时思考，但旧事件不能覆盖刷新后已完成的历史记录', async () => {
   const runId = crypto.randomUUID()
-  const plan = { directions: [], from_year: 2020, to_year: 2026, risks: [] }
+  const plan = {
+    directions: [],
+    pages_per_keyword: 5 as const,
+    from_year: 2020,
+    to_year: 2026,
+    risks: [],
+  }
   const workspace: ResearchWorkspace = {
     researchCompleted: false,
     reachedStage: 'plan',
@@ -269,7 +276,13 @@ it('事件补充消息内实时思考，但旧事件不能覆盖刷新后已完�
 })
 
 it('未完成回复显示为错误状态，研究结果入口不进入对话', async () => {
-  const plan = { directions: [], from_year: 2020, to_year: 2026, risks: [] }
+  const plan = {
+    directions: [],
+    pages_per_keyword: 5 as const,
+    from_year: 2020,
+    to_year: 2026,
+    risks: [],
+  }
   const workspace: ResearchWorkspace = {
     researchCompleted: false,
     reachedStage: 'plan',

@@ -30,6 +30,7 @@ const scope = (v: unknown) => {
   return {
     from_year: p.from_year,
     to_year: p.to_year,
+    pages_per_keyword: p.pages_per_keyword ?? 5,
     directions: rows(p.directions).map((d) => ({
       domain_id: d.domain_id,
       name: d.name,
@@ -327,6 +328,8 @@ export class ResearchWorkspaceService {
         ws,
         object(object(previousRun?.state).artifacts).confirmed_plan
       )
+      if (input.kind === 'apply_proposal')
+        plan.pages_per_keyword = before.pages_per_keyword
       const added = plan.directions
         .filter(
           (d) => !before.directions.some((p) => p.domain_id === d.domain_id)
@@ -351,6 +354,9 @@ export class ResearchWorkspaceService {
         added.length ? `加入：${added.join('、')}。` : '',
         removed.length ? `移除：${removed.join('、')}。` : '',
         updated.length ? `修改：${updated.join('、')}。` : '',
+        before.pages_per_keyword !== plan.pages_per_keyword
+          ? `检索深度：每个关键词最多 ${plan.pages_per_keyword} 页。`
+          : '',
         before.from_year !== plan.from_year || before.to_year !== plan.to_year
           ? `公开年份：${plan.from_year}–${plan.to_year}。`
           : '',

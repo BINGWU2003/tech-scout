@@ -16,6 +16,9 @@ export const researchPlanSchema = z
     directions: z.array(researchDirectionSchema).min(1).max(3),
     from_year: z.number().int().min(1800).max(2100),
     to_year: z.number().int().min(1800).max(2100),
+    pages_per_keyword: z
+      .union([z.literal(3), z.literal(5), z.literal(10)])
+      .default(5),
     risks: z.array(z.string()).max(20).default([]),
   })
   .strict()

@@ -15,7 +15,6 @@ class Settings(BaseSettings):
     acquisition_database_url: SecretStr | None = None
     acquisition_profile_dir: Path = Path.home() / ".tech-scout" / "browser-profile"
     acquisition_interval_seconds: float = Field(default=5, ge=5)
-    acquisition_patent_limit: int = Field(default=100, ge=1, le=100)
     acquisition_company_cache_days: int = Field(default=30, ge=1)
     acquisition_browser_channel: str = "chrome"
     deepseek_api_key: SecretStr = SecretStr("")

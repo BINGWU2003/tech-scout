@@ -55,14 +55,14 @@ export function PatentWorkspace({
     queryFn: () => researchApi.patentStats(run.id),
     enabled: run.hasPatents,
   })
-  const total = stats.data?.total ?? data.discovered
-  const completed = run.hasPatents
-    ? (stats.data?.total ?? data.details?.total ?? data.details?.completed)
-    : data.details?.completed
-  const detailTotal = stats.data?.total ?? data.details?.total
+  const total = data.discovered ?? stats.data?.total
+  const completed = data.details?.completed ?? stats.data?.total
+  const detailTotal = data.details?.total ?? stats.data?.total
   const detailDone = run.hasPatents || data.details?.status === 'completed'
   const detailLabel = detailDone
-    ? '专利详情获取完成'
+    ? data.details?.detailFailed
+      ? '专利详情部分获取成功'
+      : '专利详情获取完成'
     : data.details
       ? active
         ? '正在获取专利详情'
@@ -74,7 +74,9 @@ export function PatentWorkspace({
       : '—'
   const directions = run.confirmedPlan?.directions ?? []
   const searchedDirections = new Set(
-    data.groups.map((group) => group.direction)
+    data.groups
+      .filter((group) => group.pages.size > 0)
+      .map((group) => group.domainId)
   ).size
   const searchCount = directions.reduce(
     (sum, direction) => sum + new Set(direction.keywords).size,
@@ -85,6 +87,22 @@ export function PatentWorkspace({
       event.process?.outcome === 'failed' ||
       event.process?.outcome === 'stopped'
   )
+  const failedKeywords = data.groups.filter(
+    (group) => group.status === 'failed'
+  ).length
+  const finishedKeywords = data.groups.filter(
+    (group) => group.status === 'completed'
+  ).length
+  const partial =
+    failedKeywords > 0 ||
+    issues.some(
+      (event) =>
+        event.process?.stage === 'patents' &&
+        event.process?.finishReason === 'failed'
+    ) ||
+    (data.details?.searchFailed ?? 0) > 0 ||
+    (data.details?.detailFailed ?? 0) > 0
+  const pageLimit = run.confirmedPlan?.pages_per_keyword ?? 5
   return (
     <div className='flex min-h-0 flex-1 flex-col gap-3'>
       {controls}
@@ -97,9 +115,7 @@ export function PatentWorkspace({
               <Metric
                 label='去重专利'
                 value={total ?? '—'}
-                note={
-                  run.hasPatents ? '本次检索最终纳入' : '按年份筛选后累计纳入'
-                }
+                note='按年份筛选后累计发现'
               />
               <Metric
                 label='详情已获取'
@@ -107,9 +123,9 @@ export function PatentWorkspace({
                 note={detailLabel}
               />
               <Metric
-                label='已检索词组'
-                value={`${data.groups.length}${searchCount ? ` / ${searchCount}` : ''}`}
-                note={`已完成 ${data.completedPages} 页检索`}
+                label='检索完成关键词'
+                value={`${finishedKeywords} / ${searchCount}`}
+                note={`已完成 ${data.completedPages} 页 · ${failedKeywords} 个关键词失败`}
               />
               <Metric
                 label='已检索方向'
@@ -121,6 +137,17 @@ export function PatentWorkspace({
                 }
               />
             </dl>
+            <p role='status' className='text-sm leading-6'>
+              {detailDone
+                ? partial
+                  ? (completed ?? 0) > 0
+                    ? '部分完成：已有结果可继续用于企业发现，失败项见搜索记录。'
+                    : '采集结束：没有可用专利，无法进入企业发现，请查看失败项。'
+                  : '已按所选深度完成检索。'
+                : `每个关键词最多 ${pageLimit} 页，按页轮流检索。`}
+              {detailDone &&
+                ` 每个关键词最多 ${pageLimit} 页，不代表已覆盖全部相关专利。`}
+            </p>
             {!run.hasPatents && (
               <p className='text-xs leading-5 text-muted-foreground'>
                 {run.confirmedPlan
@@ -163,7 +190,7 @@ export function PatentWorkspace({
         conversation={
           <>
             <p className='text-xs leading-5 text-muted-foreground'>
-              按方向与检索词记录搜索结果，同一页的进度合并更新。
+              关键词生成后自动开始检索。每项显示实际进度与结束原因。
             </p>
             {eventsError && (
               <div role='alert' className='text-sm'>
@@ -182,7 +209,7 @@ export function PatentWorkspace({
             )}
             {data.groups.map((group) => (
               <section
-                key={JSON.stringify([group.direction, group.keyword])}
+                key={JSON.stringify([group.domainId, group.keyword])}
                 className='space-y-3 rounded-lg border p-4'
               >
                 <div className='flex items-start gap-2'>
@@ -199,6 +226,27 @@ export function PatentWorkspace({
                     </h3>
                   </div>
                 </div>
+                <p
+                  className={
+                    group.status === 'failed'
+                      ? 'text-xs text-destructive'
+                      : 'text-xs text-muted-foreground'
+                  }
+                >
+                  {group.finishReason === 'page_limit'
+                    ? `已完成 · 达到 ${pageLimit} 页上限`
+                    : group.finishReason === 'no_results'
+                      ? '已完成 · 没有更多结果'
+                      : group.finishReason === 'repeated_page'
+                        ? '已完成 · 来源返回重复页'
+                        : group.status === 'failed'
+                          ? '检索失败'
+                          : group.status === 'pending'
+                            ? '尚未开始'
+                            : active
+                              ? '正在检索'
+                              : '检索已停止'}
+                </p>
                 <ol className='space-y-3'>
                   {[...group.pages.entries()]
                     .sort(([a], [b]) => a - b)
@@ -264,6 +312,9 @@ export function PatentWorkspace({
                     key={event.sequence}
                     className='border-l-2 border-destructive/40 pl-3 leading-5 break-words text-destructive'
                   >
+                    {event.process?.publicationNumber
+                      ? `${event.process.publicationNumber}：`
+                      : ''}
                     {event.process?.message}
                   </li>
                 ))}

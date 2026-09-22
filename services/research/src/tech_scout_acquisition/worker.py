@@ -46,9 +46,9 @@ class Worker:
             finally:
                 await guard.execute("SELECT pg_advisory_unlock(720260907)")
 
-    async def checkpoint(self, run_id, stage, count, total):
+    async def checkpoint(self, run_id, stage, count, total, **summary):
         await self.store.checkpoint(
-            run_id, {"stage": stage, "completed": count, "total": total}
+            run_id, {"stage": stage, "completed": count, "total": total, **summary}
         )
 
     async def guarded_execute(self, run_id):
@@ -85,14 +85,17 @@ class Worker:
                 run_id,
                 "companies" if target == "companies" else "search",
                 0,
-                self.config.acquisition_patent_limit,
+                None,
             )
             async with self.browser_factory(self.config) as browser:
                 discovered = await self.store.items(run_id, "discovered")
                 pages = await self.store.items(run_id, "page")
+                failures = await self.store.items(run_id, "failure")
                 searches = []
                 for direction in plan["directions"]:
-                    keywords = direction["keywords"] or [direction["name"]]
+                    keywords = list(dict.fromkeys(direction["keywords"])) or [
+                        direction["name"]
+                    ]
                     for index, keyword in enumerate(keywords):
                         cursor = (
                             direction["domain_id"]
@@ -100,8 +103,13 @@ class Worker:
                             else f"{direction['domain_id']}:{index}"
                         )
                         searches.append((cursor, direction, keyword))
-                ended = set()
-                for page in range(0 if target == "companies" else 100):
+                ended = {
+                    key.removeprefix("search:")
+                    for key in failures
+                    if key.startswith("search:")
+                }
+                page_limit = plan["pages_per_keyword"]
+                for page in range(0 if target == "companies" else page_limit):
                     for cursor, direction, keyword in searches:
                         if cursor in ended:
                             continue
@@ -110,17 +118,16 @@ class Worker:
                             if pages[page_key].get("end"):
                                 ended.add(cursor)
                             continue
-                        if len(discovered) >= self.config.acquisition_patent_limit:
-                            break
                         await self.checkpoint(
                             run_id,
                             "search",
                             len(discovered),
-                            self.config.acquisition_patent_limit,
+                            None,
                         )
                         active_search = {
                             "stage": "search",
                             "direction": direction["name"],
+                            "domainId": direction["domain_id"],
                             "keyword": keyword,
                             "page": page + 1,
                             "url": search_url(direction, plan, page, keyword),
@@ -133,7 +140,30 @@ class Worker:
                                 "outcome": "running",
                             },
                         )
-                        rows = await browser.search(active_search["url"])
+                        try:
+                            result = await browser.search(active_search["url"])
+                        except AcquisitionBlocked as exc:
+                            if exc.code not in {
+                                "NETWORK_ERROR",
+                                "INVALID_QUERY",
+                                "PARSE_CHANGED",
+                            }:
+                                raise
+                            failure = {
+                                **active_search,
+                                "outcome": "failed",
+                                "finishReason": "failed",
+                                "message": exc.message,
+                            }
+                            await self.store.save(
+                                run_id, "failure", f"search:{cursor}", failure
+                            )
+                            failures[f"search:{cursor}"] = failure
+                            await self.store.record(run_id, failure)
+                            ended.add(cursor)
+                            active_search = {}
+                            continue
+                        rows = result["records"]
                         eligible = []
                         for row in rows:
                             date = row.get("publication_date") or ""
@@ -145,21 +175,28 @@ class Worker:
                             eligible.append(row)
                         for row in eligible:
                             key = row["publication_number"]
-                            if (
-                                key not in discovered
-                                and len(discovered)
-                                >= self.config.acquisition_patent_limit
-                            ):
-                                break
                             existing = discovered.get(key, {**row, "domain_ids": []})
                             if direction["domain_id"] not in existing["domain_ids"]:
                                 existing["domain_ids"].append(direction["domain_id"])
                             discovered[key] = existing
                             await self.store.save(run_id, "discovered", key, existing)
-                        ids = [r["publication_number"] for r in rows]
+                        ids = result["raw_ids"]
                         previous = pages.get(f"{cursor}:{page - 1}", {})
-                        end = not rows or ids == previous.get("ids")
-                        pages[page_key] = {"end": end, "ids": ids}
+                        reason = (
+                            "no_results"
+                            if not ids
+                            else "repeated_page"
+                            if ids == previous.get("ids")
+                            else "page_limit"
+                            if page + 1 == page_limit
+                            else None
+                        )
+                        end = reason is not None
+                        pages[page_key] = {
+                            "end": end,
+                            "ids": ids,
+                            "finishReason": reason,
+                        }
                         await self.store.save(run_id, "page", page_key, pages[page_key])
                         await self.store.record(
                             run_id,
@@ -168,27 +205,44 @@ class Worker:
                                 "message": "本页检索完成",
                                 "outcome": "completed",
                                 "count": len(rows),
+                                **({"finishReason": reason} if reason else {}),
                                 "completed": len(discovered),
                             },
                         )
                         active_search = {}
                         if end:
                             ended.add(cursor)
-                    if len(discovered) >= self.config.acquisition_patent_limit or len(
-                        ended
-                    ) == len(searches):
+                    if len(ended) == len(searches):
                         break
                 patents = await self.store.items(run_id, "patent")
                 for key, listing in [] if target == "companies" else discovered.items():
                     await self.checkpoint(
                         run_id, "patents", len(patents), len(discovered)
                     )
-                    if key not in patents:
-                        record = await browser.patent(key, listing)
-                        if record["publication_number"] != key:
-                            raise AcquisitionBlocked(
-                                "PARSE_CHANGED", "详情公开号与检索记录不一致"
+                    if key not in patents and f"patent:{key}" not in failures:
+                        active_search = {"stage": "patents", "publicationNumber": key}
+                        try:
+                            record = await browser.patent(key, listing)
+                            if record["publication_number"] != key:
+                                raise AcquisitionBlocked(
+                                    "PARSE_CHANGED", "详情公开号与检索记录不一致"
+                                )
+                        except AcquisitionBlocked as exc:
+                            if exc.code not in {"NETWORK_ERROR", "PARSE_CHANGED"}:
+                                raise
+                            failure = {
+                                **active_search,
+                                "outcome": "failed",
+                                "finishReason": "failed",
+                                "message": exc.message,
+                            }
+                            await self.store.save(
+                                run_id, "failure", f"patent:{key}", failure
                             )
+                            failures[f"patent:{key}"] = failure
+                            await self.store.record(run_id, failure)
+                            active_search = {}
+                            continue
                         record.update(
                             list_assignees=listing["list_assignees"],
                             list_source=listing.get("list_source"),
@@ -196,15 +250,23 @@ class Worker:
                         )
                         await self.store.save(run_id, "patent", key, record)
                         patents[key] = record
+                        active_search = {}
                 if target == "patents":
                     await self.checkpoint(
-                        run_id, "patents", len(patents), len(discovered)
+                        run_id,
+                        "patents",
+                        len(patents),
+                        len(discovered),
+                        searchFailed=sum(key.startswith("search:") for key in failures),
+                        detailFailed=sum(key.startswith("patent:") for key in failures),
                     )
                     await self.store.record(
                         run_id,
                         {
                             "stage": "patents",
-                            "message": "专利采集完成，等待你开始企业发现。",
+                            "message": "专利采集部分完成，请查看失败项。"
+                            if failures
+                            else "专利采集完成。",
                             "outcome": "completed",
                             "completed": len(patents),
                         },
@@ -267,7 +329,12 @@ class Worker:
                     "outcome": "failed",
                 },
             )
-            status = "paused" if exc.code == "PAUSED" else "waiting"
+            status = (
+                "paused"
+                if exc.code
+                in {"PAUSED", "CAPTCHA_REQUIRED", "ACCESS_REQUIRED", "RATE_LIMITED"}
+                else "waiting"
+            )
             error = {"code": exc.code, "message": exc.message}
             if exc.retry_after:
                 error["retry_at"] = (

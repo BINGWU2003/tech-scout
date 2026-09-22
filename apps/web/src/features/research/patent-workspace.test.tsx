@@ -377,7 +377,17 @@ it('完成后统计使用全量结果，保留列表和详情，并允许统计�
     <QueryClientProvider client={client}>
       <div className='flex h-[820px] flex-col p-4'>
         <PatentWorkspace
-          run={{ ...run, hasPatents: true, status: 'awaiting_companies' }}
+          run={{
+            ...run,
+            hasPatents: true,
+            status: 'awaiting_companies',
+            acquisition: {
+              stage: 'patents',
+              status: 'completed',
+              completed: 150,
+              total: 150,
+            },
+          }}
           events={events}
           active={false}
           eventsError={false}
@@ -389,10 +399,10 @@ it('完成后统计使用全量结果，保留列表和详情，并允许统计�
     </QueryClientProvider>
   )
   await screen.getByRole('button', { name: '重新加载统计' }).click()
-  await expect.element(screen.getByText('63', { exact: true })).toBeVisible()
+  await expect.element(screen.getByText('150', { exact: true })).toBeVisible()
   expect(stats).toHaveBeenCalledTimes(2)
   await expect
-    .element(screen.getByText('已获取 63 / 63 篇专利详情'))
+    .element(screen.getByText('已获取 150 / 150 篇专利详情'))
     .toBeVisible()
   await expect
     .element(screen.getByRole('heading', { name: '技术分类分布' }))
@@ -416,4 +426,99 @@ it('完成后统计使用全量结果，保留列表和详情，并允许统计�
   expect(list).toHaveBeenLastCalledWith(run.id, 2, undefined)
   await screen.unmount()
   client.clear()
+})
+
+it('从计划展示待检索关键词，按结束原因计算完成而非开始数量', () => {
+  const planned = {
+    ...run,
+    confirmedPlan: {
+      ...run.confirmedPlan!,
+      directions: [
+        {
+          ...run.confirmedPlan!.directions[0],
+          keywords: ['solid electrolyte', 'pending', 'failed'],
+        },
+      ],
+    },
+  }
+  const data = patentSearchData(planned, [
+    event(1, {
+      process: { ...search, outcome: 'completed', finishReason: 'page_limit' },
+    }),
+    event(2, {
+      process: {
+        ...search,
+        keyword: 'failed',
+        outcome: 'failed',
+        finishReason: 'failed',
+      },
+    }),
+  ])
+  expect(data.groups.map((group) => [group.keyword, group.status])).toEqual([
+    ['solid electrolyte', 'completed'],
+    ['pending', 'pending'],
+    ['failed', 'failed'],
+  ])
+})
+
+it('部分失败保留真实详情分母并列出失败专利，不提供重试按钮', async () => {
+  await page.viewport(1280, 900)
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  })
+  const screen = await render(
+    <QueryClientProvider client={client}>
+      <div className='h-[800px]'>
+        <PatentWorkspace
+          run={{
+            ...run,
+            acquisition: {
+              status: 'completed',
+              stage: 'patents',
+              completed: 1,
+              total: 2,
+              detailFailed: 1,
+            },
+          }}
+          events={[
+            event(1, {
+              process: {
+                ...search,
+                outcome: 'completed',
+                finishReason: 'page_limit',
+              },
+            }),
+            event(2, {
+              process: {
+                stage: 'patents',
+                publicationNumber: 'CN123B',
+                outcome: 'failed',
+                finishReason: 'failed',
+                message: '详情加载失败',
+              },
+            }),
+          ]}
+          active={false}
+          eventsError={false}
+          onRetryEvents={() => {}}
+          controls={null}
+          actions={null}
+        />
+      </div>
+    </QueryClientProvider>
+  )
+  await expect.element(screen.getByText('CN123B：详情加载失败')).toBeVisible()
+  await expect.element(screen.getByText('已完成 · 达到 5 页上限')).toBeVisible()
+  await expect
+    .element(screen.getByText('已获取 1 / 2 篇专利详情'))
+    .toBeVisible()
+  await expect
+    .element(
+      screen.getByText('部分完成：已有结果可继续用于企业发现', { exact: false })
+    )
+    .toBeVisible()
+  expect(screen.getByRole('button', { name: /重试/ }).all()).toHaveLength(0)
+  await page.screenshot({
+    path: '__screenshots__/search-partial-completion.png',
+  })
 })

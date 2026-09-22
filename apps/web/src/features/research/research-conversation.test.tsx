@@ -125,6 +125,7 @@ it('工作台从左侧切换项目，确认前追问保留上下文，并在手�
     },
   })
   const plan = {
+    pages_per_keyword: 5 as const,
     from_year: 2021,
     to_year: 2026,
     risks: [],

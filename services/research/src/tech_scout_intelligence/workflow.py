@@ -497,10 +497,16 @@ def build_graph(llm, store, checkpointer, acquisition):
             output.name = original.name
             output.explanation = original.explanation
         validate_plan(generated, state["context"])
+        generated.pages_per_keyword = confirmed.pages_per_keyword
+        for direction in generated.directions:
+            direction.keywords = list(dict.fromkeys(direction.keywords)) or [
+                direction.name
+            ]
         return {"confirmed_plan": generated.model_dump()}
 
     async def collect_snapshot(state, config, phase, company_targets=None):
         run_id, lease = identity(config)
+        acquisition_view = {}
 
         async def progress(value):
             current = await store.get(run_id)
@@ -512,6 +518,7 @@ def build_graph(llm, store, checkpointer, acquisition):
                     artifacts={**current.artifacts, **value},
                 )
                 return
+            acquisition_view.update(value)
             await store.publish(
                 run_id,
                 lease=lease,
@@ -533,6 +540,7 @@ def build_graph(llm, store, checkpointer, acquisition):
                 data, Plan.model_validate(state["confirmed_plan"])
             ),
             "acquisition": {
+                **acquisition_view,
                 "status": "completed",
                 "stage": "patents" if phase == "patents" else "companies",
             },
@@ -735,8 +743,7 @@ def build_graph(llm, store, checkpointer, acquisition):
     async def finish(state, config):
         ranked = rank(state.get("companies", []), state["patents"])
         explanations = {
-            c["company_id"]: c
-            for c in state.get("analysis", {}).get("companies", [])
+            c["company_id"]: c for c in state.get("analysis", {}).get("companies", [])
         }
         for item in ranked:
             item["inference"] = explanations.get(item["company_id"])

@@ -37,6 +37,8 @@ export const researchSummaryViewSchema = z.object({
       stage: z.string().nullable().default(null),
       completed: z.number().nullable().default(null),
       total: z.number().nullable().default(null),
+      searchFailed: z.number().int().nonnegative().optional(),
+      detailFailed: z.number().int().nonnegative().optional(),
     })
     .nullable()
     .default(null),
@@ -73,6 +75,11 @@ export const researchProcessSchema = z.object({
   message: z.string(),
   direction: z.string().nullable().optional(),
   keyword: z.string().optional(),
+  domainId: z.string().optional(),
+  publicationNumber: z.string().optional(),
+  finishReason: z
+    .enum(['page_limit', 'no_results', 'repeated_page', 'failed'])
+    .optional(),
   url: z
     .string()
     .regex(/^https:\/\/patents\.google\.com\//)

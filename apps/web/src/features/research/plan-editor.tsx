@@ -81,6 +81,42 @@ export function SelectedPlanEditor({
             已选 {plan.directions.length} / 3 个方向 ·{' '}
             {locked ? '技术方向已确认，计划只读' : '确认后开始检索'}
           </p>
+          <fieldset className='shrink-0 space-y-2'>
+            <legend className='mb-2 text-sm font-medium'>检索深度</legend>
+            <div className='grid grid-cols-3 gap-2'>
+              {(
+                [
+                  ['快速', 3],
+                  ['标准', 5],
+                  ['深入', 10],
+                ] as const
+              ).map(([label, pages]) => (
+                <label
+                  key={pages}
+                  className={cn(
+                    'flex cursor-pointer items-center justify-center gap-2 rounded-lg border px-2 py-3 text-sm',
+                    plan.pages_per_keyword === pages &&
+                      'border-primary bg-primary/5'
+                  )}
+                >
+                  <input
+                    type='radio'
+                    name='search-depth'
+                    value={pages}
+                    checked={plan.pages_per_keyword === pages}
+                    onChange={() =>
+                      update({ ...plan, pages_per_keyword: pages })
+                    }
+                  />
+                  {label} · {pages} 页
+                </label>
+              ))}
+            </div>
+            <p className='text-xs leading-5 text-muted-foreground'>
+              每个关键词最多检索 {plan.pages_per_keyword} 页，每页请求 10
+              条结果。所有关键词轮流检索，不限制专利总数；确认后自动生成关键词并开始搜索。
+            </p>
+          </fieldset>
           <div
             className={cn(
               'space-y-4',

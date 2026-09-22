@@ -11,7 +11,7 @@ from .models import AcquisitionBlocked
 from .parsers import (
     parse_company_item,
     parse_patent,
-    parse_results,
+    parse_search_page,
 )
 
 
@@ -139,7 +139,7 @@ class Browser:
                         continue
                     raise AcquisitionBlocked(
                         "PARSE_CHANGED",
-                        "目标内容未加载，已暂停以避免把空页面当作无结果",
+                        "目标内容未加载，无法解析来源页面",
                     ) from None
                 return True
             except AcquisitionBlocked:
@@ -147,17 +147,17 @@ class Browser:
             except Exception:
                 if attempt == 2:
                     raise AcquisitionBlocked(
-                        "NETWORK_ERROR", "页面加载失败三次，可重试继续"
+                        "NETWORK_ERROR", "页面加载失败，已尝试三次"
                     ) from None
         return False
 
     async def search(self, url):
         if not await self.visit(url, "search-result-item"):
-            return []
+            return {"records": [], "raw_ids": []}
         html = await self.page.locator("search-result-item").evaluate_all(
             "els => els.map(e => e.outerHTML).join('\\n')"
         )
-        return parse_results(html, url)
+        return parse_search_page(html, url)
 
     async def patent(self, publication, _listing):
         url = f"https://patents.google.com/patent/{publication}/zh"

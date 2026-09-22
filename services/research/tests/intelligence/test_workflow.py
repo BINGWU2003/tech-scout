@@ -317,7 +317,7 @@ class FakeLLM:
         )
 
 
-def graph_config():
+def graph_config() -> RunnableConfig:
     return {"configurable": {"thread_id": str(uuid4()), "lease": uuid4()}}
 
 
@@ -588,3 +588,46 @@ def test_workspace_refresh_and_partial_proposal_preserve_selected_directions():
     )
     assert proposal["proposal_plan"]["directions"][1] == other
     assert conversation["selectedPlan"] == original
+
+
+@pytest.mark.asyncio
+async def test_search_planner_preserves_user_depth_and_partial_progress():
+    class PartialAcquisition(FakeAcquisition):
+        async def collect(
+            self,
+            run_id,
+            confirmed_plan,
+            progress,
+            after=0,
+            phase="patents",
+            company_targets=None,
+        ):
+            assert confirmed_plan["pages_per_keyword"] == 10
+            await progress(
+                {
+                    "status": "awaiting_companies",
+                    "stage": "patents",
+                    "completed": 2,
+                    "total": 3,
+                    "searchFailed": 1,
+                    "detailFailed": 1,
+                }
+            )
+            return await super().collect(
+                run_id, confirmed_plan, progress, after, phase, company_targets
+            )
+
+    graph = build_graph(
+        FakeLLM(), runtime_store(), InMemorySaver(), PartialAcquisition()
+    )
+    config: RunnableConfig = graph_config()
+    await graph.ainvoke({"question": "工业视觉"}, config)
+    confirmed = plan().model_dump()
+    confirmed["pages_per_keyword"] = 10
+    await graph.ainvoke(Command(resume={"plan": confirmed}), config)
+    state = await graph.aget_state(config)
+    assert state.next == ("company_gate",)
+    assert state.values["confirmed_plan"]["pages_per_keyword"] == 10
+    assert state.values["acquisition"]["total"] == 3
+    assert state.values["acquisition"]["detailFailed"] == 1
+    assert state.values["acquisition"]["searchFailed"] == 1

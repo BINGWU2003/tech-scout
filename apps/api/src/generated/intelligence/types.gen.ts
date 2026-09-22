@@ -147,6 +147,10 @@ export type HttpValidationError = {
  */
 export type Plan = {
     /**
+     * Pages Per Keyword
+     */
+    pages_per_keyword?: 3 | 5 | 10;
+    /**
      * Directions
      */
     directions: Array<Direction>;

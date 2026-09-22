@@ -78,6 +78,24 @@ def search_url(direction, plan, page, keyword=None):
     return "https://patents.google.com/?" + urlencode(params)
 
 
+def parse_search_page(html, url=None):
+    """Keep source pagination evidence separate from eligibility filtering."""
+    soup = BeautifulSoup(html, "html.parser")
+    ids = []
+    for item in soup.select("search-result-item"):
+        link = item.select_one('[data-result^="patent/"], a[href*="/patent/"]')
+        target = (
+            (attribute(link, "data-result") or attribute(link, "href")) if link else ""
+        )
+        match = re.search(r"(?:^|/)patent/([A-Z]{2}\d+[A-Z]\d?)(?:/|$)", target)
+        if not match:
+            raise AcquisitionBlocked(
+                "PARSE_CHANGED", "搜索结果缺少公开号，无法判断分页"
+            )
+        ids.append(match[1])
+    return {"records": parse_results(html, url), "raw_ids": ids}
+
+
 def parse_results(html, url=None):
     soup = BeautifulSoup(html, "html.parser")
     records = []

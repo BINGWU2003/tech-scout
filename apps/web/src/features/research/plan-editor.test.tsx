@@ -17,6 +17,7 @@ const direction = (id: string) => ({
   cpc_prefixes: [],
 })
 const plan = {
+  pages_per_keyword: 5 as const,
   from_year: 2020,
   to_year: 2026,
   risks: [],
@@ -275,3 +276,47 @@ it('候选加入与删除由保存提交，空计划不能执行', async () => {
     .toBeDisabled()
   expect(save.mock.lastCall?.[0].directions).toEqual([])
 })
+
+it.each([1280, 390])(
+  '宽度 %i 时检索深度随计划提交且运行后只读',
+  async (width) => {
+    await page.viewport(width, 844)
+    const onStart = vi.fn()
+    function Editor() {
+      const [draft, setDraft] =
+        useState<ResearchWorkspace['selectedPlan']>(plan)
+      return (
+        <SelectedPlanEditor
+          workspace={initial}
+          initialPlan={draft}
+          busy={false}
+          onSave={vi.fn()}
+          onStart={onStart}
+          onDirty={(_, next) => {
+            if (next) setDraft(next)
+          }}
+        />
+      )
+    }
+    const screen = await render(<Editor />)
+    await screen.getByRole('radio', { name: '深入 · 10 页' }).click()
+    expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(width)
+    await page.screenshot({ path: `__screenshots__/search-depth-${width}.png` })
+    await screen.getByRole('button', { name: '保存并开始研究' }).click()
+    expect(onStart).toHaveBeenCalledWith(
+      expect.objectContaining({ pages_per_keyword: 10 })
+    )
+    await screen.rerender(
+      <SelectedPlanEditor
+        workspace={{ ...initial, executionRunId: 'running' }}
+        busy={false}
+        onSave={vi.fn()}
+        onStart={onStart}
+        onDirty={vi.fn()}
+      />
+    )
+    await expect
+      .element(screen.getByRole('radio', { name: '深入 · 10 页' }))
+      .toBeDisabled()
+  }
+)

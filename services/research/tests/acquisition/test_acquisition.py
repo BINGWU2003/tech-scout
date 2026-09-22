@@ -13,6 +13,7 @@ from tech_scout_acquisition.parsers import (
     domestic_candidate,
     parse_patent,
     parse_results,
+    parse_search_page,
     search_url,
     valid_mainland_uscc,
 )
@@ -22,6 +23,7 @@ from tech_scout_acquisition.worker import Worker
 
 def plan():
     return {
+        "pages_per_keyword": 5,
         "from_year": 2016,
         "to_year": 2026,
         "risks": [],
@@ -173,6 +175,14 @@ def test_google_patents_search_url_keeps_one_plain_chinese_keyword_and_cn_scope(
     }
 
 
+def test_search_page_keeps_raw_ids_when_all_cards_are_filtered_out():
+    result = parse_search_page(
+        '<search-result-item><a href="/patent/US123B/">Foreign result</a>'
+        '</search-result-item>'
+    )
+    assert result == {"raw_ids": ["US123B"], "records": []}
+
+
 @pytest.mark.asyncio
 async def test_browser_search_reads_google_patents_result_cards():
     result_html = """<search-result-item><article>
@@ -201,7 +211,9 @@ async def test_browser_search_reads_google_patents_result_cards():
     browser.visit = visit
     url = "https://patents.google.com/?q=固态电池&page=0&country=CN"
 
-    rows = await browser.search(url)
+    result = await browser.search(url)
+    rows = result["records"]
+    assert result["raw_ids"]
 
     assert [row["publication_number"] for row in rows] == ["CN122716301A"]
     assert visits == [(url, "search-result-item")]
@@ -215,7 +227,10 @@ async def test_browser_search_returns_empty_for_an_explicitly_empty_google_page(
         return False
 
     browser.visit = visit
-    assert await browser.search("https://patents.google.com/?q=不存在") == []
+    assert await browser.search("https://patents.google.com/?q=不存在") == {
+        "records": [],
+        "raw_ids": [],
+    }
 
 
 class RetryVisitLocator:
@@ -670,6 +685,7 @@ class MemoryStore:
         if self.job["status"] == "paused":
             raise AcquisitionBlocked("PAUSED", "暂停")
         self.job["status"] = "running"
+        self.job["progress"] = progress
 
     async def cached_company(self, *_):
         return None
@@ -703,11 +719,9 @@ async def test_worker_searches_each_keyword_as_a_separate_google_query():
 
         async def search(self, url):
             queries.append(parse_qs(urlparse(url).query)["q"][0])
-            return []
+            return {"records": [], "raw_ids": []}
 
-    await Worker(store, SimpleNamespace(acquisition_patent_limit=100), Browser).execute(
-        uuid4()
-    )
+    await Worker(store, SimpleNamespace(), Browser).execute(uuid4())
 
     assert queries == ["固态电池", "固态电解质"]
     searches = [e for e in store.log if "keyword" in e]
@@ -726,6 +740,7 @@ async def test_worker_searches_each_keyword_as_a_separate_google_query():
 @pytest.mark.asyncio
 async def test_worker_resumes_100_publications_without_repeating_completed_details():
     store = MemoryStore()
+    store.job["plan"]["pages_per_keyword"] = 10
     calls = []
     blocked = True
 
@@ -743,7 +758,7 @@ async def test_worker_resumes_100_publications_without_repeating_completed_detai
             from urllib.parse import parse_qs, urlparse
 
             page = int(parse_qs(urlparse(url).query)["page"][0])
-            return [
+            rows = [
                 {
                     "publication_number": f"CN{n:03}B",
                     "list_assignees": [],
@@ -751,6 +766,7 @@ async def test_worker_resumes_100_publications_without_repeating_completed_detai
                 }
                 for n in range(page * 10, (page + 1) * 10)
             ]
+            return {"records": rows, "raw_ids": [r["publication_number"] for r in rows]}
 
         async def patent(self, key, _listing):
             nonlocal blocked
@@ -762,10 +778,10 @@ async def test_worker_resumes_100_publications_without_repeating_completed_detai
             p["current_assignees"] = []
             return p
 
-    worker = Worker(store, SimpleNamespace(acquisition_patent_limit=100), Browser)
+    worker = Worker(store, SimpleNamespace(), Browser)
     run_id = uuid4()
     await worker.execute(run_id)
-    assert store.job["status"] == "waiting"
+    assert store.job["status"] == "paused"
     assert len(store.data["patent"]) == 50
     assert store.log[-1]["outcome"] == "failed"
     search_count = len([e for e in store.log if "keyword" in e])
@@ -792,9 +808,7 @@ async def test_paused_job_never_opens_browser():
     def forbidden(_):
         raise AssertionError("browser should not start")
 
-    await Worker(
-        store, SimpleNamespace(acquisition_patent_limit=100), forbidden
-    ).execute(uuid4())
+    await Worker(store, SimpleNamespace(), forbidden).execute(uuid4())
     assert store.job["status"] == "paused"
     assert not store.data
 
@@ -816,9 +830,12 @@ async def test_patent_phase_never_queries_companies_until_explicit_advance():
             pass
 
         async def search(self, url):
-            return [
-                {"publication_number": "CN001B", "list_assignees": ["示例有限公司"]}
-            ]
+            return {
+                "records": [
+                    {"publication_number": "CN001B", "list_assignees": ["示例有限公司"]}
+                ],
+                "raw_ids": ["CN001B"],
+            }
 
         async def patent(self, key, listing):
             return patent(key)
@@ -829,7 +846,7 @@ async def test_patent_phase_never_queries_companies_until_explicit_advance():
 
     worker = Worker(
         store,
-        SimpleNamespace(acquisition_patent_limit=1, acquisition_company_cache_days=30),
+        SimpleNamespace(acquisition_company_cache_days=30),
         Browser,
     )
     run_id = uuid4()
@@ -852,3 +869,121 @@ async def test_patent_phase_never_queries_companies_until_explicit_advance():
     await worker.execute(run_id)
     assert store.job["status"] == "completed"
     assert calls == ["示例有限公司"]
+
+
+class DepthBrowser:
+    calls = []
+
+    def __init__(self, _):
+        pass
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *_):
+        pass
+
+    async def search(self, url):
+        query = parse_qs(urlparse(url).query)
+        keyword, page = query["q"][0], int(query["page"][0])
+        self.calls.append((keyword, page))
+        prefix = 1 if keyword == "first" else 2
+        ids = [f"CN{prefix}{page:02}{n:02}B" for n in range(10)]
+        return {
+            "raw_ids": ids,
+            "records": [
+                {"publication_number": key, "list_assignees": []} for key in ids
+            ],
+        }
+
+    async def patent(self, key, listing):
+        return patent(key)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("depth", [3, 5, 10])
+async def test_depth_covers_every_keyword_round_robin_without_total_cap(depth):
+    store = MemoryStore()
+    store.job["plan"]["pages_per_keyword"] = depth
+    store.job["plan"]["directions"][0]["keywords"] = ["first", "second", "first"]
+    DepthBrowser.calls = []
+    await Worker(store, SimpleNamespace(), DepthBrowser).execute(uuid4())
+    assert DepthBrowser.calls == [
+        (keyword, page) for page in range(depth) for keyword in ["first", "second"]
+    ]
+    assert len(store.data["patent"]) == depth * 20
+    assert store.job["status"] == "awaiting_companies"
+    assert len([e for e in store.log if e.get("finishReason") == "page_limit"]) == 2
+
+
+@pytest.mark.asyncio
+async def test_filtered_empty_page_does_not_end_keyword():
+    store = MemoryStore()
+
+    class FilteredBrowser(DepthBrowser):
+        async def search(self, url):
+            page = int(parse_qs(urlparse(url).query)["page"][0])
+            if page == 0:
+                return {"records": [], "raw_ids": ["US123B"]}
+            return {
+                "records": [{"publication_number": "CN123B", "list_assignees": []}],
+                "raw_ids": ["CN123B"],
+            }
+
+    await Worker(store, SimpleNamespace(), FilteredBrowser).execute(uuid4())
+    assert "CN123B" in store.data["patent"]
+    assert len(store.data["page"]) == 3
+    assert any(e.get("finishReason") == "repeated_page" for e in store.log)
+
+
+@pytest.mark.asyncio
+async def test_search_and_detail_failures_are_listed_and_other_work_continues():
+    store = MemoryStore()
+    store.job["plan"]["directions"][0]["keywords"] = ["first", "second"]
+
+    class PartialBrowser(DepthBrowser):
+        async def search(self, url):
+            if parse_qs(urlparse(url).query)["q"] == ["first"]:
+                raise AcquisitionBlocked("INVALID_QUERY", "invalid keyword")
+            return {
+                "records": [
+                    {"publication_number": key, "list_assignees": []}
+                    for key in ["CN1B", "CN2B"]
+                ],
+                "raw_ids": ["CN1B", "CN2B"],
+            }
+
+        async def patent(self, key, listing):
+            if key == "CN1B":
+                raise AcquisitionBlocked("NETWORK_ERROR", "detail unavailable")
+            return patent(key)
+
+    await Worker(store, SimpleNamespace(), PartialBrowser).execute(uuid4())
+    assert store.job["status"] == "awaiting_companies"
+    assert list(store.data["patent"]) == ["CN2B"]
+    assert len(store.data["failure"]) == 2
+    assert store.job["progress"]["searchFailed"] == 1
+    assert store.job["progress"]["detailFailed"] == 1
+    assert any(
+        e.get("keyword") == "first" and e["outcome"] == "failed" for e in store.log
+    )
+    assert any(
+        e.get("publicationNumber") == "CN1B" and e["outcome"] == "failed"
+        for e in store.log
+    )
+
+
+@pytest.mark.asyncio
+async def test_access_block_pauses_all_remaining_keywords():
+    store = MemoryStore()
+    store.job["plan"]["directions"][0]["keywords"] = ["first", "second"]
+
+    class BlockedBrowser(DepthBrowser):
+        async def search(self, url):
+            raise AcquisitionBlocked("CAPTCHA_REQUIRED", "verification required")
+
+    await Worker(store, SimpleNamespace(), BlockedBrowser).execute(uuid4())
+    assert store.job["status"] == "paused"
+    assert "failure" not in store.data
+    assert len([e for e in store.log if e.get("keyword") == "first"]) == 2
+    assert not any(e.get("keyword") == "second" for e in store.log)
