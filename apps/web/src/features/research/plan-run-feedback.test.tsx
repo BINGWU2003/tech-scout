@@ -21,8 +21,6 @@ const run = researchSummaryViewSchema.parse({
   domains: [],
   plan: null,
   confirmedPlan: null,
-  pendingCandidateIds: [],
-  candidateCount: 0,
   hasResult: false,
 })
 

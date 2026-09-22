@@ -51,13 +51,11 @@ export function reachedResearchStage(runs: Record<string, unknown>[]) {
     if (
       run.hasResult ||
       ['completed', 'empty'].includes(status) ||
-      ['evidence', 'finish'].includes(node) ||
-      (node === 'entity' && status === 'queued')
+      ['entity', 'analyze', 'finish'].includes(node)
     )
       reached = Math.max(reached, 3)
     else if (
-      ['company_snapshot', 'company', 'entity'].includes(node) ||
-      status === 'awaiting_entities' ||
+      ['company_snapshot', 'company'].includes(node) ||
       (node === 'company_gate' && status === 'queued')
     )
       reached = Math.max(reached, 2)
@@ -81,7 +79,6 @@ export function researchStageProgress(
     if (!run || command.runId !== run.id) return []
     const kind = object(command.payload).kind
     if (kind === 'start_companies') return [{ node: 'company_snapshot' }]
-    if (kind === 'resolve_entities') return [{ node: 'evidence' }]
     if (kind === 'confirm_plan') return [{ node: 'patent' }]
     return []
   })
@@ -101,8 +98,6 @@ export function researchStageProgress(
   } else if (reachedStage !== reachedResearchStage(run ? [run] : [])) {
     // The start command was accepted before the worker updated its state.
     currentStageStatus = 'queued'
-  } else if (run?.status === 'awaiting_entities') {
-    currentStageStatus = 'awaiting_confirmation'
   } else if (reachedStage === 'plan') {
     currentStageStatus = hasSelectedDirections
       ? 'awaiting_confirmation'

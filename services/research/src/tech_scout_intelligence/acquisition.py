@@ -22,10 +22,12 @@ class Acquisition:
             "period_to_year": datetime.now(UTC).year,
         }
 
-    async def collect(self, run_id, plan, progress, after=0, phase="patents"):
+    async def collect(
+        self, run_id, plan, progress, after=0, phase="patents", company_targets=None
+    ):
         job = await self.store.create(run_id, plan)
         if phase == "companies" and job["status"] == "awaiting_companies":
-            await self.store.start_companies(run_id)
+            await self.store.start_companies(run_id, company_targets or [])
             job = await self.store.get(run_id)
         if job["status"] in {"waiting", "paused", "failed"}:
             retry_at = (job.get("error") or {}).get("retry_at")

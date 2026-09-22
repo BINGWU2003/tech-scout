@@ -173,8 +173,6 @@ it('工作台从左侧切换项目，确认前追问保留上下文，并在手�
       domains: [],
       plan,
       confirmedPlan: null,
-      pendingCandidateIds: [],
-      candidateCount: 0,
       hasResult: false,
     })
   const workspace: ResearchWorkspace = {
@@ -452,7 +450,7 @@ it('工作台从左侧切换项目，确认前追问保留上下文，并在手�
   await page.screenshot({ path: '__screenshots__/research-patents-mobile.png' })
   await page.viewport(1280, 900)
   await expect
-    .element(screen.getByRole('button', { name: /3\. 企业发现与核验/ }))
+    .element(screen.getByRole('button', { name: /3\. 企业发现/ }))
     .toBeDisabled()
   await router.navigate({
     to: '/research/$projectId/$stage',

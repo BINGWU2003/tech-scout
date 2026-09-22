@@ -98,7 +98,6 @@ function RunWorkspace({
       const next: Partial<Record<ResearchAction['kind'], ResearchStage>> = {
         confirm_plan: 'patents',
         start_companies: 'companies',
-        resolve_entities: 'report',
       }
       if (next[input.kind])
         void navigate({
@@ -175,7 +174,6 @@ function RunWorkspace({
                       void submit({
                         action_id: createRequestId(),
                         kind: 'pause',
-                        decisions: [],
                       }).catch(() => undefined)
                     }
                   >
@@ -207,7 +205,6 @@ function RunWorkspace({
                       void submit({
                         action_id: createRequestId(),
                         kind: 'retry',
-                        decisions: [],
                       }).catch(() => undefined)
                     }
                   >
@@ -282,7 +279,6 @@ function RunWorkspace({
               void submit({
                 action_id: createRequestId(),
                 kind: 'cancel',
-                decisions: [],
               }).catch(() => undefined)
             }
           >
@@ -362,7 +358,6 @@ function RunWorkspace({
                         void submit({
                           action_id: createRequestId(),
                           kind: 'start_companies',
-                          decisions: [],
                         }).catch(() => undefined)
                       }
                     >
@@ -422,9 +417,6 @@ function RunWorkspace({
               (event) => stageForEvent(event) === 'companies'
             )}
             active={inCurrentStage && isExecuting(run.status)}
-            readOnly={readOnly}
-            busy={mutation.isPending}
-            onSubmit={submit}
             controls={statusContent}
             recordsError={events.isError}
             retryRecords={() => void events.refetch()}
@@ -478,8 +470,8 @@ function RunWorkspace({
             <div className='space-y-4 rounded-xl border border-dashed p-5 text-sm'>
               <p>
                 {inCurrentStage && isExecuting(run.status)
-                  ? '正在分析证据并生成报告，完成后将在这里显示。'
-                  : '请先在企业发现与核验页确认主体并生成报告。'}
+                  ? '正在解析主体并生成报告，完成后将在这里显示。'
+                  : '请先在专利检索页开始企业发现，报告随后自动生成。'}
               </p>
               {!inCurrentStage && (
                 <Button asChild variant='outline'>

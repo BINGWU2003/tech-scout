@@ -34,34 +34,16 @@ export const researchActionSchema = z
     kind: z.enum([
       'confirm_plan',
       'start_companies',
-      'resolve_entities',
       'retry',
       'cancel',
       'pause',
     ]),
     plan: researchPlanSchema.nullable().optional(),
-    decisions: z
-      .array(
-        z
-          .object({
-            candidate_id: z.string().min(1).max(255),
-            action: z.enum(['confirm', 'reject', 'skip']),
-            company_id: z.string().nullable().default(null),
-            evidence_ids: z.array(z.string()).max(30).default([]),
-            note: z.string().max(2000).default(''),
-          })
-          .strict()
-      )
-      .max(1000)
-      .default([]),
   })
   .strict()
   .superRefine((a, ctx) => {
     if ((a.kind === 'confirm_plan') !== Boolean(a.plan)) {
       ctx.addIssue({ code: 'custom', message: '只有确认计划动作需要 plan' })
-    }
-    if (a.kind !== 'resolve_entities' && a.decisions.length) {
-      ctx.addIssue({ code: 'custom', message: '当前动作不接受身份决定' })
     }
   })
 export const researchStatusSchema = z.enum([
@@ -69,7 +51,6 @@ export const researchStatusSchema = z.enum([
   'running',
   'awaiting_plan',
   'awaiting_companies',
-  'awaiting_entities',
   'completed',
   'empty',
   'failed',

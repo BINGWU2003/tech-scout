@@ -84,8 +84,27 @@ async def test_stage_gate_and_search_log_survive_store_recreation():
         assert len(events) == 1
         assert events[0]["data"]["message"] == "检索完成"
         assert await restored.events(run, events[0]["sequence"]) == []
-        await restored.start_companies(run)
-        await restored.start_companies(run)
+        targets = [
+            {
+                "assignee_id": "a1",
+                "query_key": "示例有限公司",
+                "name": "示例有限公司",
+            }
+        ]
+        await restored.start_companies(run, targets)
+        await restored.start_companies(run, targets)
+        with pytest.raises(AcquisitionBlocked, match="目标不能"):
+            await restored.start_companies(
+                run,
+                [
+                    {
+                        "assignee_id": "a2",
+                        "query_key": "不同有限公司",
+                        "name": "不同有限公司",
+                    }
+                ],
+            )
         job = await restored.get(run)
         assert job["target"] == "companies"
         assert job["status"] == "queued"
+        assert job["company_targets"] == targets

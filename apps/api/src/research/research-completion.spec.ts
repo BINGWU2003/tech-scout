@@ -50,7 +50,6 @@ describe('研究完成后的服务端保护', () => {
     'completed',
     'empty',
     'awaiting_companies',
-    'awaiting_entities',
     'recoverable',
     'failed',
     'cancelled',

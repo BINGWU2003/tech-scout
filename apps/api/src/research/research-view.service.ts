@@ -31,57 +31,38 @@ export const sourceView = (v: Record<string, unknown>) => ({
       : null,
   sha256: str(v.source_sha256),
 })
-export const evidenceView = (e: Record<string, unknown>) => ({
-  id: String(e.evidence_id),
-  publisher: str(e.publisher),
-  observedAt: str(e.observed_at),
-  legalName: str(e.legal_name),
-  country: str(e.country),
-  identifierType: str(e.identifier_type),
-  identifierValue: str(e.identifier_value),
-  preserved: e.preserved === true,
-  contentHash: str(e.content_sha256),
-  source: sourceView(e),
-})
-export const candidateView = (u: Record<string, unknown>) => {
-  const evidence = rows(u.evidence)
-  const evidenceCountries = [
-    ...new Set(evidence.map((e) => str(e.country)).filter(Boolean)),
-  ]
-  const suggestedCountry =
-    evidenceCountries.length === 1 ? evidenceCountries[0] : null
-  const evidenceSources = [
-    ...new Set(
-      evidence
-        .filter((e) => str(e.country) === suggestedCountry)
-        .map((e) => str(e.publisher))
-        .filter(Boolean)
-    ),
-  ]
-  const country = str(u.country) ?? suggestedCountry
-  const countryStatus =
-    str(u.country_status) ??
-    (str(u.country) ? 'verified' : suggestedCountry ? 'suggested' : 'unknown')
-  const countrySource =
-    str(u.country_source) ??
-    (countryStatus === 'verified' && str(u.country)
-      ? 'patent'
-      : countryStatus === 'suggested' && evidenceSources.length === 1
-        ? evidenceSources[0]
-        : null)
+export const subjectResolutionView = (
+  resolution: Record<string, unknown>,
+  subjects: Record<string, unknown>[],
+  companies: Record<string, unknown>[]
+) => {
+  const subject = subjects.find(
+    (item) => item.assignee_id === resolution.assignee_id
+  )
+  const company = companies.find(
+    (item) => item.company_id === resolution.company_id
+  )
   return {
-    id: String(u.candidate_id),
-    name: String(u.name),
-    country,
-    countryStatus,
-    countrySource,
-    status: String(u.status),
-    needsReview: u.requires_confirmation === true,
-    terminalExclusion: u.terminal_exclusion === true,
-    decision:
-      str(object(u.user_decision).action) ??
-      str(object(u.catalog_decision).decision),
-    patentCount: strings(u.patent_ids).length,
+    id: String(resolution.assignee_id),
+    name: String(subject?.name ?? resolution.assignee_id),
+    status: resolution.status === 'matched' ? 'matched' : 'unresolved',
+    confidence:
+      resolution.confidence === 'high' || resolution.confidence === 'medium'
+        ? resolution.confidence
+        : null,
+    companyId: str(resolution.company_id),
+    companyName: company ? String(company.preferred_name) : null,
+    patentCount: strings(subject?.patent_ids).length,
+    candidateCount: rows(subject?.candidates).length,
+    candidates: rows(subject?.candidates).map((candidate) => {
+      const id = String(candidate.company_id)
+      const company = companies.find((item) => item.company_id === id)
+      return {
+        id,
+        name: String(candidate.legal_name ?? company?.preferred_name ?? id),
+      }
+    }),
+    reason: String(resolution.reason ?? ''),
   }
 }
 export function resultView(v: unknown) {
@@ -92,13 +73,23 @@ export function resultView(v: unknown) {
     patentCount: num(r.patent_count) ?? 0,
     missing: strings(r.missing),
     emptyReason: str(r.empty_reason),
-    unverifiedCount: rows(r.unverified).length,
-    conflictCount: rows(r.conflicts).length,
+    unresolvedSubjects: rows(r.unresolved_subjects).map((subject) => ({
+      id: String(subject.assignee_id),
+      name: String(subject.name),
+      patentCount: strings(subject.patent_ids).length,
+      representativePatentIds: strings(subject.patent_ids).slice(0, 5),
+      reason: String(subject.reason ?? '未找到可确认的企业主体'),
+    })),
+    warnings: strings(r.warnings),
     companies: rows(r.companies).map((c) => ({
       id: String(c.company_id),
       name: String(c.preferred_name),
       country: str(c.country),
-      identity: String(c.identity),
+      resolutionKind: 'agent_inferred' as const,
+      confidence:
+        c.confidence === 'high' ? ('high' as const) : ('medium' as const),
+      assigneeNames: strings(c.assignee_names),
+      resolutionReason: String(c.resolution_reason ?? ''),
       patentCount: num(c.patent_count) ?? 0,
       ruleScore: num(c.rule_score) ?? 0,
       trend: object(c.grant_year_trend),
@@ -176,13 +167,17 @@ export class ResearchViewService {
         r.state #> '{artifacts,acquisition}' AS acquisition,
         r.state #>> '{artifacts,snapshot,release,release_id}' AS "snapshotReleaseId",
         r.state #> '{artifacts,plan}' AS plan, r.state #> '{artifacts,confirmed_plan}' AS confirmed,
-        COALESCE(jsonb_array_length(r.state #> '{artifacts,unverified}'), 0) AS "candidateCount",
+        COALESCE(jsonb_array_length(r.state #> '{artifacts,assignees}'), 0) AS "queriedAssigneeCount",
+        COALESCE(jsonb_array_length(r.state #> '{artifacts,snapshot,companies}'), 0) AS "discoveredCompanyCount",
+        (SELECT count(*)::int FROM jsonb_array_elements(
+          COALESCE(r.state #> '{artifacts,resolutions}', '[]'::jsonb)) x
+          WHERE x->>'status' = 'matched') AS "resolvedSubjectCount",
+        COALESCE(jsonb_array_length(r.state #> '{artifacts,unresolved}'), 0) AS "unresolvedSubjectCount",
+        COALESCE(r.state #>> '{artifacts,result,workflow_version}',
+          r.state #>> '{artifacts,execution_config,workflow_version}', 'browser-v2') AS "workflowVersion",
         r.state #> '{artifacts,result}' IS NOT NULL AS "hasResult",
         r.state #> '{artifacts,patents}' IS NOT NULL AS "hasPatents",
-        r.state #> '{artifacts,companies}' IS NOT NULL AS "hasCompanies",
-        (SELECT COALESCE(jsonb_agg(u->'candidate_id'), '[]'::jsonb)
-         FROM jsonb_array_elements(COALESCE(r.state #> '{artifacts,unverified}', '[]'::jsonb)) u
-         WHERE u->>'requires_confirmation' = 'true') AS pending
+        r.state #> '{artifacts,subjects}' IS NOT NULL AS "hasCompanies"
       FROM app.research_run r JOIN app.research_project p ON p.id = r.project_id
       WHERE r.id = ${id}::uuid AND p.user_id = ${userId}::uuid`)
     const r = found[0]
@@ -214,8 +209,11 @@ export class ResearchViewService {
       plan: r.plan == null ? null : researchPlanSchema.parse(r.plan),
       confirmedPlan:
         r.confirmed == null ? null : researchPlanSchema.parse(r.confirmed),
-      pendingCandidateIds: strings(r.pending),
-      candidateCount: r.candidateCount,
+      workflowVersion: r.workflowVersion,
+      queriedAssigneeCount: r.queriedAssigneeCount,
+      discoveredCompanyCount: r.discoveredCompanyCount,
+      resolvedSubjectCount: r.resolvedSubjectCount,
+      unresolvedSubjectCount: r.unresolvedSubjectCount,
       hasResult: r.hasResult,
       hasPatents: r.hasPatents ?? false,
       hasCompanies: r.hasCompanies ?? false,
@@ -297,30 +295,6 @@ export class ResearchViewService {
     return resultView((await this.artifacts(userId, id)).result)
   }
 
-  async conflicts(userId: string, id: string, q: ResearchViewQuery) {
-    const a = await this.artifacts(userId, id)
-    const candidates = rows(object(a.snapshot)['company-candidates'])
-    return pageOf(
-      rows(object(a.result).conflicts).map((c) => ({
-        candidateId: String(c.candidate_id),
-        name: String(
-          candidates.find((u) => u.candidate_id === c.candidate_id)
-            ?.representative_name ?? c.candidate_id
-        ),
-        kind: String(c.kind),
-        note: String(c.note ?? ''),
-        identifierType: str(c.identifier_type),
-        values: Object.fromEntries(
-          Object.entries(object(c.values)).map(([key, value]) => [
-            key,
-            strings(value),
-          ])
-        ),
-      })),
-      q
-    )
-  }
-
   async patents(userId: string, id: string, q: ResearchViewQuery) {
     const a = await this.artifacts(userId, id)
     let patents = rows(a.patents)
@@ -361,95 +335,74 @@ export class ResearchViewService {
     return patentStatsView((await this.artifacts(userId, id)).patents)
   }
 
-  async candidates(userId: string, id: string, q: ResearchViewQuery) {
-    let items = rows((await this.artifacts(userId, id)).unverified)
-    if (q.pending === 'true')
-      items = items.filter((u) => u.requires_confirmation === true)
-    return pageOf(items.map(candidateView), q)
+  async subjectResolutions(userId: string, id: string, q: ResearchViewQuery) {
+    const a = await this.artifacts(userId, id)
+    const subjects = rows(a.subjects)
+    const companies = rows(object(a.snapshot).companies)
+    return pageOf(
+      rows(a.resolutions).map((resolution) =>
+        subjectResolutionView(resolution, subjects, companies)
+      ),
+      q
+    )
   }
 
   async companyStats(userId: string, id: string) {
-    const companies = rows((await this.artifacts(userId, id)).companies)
+    const a = await this.artifacts(userId, id)
+    const companies = rows(object(a.snapshot).companies)
     return {
       total: companies.length,
-      ranking: companies
-        .map((c) => ({
-          id: String(c.company_id),
-          name: String(c.preferred_name),
-          patentCount: new Set(strings(c.patent_ids)).size,
+      ranking: rows(a.companies)
+        .map((company) => ({
+          id: String(company.company_id),
+          name: String(company.preferred_name),
+          patentCount: new Set(strings(company.patent_ids)).size,
         }))
-        .sort(
-          (a, b) =>
-            b.patentCount - a.patentCount || a.name.localeCompare(b.name)
-        )
+        .sort((left, right) => right.patentCount - left.patentCount)
         .slice(0, 8),
     }
   }
 
   async companyMatches(userId: string, id: string, q: ResearchViewQuery) {
-    const companies = rows((await this.artifacts(userId, id)).companies)
+    const a = await this.artifacts(userId, id)
+    const snapshot = object(a.snapshot)
+    const companies = rows(snapshot.companies)
+    const hits = rows(snapshot['company-search-hits'])
     return pageOf(
-      companies.map((company) => ({
-        id: String(company.company_id),
-        name: String(company.preferred_name),
-        country: str(company.country),
-        patentCount: strings(company.patent_ids).length,
-      })),
+      companies.map((company) => {
+        const companyHits = hits.filter(
+          (hit) => hit.company_id === company.company_id
+        )
+        return {
+          id: String(company.company_id),
+          name: String(company.preferred_name),
+          country: str(company.country),
+          queryNames: [
+            ...new Set(companyHits.map((hit) => String(hit.query_name))),
+          ],
+          providerRank: companyHits.length
+            ? Math.min(...companyHits.map((hit) => num(hit.provider_rank) ?? 0))
+            : 0,
+        }
+      }),
       q
     )
-  }
-
-  async candidate(userId: string, id: string, candidateId: string) {
-    const a = await this.artifacts(userId, id),
-      s = object(a.snapshot)
-    const u = rows(a.unverified).find((u) => u.candidate_id === candidateId)
-    if (!u) throw new NotFoundException('本次研究中没有该待核验主体')
-    const evidence = rows(s['entity-evidence']).filter(
-      (e) => e.candidate_id === candidateId
-    )
-    const identifiers = rows(s['external-identifiers'])
-    return {
-      ...candidateView(u),
-      evidence: evidence.map(evidenceView),
-      reviewNote: str(object(u.catalog_decision).reviewer_note),
-      companyOptions: rows(s.companies).map((c) => ({
-        id: String(c.company_id),
-        name: String(c.preferred_name),
-        country: str(c.country),
-        supportingEvidenceIds: evidence
-          .filter(
-            (e) =>
-              identifiers.some(
-                (i) =>
-                  i.company_id === c.company_id &&
-                  i.identifier_type === e.identifier_type &&
-                  i.identifier_value === e.identifier_value
-              ) ||
-              (Boolean(e.legal_name) &&
-                [c.legal_name, c.preferred_name].some(
-                  (n) =>
-                    String(n ?? '').toLowerCase() ===
-                    String(e.legal_name).toLowerCase()
-                ) &&
-                Boolean(c.country) &&
-                e.country === c.country)
-          )
-          .map((e) => String(e.evidence_id)),
-      })),
-    }
   }
 
   async company(userId: string, id: string, companyId: string) {
     const a = await this.artifacts(userId, id),
       s = object(a.snapshot)
-    const c = rows(a.companies).find((c) => c.company_id === companyId)
+    const c = rows(s.companies).find(
+      (company) => company.company_id === companyId
+    )
     if (!c) throw new NotFoundException('本次研究中没有该主体')
-    const relations = rows(c.relations),
-      candidateIds = new Set(relations.map((r) => r.candidate_id))
-    // User-confirmed identities keep their own evidence and candidate association.
-    for (const u of rows(a.unverified))
-      if (object(u.user_decision).company_id === companyId)
-        candidateIds.add(u.candidate_id)
+    const resolved = rows(a.companies).find(
+      (company) => company.company_id === companyId
+    )
+    const subjects = rows(a.subjects)
+    const resolutions = rows(a.resolutions).filter(
+      (resolution) => resolution.company_id === companyId
+    )
     return {
       id: companyId,
       name: String(c.preferred_name),
@@ -470,20 +423,14 @@ export class ResearchViewService {
           type: String(x.identifier_type),
           value: String(x.identifier_value),
         })),
-      relations: relations.map((r) => ({
-        patentId: String(r.patent_id),
-        method: String(r.match_method ?? r.relation_type ?? 'user_confirmed'),
-        decision: str(r.entity_match_decision),
+      relations: strings(resolved?.patent_ids).map((patentId) => ({
+        patentId,
+        method: 'agent_inferred',
+        decision: 'matched',
       })),
-      evidence: rows(s['entity-evidence'])
-        .filter((e) => candidateIds.has(e.candidate_id))
-        .map(evidenceView),
-      confirmations: rows(c.user_evidence).map((e) => ({
-        actorId: String(e.actor_id),
-        confirmedAt: String(e.confirmed_at),
-        note: String(e.note ?? ''),
-        evidenceIds: strings(e.evidence_ids),
-      })),
+      resolution: resolutions.length
+        ? subjectResolutionView(resolutions[0], subjects, rows(s.companies))
+        : null,
     }
   }
 }

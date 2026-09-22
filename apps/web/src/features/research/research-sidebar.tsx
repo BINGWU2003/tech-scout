@@ -68,7 +68,6 @@ const taskIcons: Record<
   running: { icon: LoaderCircle, className: 'motion-safe:animate-spin' },
   awaiting_plan: awaitingIcon,
   awaiting_companies: awaitingIcon,
-  awaiting_entities: awaitingIcon,
   completed: {
     icon: CircleCheck,
     className: 'text-emerald-600 dark:text-emerald-400',

@@ -82,7 +82,7 @@ async def test_postgres_restart_resume_budget_and_event_receipts(setup_runtime):
     await advance_to_report(resumed, store, run_id)
     state = await store.get(run_id)
     assert state.status == "completed", state.error
-    assert state.artifacts["result"]["companies"][0]["patent_count"] == 1
+    assert state.artifacts["result"]["companies"][0]["patent_count"] == 2
     assert llm.calls.count("Plan") == 1
     assert state.budget.elapsed_seconds > 0
     events, after = [], 0
@@ -113,12 +113,17 @@ async def test_failed_planner_allows_manual_directions_then_generates_conditions
     await runtime.execute(run_id)
     await advance_to_report(runtime, store, run_id)
     assert (await store.get(run_id)).status == "completed"
-    assert llm.calls == ["DirectionProposal", "Plan", "Analysis"]
+    assert llm.calls == [
+        "DirectionProposal",
+        "Plan",
+        "SubjectResolutionBatch",
+        "Analysis",
+    ]
 
 
 @pytest.mark.asyncio
-async def test_failed_analysis_stops_then_explicit_retry_reuses_facts(setup_runtime):
-    runtime, store, catalog, llm, _ = setup_runtime
+async def test_failed_analysis_completes_with_mapping_and_warning(setup_runtime):
+    runtime, store, _, llm, _ = setup_runtime
     run_id = uuid4()
     await store.create(run_id, "视觉")
     await runtime.execute(run_id)
@@ -129,19 +134,16 @@ async def test_failed_analysis_stops_then_explicit_retry_reuses_facts(setup_runt
     llm.fail = "Analysis"
     await runtime.execute(run_id)
     await advance_to_report(runtime, store, run_id)
-    failed = await store.get(run_id)
-    assert failed.status == "failed"
-    assert "result" not in failed.artifacts
-    catalog.data["release"]["release_id"] = "v2"
-    llm.fail = None
-    await store.action(
-        run_id, Action(action_id=uuid4(), actor_id=uuid4(), kind="retry")
-    )
-    await runtime.execute(run_id)
     finished = await store.get(run_id)
     assert finished.status == "completed"
-    assert finished.artifacts["result"]["release_id"] == "v1"
-    assert finished.budget.elapsed_seconds >= failed.budget.elapsed_seconds
+    assert (
+        finished.artifacts["result"]["release_id"]
+        == "00000000-0000-0000-0000-000000000001"
+    )
+    assert finished.artifacts["result"]["companies"][0]["inference"] is None
+    assert finished.artifacts["result"]["warnings"] == [
+        "企业技术解释生成失败，已保留映射、专利和统计结果。"
+    ]
 
 
 @pytest.mark.asyncio
@@ -393,20 +395,12 @@ async def test_delete_endpoint_waits_for_running_model_and_acquisition(
 
 async def advance_to_report(runtime, store, run_id):
     assert (await store.get(run_id)).status == "awaiting_companies"
-    with pytest.raises(ResearchError, match="当前状态"):
-        await store.action(
-            run_id, Action(action_id=uuid4(), actor_id=uuid4(), kind="resolve_entities")
-        )
     action = Action(action_id=uuid4(), actor_id=uuid4(), kind="start_companies")
     first = await store.action(run_id, action)
     again = await store.action(run_id, action)
     assert first.sequence == again.sequence
     await runtime.execute(run_id)
-    assert (await store.get(run_id)).status == "awaiting_entities"
-    await store.action(
-        run_id, Action(action_id=uuid4(), actor_id=uuid4(), kind="resolve_entities")
-    )
-    await runtime.execute(run_id)
+    assert (await store.get(run_id)).status in {"completed", "empty"}
 
 
 @pytest.mark.asyncio

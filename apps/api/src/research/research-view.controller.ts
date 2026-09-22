@@ -12,7 +12,6 @@ import {
   UseGuards,
 } from '@nestjs/common'
 import {
-  researchConflictPageSchema,
   researchWorkspaceSchema,
   researchWorkspaceActionSchema,
   type ResearchWorkspaceAction,
@@ -24,8 +23,7 @@ import {
   researchResultViewSchema,
   researchPatentPageSchema,
   researchPatentStatsSchema,
-  researchCandidatePageSchema,
-  researchCandidateDetailViewSchema,
+  researchSubjectResolutionPageSchema,
   researchCompanyDetailViewSchema,
   researchCompanyMatchesSchema,
   researchCompanyStatsSchema,
@@ -116,16 +114,6 @@ export class ResearchViewController {
     return this.view.result(auth.user.id, id)
   }
 
-  @Get('runs/:runId/conflicts')
-  @ZodResponse(researchConflictPageSchema)
-  conflicts(
-    @CurrentAuth() auth: Auth,
-    @Param('runId', uuid) id: string,
-    @Query(new ZodValidationPipe(researchViewQuerySchema)) q: ResearchViewQuery
-  ) {
-    return this.view.conflicts(auth.user.id, id, q)
-  }
-
   @Get('runs/:runId/patents')
   @ZodResponse(researchPatentPageSchema)
   patents(
@@ -142,14 +130,14 @@ export class ResearchViewController {
     return this.view.patentStats(auth.user.id, id)
   }
 
-  @Get('runs/:runId/candidates')
-  @ZodResponse(researchCandidatePageSchema)
-  candidates(
+  @Get('runs/:runId/subject-resolutions')
+  @ZodResponse(researchSubjectResolutionPageSchema)
+  subjectResolutions(
     @CurrentAuth() auth: Auth,
     @Param('runId', uuid) id: string,
     @Query(new ZodValidationPipe(researchViewQuerySchema)) q: ResearchViewQuery
   ) {
-    return this.view.candidates(auth.user.id, id, q)
+    return this.view.subjectResolutions(auth.user.id, id, q)
   }
 
   @Get('runs/:runId/company-stats')
@@ -166,16 +154,6 @@ export class ResearchViewController {
     @Query(new ZodValidationPipe(researchViewQuerySchema)) q: ResearchViewQuery
   ) {
     return this.view.companyMatches(auth.user.id, id, q)
-  }
-
-  @Get('runs/:runId/candidates/:candidateId')
-  @ZodResponse(researchCandidateDetailViewSchema)
-  candidate(
-    @CurrentAuth() auth: Auth,
-    @Param('runId', uuid) id: string,
-    @Param('candidateId', key) cid: string
-  ) {
-    return this.view.candidate(auth.user.id, id, cid)
   }
 
   @Get('runs/:runId/companies/:companyId')

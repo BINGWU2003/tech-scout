@@ -214,7 +214,7 @@ export class ResearchWorkspaceService {
     const startedRunIds = new Set(
       commands
         .filter((command) =>
-          ['confirm_plan', 'start_companies', 'resolve_entities'].includes(
+          ['confirm_plan', 'start_companies'].includes(
             String(object(command.payload).kind)
           )
         )

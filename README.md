@@ -5,9 +5,9 @@
 ## 使用流程
 
 1. 打开研究工作台，输入技术方向。
-2. 编辑模型建议的关键词、IPC 和公开年份，确认检索。
+2. 编辑模型建议的技术方向、描述和公开年份，确认检索。
 3. 查看采集进度；来源限流或要求验证时暂停，处理后继续。
-4. 核对候选企业身份，查看有专利证据支持的研究结果。
+4. 专利采集后手动开始企业发现；查看独立企业候选、Agent 主体解析与分级报告。
 5. 在企业库、专利库查看历次采集的累计数据，可按研究来源筛选。
 
 确认前只保存任务与计划。专利按公开号去重，企业按统一社会信用代码去重。研究快照独立保存；浏览数据不会启动采集。
@@ -16,7 +16,7 @@
 
 - `apps/web`：React 研究工作台、企业库、专利库、账号与用户管理。
 - `apps/api`：NestJS 认证、研究接口、累计数据查询。
-- `services/research`：研究规划、Playwright 网页采集、确认门禁、主体核对和分析；采集与研究运行在同一服务中。
+- `services/research`：研究规划、Playwright 网页采集、确认门禁、Agent 主体解析和分析；采集与研究运行在同一服务中。
 - `packages/contracts`：前后端 Zod 契约；`packages/shared`：公共工具。
 
 ## 本地启动
@@ -52,4 +52,4 @@ uv run --project services/research python services/research/scripts/verify_archi
 
 第二条命令创建独立测试数据库，验证采集持久化、研究确认/恢复、清理保护和 API。测试数据库名称记录在被 Git 忽略的 `.local/architecture-test.json`，不会导入正式库。真实网页验收另见 [采集说明](docs/browser-acquisition.md)。
 
-旧离线数据管道已移除。一次性清理使用 `services/research/scripts/cleanup_legacy.py`，默认仅盘点；停服务后加 `--apply` 按来源清理旧研究及旧 schema，保留账号和新采集记录。更换网页来源时可运行 `services/research/scripts/reset_source_data.py`，默认只统计；加 `--apply` 会清空采集检查点、事实、缓存与快照，并将原采集任务重置为待执行，不修改用户、研究历史或浏览器登录资料。
+`browser-v2` 不兼容旧研究。本地升级先执行 `pnpm migrate:research`，再运行 `pnpm reset:research:v2`；后者要求显式确认参数并永久清空研究、采集、专利、企业、快照和检查点数据，但保留账号与登录会话。

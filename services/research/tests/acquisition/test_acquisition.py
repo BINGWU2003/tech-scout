@@ -14,6 +14,7 @@ from tech_scout_acquisition.parsers import (
     parse_patent,
     parse_results,
     search_url,
+    valid_mainland_uscc,
 )
 from tech_scout_acquisition.snapshot import build_snapshot
 from tech_scout_acquisition.worker import Worker
@@ -399,7 +400,7 @@ async def test_patent_accepts_google_publication_number_metadata_variant():
 
 
 @pytest.mark.asyncio
-async def test_company_uses_tianyancha_candidates_and_normalized_exact_identity():
+async def test_company_keeps_all_valid_tianyancha_candidates_in_provider_order():
     class Response:
         status = 200
         headers = {}
@@ -449,9 +450,10 @@ async def test_company_uses_tianyancha_candidates_and_normalized_exact_identity(
 
     result = await browser.company("中科超能(深圳)新能源科技有限公司")
 
-    assert result["status"] == "matched"
-    assert len(result["companies"]) == 1
+    assert result["status"] == "found"
+    assert len(result["companies"]) == 2
     record = result["companies"][0]
+    assert record["provider_rank"] == 0
     assert record["name"] == "中科超能（深圳）新能源科技有限公司"
     assert record["credit_code"] == "91440300MACUHG9Y8K"
     assert record["aliases"] == [
@@ -507,7 +509,7 @@ async def test_company_ignores_a_hong_kong_candidate_without_a_cn_credit_code():
 
     result = await browser.company("惠州亿纬锂能股份有限公司")
 
-    assert result["status"] == "matched"
+    assert result["status"] == "found"
     assert [item["credit_code"] for item in result["companies"]] == [
         "91441300734122111K"
     ]
@@ -581,7 +583,17 @@ async def test_company_treats_tianyancha_no_data_warning_as_not_found():
 
     result = await browser.company("伊奎希尔德医疗有限公司")
 
-    assert result == {"companies": [], "status": "not_found"}
+    assert result == {
+        "companies": [],
+        "status": "not_found",
+        "provider": "tianyancha",
+    }
+
+
+def test_mainland_credit_code_requires_region_and_checksum():
+    assert valid_mainland_uscc("91440300MACUHG9Y8K")
+    assert not valid_mainland_uscc("91440300MACUHG9Y8A")
+    assert not valid_mainland_uscc("91810300MACUHG9Y8K")
 
 
 def test_identity_normalization_does_not_strip_company_name_substrings():
@@ -595,13 +607,14 @@ def test_identity_normalization_does_not_strip_company_name_substrings():
 
 def test_listing_detail_disagreement_never_creates_ownership():
     p, co = patent("CN1B"), company()
-    p["current_assignees"] = ["Different Auto R&D Co Ltd", "Some University"]
+    p["current_assignees"] = ["不同科技有限公司", "某大学"]
     s = build_snapshot(
-        uuid4(), plan(), {"CN1B": p}, {"示例有限公司": {"companies": [co]}}
+        uuid4(), plan(), {"CN1B": p}, {"不同科技有限公司": {"companies": [co]}}
     )
     assert s["companies"]
-    assert s["company-patent-relations"] == []
-    assert all(not m["is_accepted"] for m in s["entity-matches"])
+    assert "company-patent-relations" not in s
+    assert s["company-search-hits"][0]["company_id"] == co["company_id"]
+    assert s["company-search-hits"][0]["research_id"] == str(s["release"]["release_id"])
     assert len(s["patent-parties"]) == 3
     assert all(p["country"] is None for p in s["patent-parties"])
 
@@ -620,12 +633,17 @@ def test_snapshot_preserves_the_company_provider_from_each_source():
     )
 
     assert snapshot["companies"][0]["provider"] == "tianyancha"
-    assert snapshot["entity-evidence"][0]["publisher"] == "tianyancha"
+    assert snapshot["company-search-hits"][0]["query_name"] == "示例股份有限公司"
 
 
 class MemoryStore:
     def __init__(self):
-        self.job = {"plan": plan(), "status": "queued"}
+        self.job = {
+            "plan": plan(),
+            "status": "queued",
+            "target": "patents",
+            "company_targets": [],
+        }
         self.data = {}
         self.release = None
         self.log = []
@@ -702,7 +720,7 @@ async def test_worker_searches_each_keyword_as_a_separate_google_query():
     assert [e["keyword"] for e in searches[::2]] == queries
     assert all(e["url"].startswith("https://patents.google.com/") for e in searches)
     assert all(e["count"] == 0 for e in searches if e["outcome"] == "completed")
-    assert store.job["status"] == "completed"
+    assert store.job["status"] == "awaiting_companies"
 
 
 @pytest.mark.asyncio
@@ -756,8 +774,9 @@ async def test_worker_resumes_100_publications_without_repeating_completed_detai
     assert store.release is None
     store.job["status"] = "queued"
     await worker.execute(run_id)
-    assert store.job["status"] == "completed"
-    assert len(store.release["patents"]) == 100
+    assert store.job["status"] == "awaiting_companies"
+    assert store.release is None
+    assert len(store.data["patent"]) == 100
     assert len(calls) == len(set(calls)) == 100
     assert len([e for e in store.log if "keyword" in e]) == search_count
     store.job["status"] = "queued"
@@ -819,7 +838,17 @@ async def test_patent_phase_never_queries_companies_until_explicit_advance():
     assert calls == []
     assert store.release is None
     assert len(store.data["patent"]) == 1
-    store.job.update(status="queued", target="companies")
+    store.job.update(
+        status="queued",
+        target="companies",
+        company_targets=[
+            {
+                "assignee_id": "unused-in-worker",
+                "query_key": "示例有限公司",
+                "name": "示例有限公司",
+            }
+        ],
+    )
     await worker.execute(run_id)
     assert store.job["status"] == "completed"
     assert calls == ["示例有限公司"]

@@ -61,25 +61,25 @@ async function workspace(
 }
 
 describe('多轮推荐卡片', () => {
-  it.each([
-    ['start_companies', 'companies'],
-    ['resolve_entities', 'report'],
-  ])('隐藏 %s 操作消息但保留阶段进度', async (kind, stage) => {
-    const current = run({ status: 'awaiting_companies', confirmed: plan })
-    const command = {
-      id: randomUUID(),
-      runId: current.id,
-      payload: { kind },
-      createdAt: new Date(),
+  it.each([['start_companies', 'companies']])(
+    '隐藏 %s 操作消息但保留阶段进度',
+    async (kind, stage) => {
+      const current = run({ status: 'awaiting_companies', confirmed: plan })
+      const command = {
+        id: randomUUID(),
+        runId: current.id,
+        payload: { kind },
+        createdAt: new Date(),
+      }
+      const result = await workspace([current], [command])
+      expect(result.messages.some((message) => message.id === command.id)).toBe(
+        false
+      )
+      expect(result.messages.length).toBeGreaterThan(0)
+      expect(result.reachedStage).toBe(stage)
+      expect(result.currentStageStatus).toBe('queued')
     }
-    const result = await workspace([current], [command])
-    expect(result.messages.some((message) => message.id === command.id)).toBe(
-      false
-    )
-    expect(result.messages.length).toBeGreaterThan(0)
-    expect(result.reachedStage).toBe(stage)
-    expect(result.currentStageStatus).toBe('queued')
-  })
+  )
   it.each(['confirm_plan', 'retry', 'pause', 'cancel'])(
     '隐藏 %s 操作消息',
     async (kind) => {
@@ -180,7 +180,7 @@ describe('多轮推荐卡片', () => {
         {
           id: randomUUID(),
           runId: previous.id,
-          payload: { kind: 'resolve_entities' },
+          payload: { kind: 'start_companies' },
           createdAt: new Date(),
         },
       ]
@@ -231,7 +231,6 @@ describe('多轮推荐卡片', () => {
     ['recoverable', 'company', 'failed'],
     ['failed', 'company', 'failed'],
     ['cancelled', null, 'cancelled'],
-    ['awaiting_entities', null, 'awaiting_confirmation'],
   ])(
     '企业步骤 %s 显示 %s 对应的真实状态 %s',
     async (status, errorNode, label) => {

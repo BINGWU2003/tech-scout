@@ -2,9 +2,9 @@ import { describe, expect, it, vi } from 'vitest'
 import type { PrismaService } from '../database/prisma.service.js'
 import {
   ResearchViewService,
-  candidateView,
   patentStatsView,
   sourceView,
+  subjectResolutionView,
 } from './research-view.service.js'
 
 describe('全部专利统计', () => {
@@ -64,62 +64,38 @@ describe('研究来源链接', () => {
   })
 })
 
-describe('待核对主体国家', () => {
-  it('公开建议国家及其证据来源，但不把它标记为已确认', () => {
+describe('主体解析视图', () => {
+  it('只公开输入工作集中的候选、选择和理由', () => {
     expect(
-      candidateView({
-        candidate_id: 'candidate-1',
-        name: '示例科技有限公司',
-        country: 'CN',
-        country_status: 'suggested',
-        country_source: 'tianyancha',
-        status: 'unverified',
-        requires_confirmation: true,
-        terminal_exclusion: false,
-        patent_ids: ['CN1A', 'CN2A'],
-      })
-    ).toMatchObject({
-      country: 'CN',
-      countryStatus: 'suggested',
-      countrySource: 'tianyancha',
+      subjectResolutionView(
+        {
+          assignee_id: 'assignee-1',
+          status: 'matched',
+          confidence: 'high',
+          company_id: 'company-1',
+          reason: '法定名称精确匹配',
+        },
+        [
+          {
+            assignee_id: 'assignee-1',
+            name: '示例科技',
+            patent_ids: ['CN1A', 'CN2A'],
+            candidates: [{ company_id: 'company-1' }],
+          },
+        ],
+        [{ company_id: 'company-1', preferred_name: '示例科技有限公司' }]
+      )
+    ).toEqual({
+      id: 'assignee-1',
+      name: '示例科技',
+      status: 'matched',
+      confidence: 'high',
+      companyId: 'company-1',
+      companyName: '示例科技有限公司',
       patentCount: 2,
-    })
-  })
-
-  it('从旧快照已有的单一登记证据恢复建议国家', () => {
-    expect(
-      candidateView({
-        candidate_id: 'legacy-candidate',
-        name: '旧快照企业',
-        country: null,
-        evidence: [{ country: 'CN', publisher: 'tianyancha' }],
-        status: 'unverified',
-        requires_confirmation: true,
-        terminal_exclusion: false,
-        patent_ids: ['CN1A'],
-      })
-    ).toMatchObject({
-      country: 'CN',
-      countryStatus: 'suggested',
-      countrySource: 'tianyancha',
-    })
-  })
-
-  it('将旧快照直接提供的国家标记为专利来源确认值', () => {
-    expect(
-      candidateView({
-        candidate_id: 'legacy-patent-country',
-        name: 'Acme',
-        country: 'US',
-        status: 'unverified',
-        requires_confirmation: true,
-        terminal_exclusion: false,
-        patent_ids: ['US1A'],
-      })
-    ).toMatchObject({
-      country: 'US',
-      countryStatus: 'verified',
-      countrySource: 'patent',
+      candidateCount: 1,
+      candidates: [{ id: 'company-1', name: '示例科技有限公司' }],
+      reason: '法定名称精确匹配',
     })
   })
 })
@@ -129,6 +105,12 @@ describe('企业全量排行', () => {
     const findFirst = vi.fn().mockResolvedValue({
       state: {
         artifacts: {
+          snapshot: {
+            companies: Array.from({ length: 40 }, (_, i) => ({
+              company_id: `c${i}`,
+              preferred_name: `公司${i}`,
+            })),
+          },
           companies: Array.from({ length: 40 }, (_, i) => ({
             company_id: `c${i}`,
             preferred_name: `公司${i}`,

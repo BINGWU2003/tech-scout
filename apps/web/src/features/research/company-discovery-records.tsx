@@ -8,7 +8,7 @@ import {
   Pause,
   SearchX,
 } from 'lucide-react'
-import { companyRecords } from './company-review-data'
+import { companyRecords } from './company-records'
 import { eventLabels, nodeLabels } from './labels'
 
 function recordStatus(event: ResearchProgressView, active: boolean) {

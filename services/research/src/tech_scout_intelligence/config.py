@@ -44,7 +44,7 @@ class Settings(BaseSettings):
             "input_cny_per_million": self.research_input_cny_per_million,
             "output_cny_per_million": self.research_output_cny_per_million,
             "thinking": "conversation-controlled",
-            "workflow_version": "browser-v1",
+            "workflow_version": "browser-v2",
             "prompt_version": "research-advisor-v2",
         }
 

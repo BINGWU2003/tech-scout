@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { researchCandidateViewSchema } from './research-view.js'
+import { researchSubjectResolutionViewSchema } from './research-view.js'
 import {
   researchActionSchema,
   researchCreateSchema,
@@ -57,7 +57,7 @@ describe('阶段 2 输入契约', () => {
       }).success
     ).toBe(false)
   })
-  it('确认计划必须提供计划，其他动作不能夹带计划或身份决定', () => {
+  it('确认计划必须提供计划，且旧人工决定动作不可接受', () => {
     const action_id = '423c8a2b-afc5-40e7-9da4-4135c272fc48'
     expect(
       researchActionSchema.safeParse({ action_id, kind: 'confirm_plan' })
@@ -71,34 +71,34 @@ describe('阶段 2 输入契约', () => {
       }).success
     ).toBe(false)
     expect(
-      researchActionSchema.parse({
+      researchActionSchema.safeParse({
         action_id,
-        kind: 'resolve_entities',
-        decisions: [{ candidate_id: 'c', action: 'skip' }],
-      }).decisions[0].evidence_ids
-    ).toEqual([])
+        kind: 'legacy_action',
+        obsoletePayload: [{ id: 'c' }],
+      }).success
+    ).toBe(false)
   })
 })
 
-describe('待核对主体输出契约', () => {
-  it('区分建议国家、确认国家和未知国家', () => {
-    const candidate = researchCandidateViewSchema.parse({
-      id: 'candidate-1',
-      name: '示例科技有限公司',
-      country: 'CN',
-      countryStatus: 'suggested',
-      countrySource: 'tianyancha',
-      status: 'unverified',
-      needsReview: true,
-      terminalExclusion: false,
-      decision: null,
+describe('主体解析输出契约', () => {
+  it('公开只读 Agent 选择、置信度和理由', () => {
+    const resolution = researchSubjectResolutionViewSchema.parse({
+      id: 'assignee-1',
+      name: '示例科技',
+      status: 'matched',
+      confidence: 'high',
+      companyId: 'company-1',
+      companyName: '示例科技有限公司',
       patentCount: 6,
+      candidateCount: 3,
+      candidates: [{ id: 'company-1', name: '示例科技有限公司' }],
+      reason: '法定名称精确匹配',
     })
 
-    expect(candidate).toMatchObject({
-      country: 'CN',
-      countryStatus: 'suggested',
-      countrySource: 'tianyancha',
+    expect(resolution).toMatchObject({
+      status: 'matched',
+      confidence: 'high',
+      companyId: 'company-1',
     })
   })
 })

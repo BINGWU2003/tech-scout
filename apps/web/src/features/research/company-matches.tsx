@@ -24,7 +24,7 @@ export function CompanyMatches({ runId }: { runId: string }) {
   return (
     <div className='flex flex-col gap-4'>
       <h3 className='text-sm font-semibold'>
-        已匹配企业{query.data ? ` · ${total} 家` : ''}
+        企业候选{query.data ? ` · ${total} 家` : ''}
       </h3>
 
       {query.isError && !query.isFetchNextPageError && (
@@ -36,14 +36,14 @@ export function CompanyMatches({ runId }: { runId: string }) {
         </p>
       )}
       {query.isPending && (
-        <ContentSkeleton variant='list' label='正在读取匹配企业…' />
+        <ContentSkeleton variant='list' label='正在读取企业候选…' />
       )}
       {query.data && total === 0 && (
         <p className='rounded-xl border border-dashed p-6 text-sm text-muted-foreground'>
-          尚无已匹配企业，可切换到核验列表处理候选主体。
+          本次企业查询没有返回有效的境内企业候选。
         </p>
       )}
-      <ul aria-label='已匹配企业列表' className='divide-y border-y'>
+      <ul aria-label='企业候选列表' className='divide-y border-y'>
         {items.map((company) => (
           <li key={company.id}>
             <button
@@ -61,8 +61,9 @@ export function CompanyMatches({ runId }: { runId: string }) {
                   {company.name}
                 </span>
                 <span className='block text-xs leading-5 break-words text-muted-foreground'>
-                  {countryName(company.country)} · {company.patentCount}{' '}
-                  条相关专利
+                  {countryName(company.country)} · 查询命中：
+                  {company.queryNames.join('、') || '未知权利人'} · 来源顺序{' '}
+                  {company.providerRank + 1}
                 </span>
               </span>
               <ChevronRight

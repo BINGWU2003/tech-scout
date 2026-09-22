@@ -14,8 +14,8 @@ export const researchStages = {
     description: '查看检索过程与专利，准备好后再开始企业发现。',
   },
   companies: {
-    title: '企业发现与核验',
-    description: '查询相关企业，核对主体身份和登记依据。',
+    title: '企业发现',
+    description: '查看独立入库的企业候选与 Agent 主体解析。',
   },
   report: { title: '研究报告', description: '查看分析结论与引用证据。' },
 } as const
@@ -49,14 +49,18 @@ export function researchStageLabel(
 
 export function stageForNode(node: string | null): ResearchStage {
   if (
-    ['search_planner', 'snapshot', 'patent', 'company_gate'].includes(
-      node ?? ''
-    )
+    [
+      'search_planner',
+      'snapshot',
+      'patent',
+      'assignee',
+      'company_gate',
+    ].includes(node ?? '')
   )
     return 'patents'
   if (['company_snapshot', 'company', 'entity'].includes(node ?? ''))
     return 'companies'
-  if (['evidence', 'finish'].includes(node ?? '')) return 'report'
+  if (['analyze', 'finish'].includes(node ?? '')) return 'report'
   return 'plan'
 }
 export function stageForRun(run: ResearchSummaryView): ResearchStage {

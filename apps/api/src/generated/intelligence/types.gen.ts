@@ -15,16 +15,12 @@ export type Action = {
     /**
      * Kind
      */
-    kind: 'confirm_plan' | 'start_companies' | 'resolve_entities' | 'retry' | 'cancel' | 'pause';
+    kind: 'confirm_plan' | 'start_companies' | 'retry' | 'cancel' | 'pause';
     /**
      * Actor Id
      */
     actor_id: string;
     plan?: Plan | null;
-    /**
-     * Decisions
-     */
-    decisions?: Array<IdentityDecision>;
 };
 
 /**
@@ -147,32 +143,6 @@ export type HttpValidationError = {
 };
 
 /**
- * IdentityDecision
- */
-export type IdentityDecision = {
-    /**
-     * Candidate Id
-     */
-    candidate_id: string;
-    /**
-     * Action
-     */
-    action: 'confirm' | 'reject' | 'skip';
-    /**
-     * Company Id
-     */
-    company_id?: string | null;
-    /**
-     * Evidence Ids
-     */
-    evidence_ids?: Array<string>;
-    /**
-     * Note
-     */
-    note?: string;
-};
-
-/**
  * Plan
  */
 export type Plan = {
@@ -205,7 +175,7 @@ export type RunView = {
     /**
      * Status
      */
-    status: 'queued' | 'running' | 'awaiting_plan' | 'awaiting_companies' | 'awaiting_entities' | 'completed' | 'empty' | 'failed' | 'recoverable' | 'cancelled';
+    status: 'queued' | 'running' | 'awaiting_plan' | 'awaiting_companies' | 'completed' | 'empty' | 'failed' | 'recoverable' | 'cancelled';
     /**
      * Sequence
      */

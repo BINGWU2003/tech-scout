@@ -9,7 +9,6 @@ from playwright.async_api import async_playwright
 
 from .models import AcquisitionBlocked
 from .parsers import (
-    identity_match,
     parse_company_item,
     parse_patent,
     parse_results,
@@ -190,9 +189,7 @@ class Browser:
                     continue
                 raise
             if patent["publication_number"] != publication:
-                raise AcquisitionBlocked(
-                    "PARSE_CHANGED", "详情公开号与检索记录不一致"
-                )
+                raise AcquisitionBlocked("PARSE_CHANGED", "详情公开号与检索记录不一致")
             return patent
         raise AcquisitionBlocked("PARSE_CHANGED", "Google Patents 专利详情解析失败")
 
@@ -237,18 +234,16 @@ class Browser:
                 "PARSE_CHANGED", "企业查询接口没有返回有效数据"
             ) from None
         if payload.get("state") == "error" and payload.get("message") == "系统异常":
-            raise AcquisitionBlocked(
-                "RATE_LIMITED", "企业查询接口限流，稍后继续", 900
-            )
+            raise AcquisitionBlocked("RATE_LIMITED", "企业查询接口限流，稍后继续", 900)
         if payload.get("state") == "warn" and payload.get("message") == "无数据":
-            return {"companies": [], "status": "not_found"}
+            return {"companies": [], "status": "not_found", "provider": "tianyancha"}
         if payload.get("state") != "ok":
             raise AcquisitionBlocked("PARSE_CHANGED", "企业查询接口返回状态异常")
         items = payload.get("data", {}).get("items", [])
         if not isinstance(items, list):
             raise AcquisitionBlocked("PARSE_CHANGED", "企业查询结果结构已变化")
         companies = []
-        for item in items:
+        for rank, item in enumerate(items):
             if not isinstance(item, dict):
                 continue
             try:
@@ -257,16 +252,13 @@ class Browser:
                 if exc.code == "UNSUPPORTED_COMPANY":
                     continue
                 raise
-            if identity_match(name, company):
-                companies.append(company)
-        companies = list(
-            {company["credit_code"]: company for company in companies}.values()
-        )
+            companies.append({**company, "provider_rank": rank})
+        unique = {}
+        for company in companies:
+            unique.setdefault(company["credit_code"], company)
+        companies = list(unique.values())
         return {
             "companies": companies,
-            "status": "matched"
-            if len(companies) == 1
-            else "not_found"
-            if not items
-            else "unresolved",
+            "status": "found" if companies else "not_found",
+            "provider": "tianyancha",
         }

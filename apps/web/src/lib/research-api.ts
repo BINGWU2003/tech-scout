@@ -1,5 +1,4 @@
 import {
-  researchConflictPageSchema,
   researchWorkspaceSchema,
   type ResearchWorkspaceAction,
   researchProjectSchema,
@@ -9,8 +8,7 @@ import {
   researchResultViewSchema,
   researchPatentPageSchema,
   researchPatentStatsSchema,
-  researchCandidatePageSchema,
-  researchCandidateDetailViewSchema,
+  researchSubjectResolutionPageSchema,
   researchCompanyDetailViewSchema,
   researchCompanyMatchesSchema,
   researchCompanyStatsSchema,
@@ -77,8 +75,6 @@ export const researchApi = {
     }),
   result: (id: string) =>
     apiRequest(`${run(id)}/result`, researchResultViewSchema),
-  conflicts: (id: string, page: number) =>
-    apiRequest(`${run(id)}/conflicts?page=${page}`, researchConflictPageSchema),
   patents: (id: string, page: number, companyId?: string) =>
     apiRequest(
       `${run(id)}/patents?page=${page}${companyId ? `&companyId=${encodeURIComponent(companyId)}` : ''}`,
@@ -91,15 +87,10 @@ export const researchApi = {
       `${run(id)}/patents?patentId=${encodeURIComponent(patentId)}`,
       researchPatentPageSchema
     ),
-  candidates: (id: string, page: number, pending: boolean) =>
+  subjectResolutions: (id: string, page: number) =>
     apiRequest(
-      `${run(id)}/candidates?page=${page}&pending=${pending}`,
-      researchCandidatePageSchema
-    ),
-  candidate: (id: string, candidateId: string) =>
-    apiRequest(
-      `${run(id)}/candidates/${encodeURIComponent(candidateId)}`,
-      researchCandidateDetailViewSchema
+      `${run(id)}/subject-resolutions?page=${page}`,
+      researchSubjectResolutionPageSchema
     ),
   company: (id: string, companyId: string) =>
     apiRequest(

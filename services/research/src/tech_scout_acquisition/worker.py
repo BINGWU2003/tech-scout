@@ -2,7 +2,7 @@ import asyncio
 from datetime import UTC, datetime, timedelta
 
 from .models import AcquisitionBlocked
-from .parsers import domestic_candidate, normalized, search_url
+from .parsers import domestic_candidate, search_url
 from .snapshot import build_snapshot
 from .thread_browser import ThreadBrowser
 
@@ -68,21 +68,22 @@ class Worker:
     async def execute(self, run_id):
         job = await self.store.get(run_id)
         plan = job["plan"]
+        target = job.get("target")
+        if target not in {"patents", "companies"}:
+            raise AcquisitionBlocked("INVALID_TARGET", "采集任务阶段无效")
         active_search = {}
         try:
             await self.store.record(
                 run_id,
                 {
-                    "stage": "companies"
-                    if job.get("target") == "companies"
-                    else "search",
+                    "stage": "companies" if target == "companies" else "search",
                     "message": "开始执行；已完成的采集项将从断点继续。",
                     "outcome": "running",
                 },
             )
             await self.checkpoint(
                 run_id,
-                "companies" if job.get("target") == "companies" else "search",
+                "companies" if target == "companies" else "search",
                 0,
                 self.config.acquisition_patent_limit,
             )
@@ -100,7 +101,7 @@ class Worker:
                         )
                         searches.append((cursor, direction, keyword))
                 ended = set()
-                for page in range(0 if job.get("target") == "companies" else 100):
+                for page in range(0 if target == "companies" else 100):
                     for cursor, direction, keyword in searches:
                         if cursor in ended:
                             continue
@@ -178,9 +179,7 @@ class Worker:
                     ) == len(searches):
                         break
                 patents = await self.store.items(run_id, "patent")
-                for key, listing in (
-                    [] if job.get("target") == "companies" else discovered.items()
-                ):
+                for key, listing in [] if target == "companies" else discovered.items():
                     await self.checkpoint(
                         run_id, "patents", len(patents), len(discovered)
                     )
@@ -197,7 +196,7 @@ class Worker:
                         )
                         await self.store.save(run_id, "patent", key, record)
                         patents[key] = record
-                if job.get("target") == "patents":
+                if target == "patents":
                     await self.checkpoint(
                         run_id, "patents", len(patents), len(discovered)
                     )
@@ -212,13 +211,11 @@ class Worker:
                     )
                     await self.store.complete_patents(run_id)
                     return
+                targets = job.get("company_targets") or []
                 names = {
-                    normalized(name): name
-                    for p in patents.values()
-                    for name in p.get("list_assignees", [])
-                    + p["current_assignees"]
-                    + p["original_assignees"]
-                    if domestic_candidate(name)
+                    target["query_key"]: target["name"]
+                    for target in targets
+                    if domestic_candidate(target["name"])
                 }
                 companies = await self.store.items(run_id, "company")
                 for key, name in names.items():
@@ -241,8 +238,7 @@ class Worker:
                     )
                     if record is None:
                         record = await browser.company(name)
-                        if record["status"] == "matched":
-                            await self.store.cache_company(key, record)
+                        await self.store.cache_company(key, record)
                     await self.store.save(run_id, "company", key, record)
                     companies[key] = record
                     await self.store.record(
@@ -251,7 +247,7 @@ class Worker:
                             "stage": "companies",
                             "direction": name,
                             "message": "企业信息查询完成"
-                            if record["status"] == "matched"
+                            if record["status"] == "found"
                             else "未找到可匹配的企业登记信息",
                             "outcome": "completed",
                             "completed": len(companies),

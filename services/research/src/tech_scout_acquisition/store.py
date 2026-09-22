@@ -67,13 +67,27 @@ class Store:
             # Also create an empty projection when no patent was found.
             await self.refresh_projection(conn, run_id)
 
-    async def start_companies(self, run_id):
-        async with self.pool.connection() as conn:
+    async def start_companies(self, run_id, targets):
+        async with self.pool.connection() as conn, conn.transaction():
+            current = await (
+                await conn.execute(
+                    "SELECT target,company_targets FROM ingestion.job "
+                    "WHERE run_id=%s FOR UPDATE",
+                    (run_id,),
+                )
+            ).fetchone()
+            if current is None:
+                raise AcquisitionBlocked("RUN_NOT_FOUND", "采集任务不存在")
+            saved = current["company_targets"] or []
+            if current["target"] == "companies" and saved != targets:
+                raise AcquisitionBlocked(
+                    "TARGET_CONFLICT", "企业查询目标不能在运行中变更"
+                )
             await conn.execute(
-                "UPDATE ingestion.job SET target='companies',status='queued',"
-                "error=NULL,updated_at=now() WHERE run_id=%s "
+                "UPDATE ingestion.job SET target='companies',company_targets=%s,"
+                "status='queued',error=NULL,updated_at=now() WHERE run_id=%s "
                 "AND status='awaiting_companies'",
-                (run_id,),
+                (Jsonb(targets), run_id),
             )
 
     async def patent_snapshot(self, run_id):
@@ -215,7 +229,7 @@ class Store:
             cur = await conn.execute(
                 "SELECT data FROM ingestion.company_cache WHERE query=%s "
                 "AND updated_at>now()-(%s * interval '1 day') "
-                "AND data#>>'{companies,0,provider}'='tianyancha'",
+                "AND data->>'provider'='tianyancha'",
                 (query, days),
             )
             row = await cur.fetchone()

@@ -216,7 +216,6 @@ class Store:
             allowed = {
                 "confirm_plan": {"awaiting_plan", "failed"},
                 "start_companies": {"awaiting_companies"},
-                "resolve_entities": {"awaiting_entities"},
                 "retry": {"failed", "recoverable"},
                 "pause": {"queued", "running"},
                 "cancel": {
@@ -224,7 +223,6 @@ class Store:
                     "running",
                     "awaiting_plan",
                     "awaiting_companies",
-                    "awaiting_entities",
                     "failed",
                     "recoverable",
                 },
@@ -235,8 +233,6 @@ class Store:
                 if row["status"] == "failed" and row["node"] != "planner":
                     raise ResearchError("INVALID_STATE", "只能替换规划失败的计划")
                 validate_plan(action.plan, row["artifacts"]["context"])
-            if action.kind == "resolve_entities":
-                validate_decisions(payload["decisions"], row["artifacts"])
             await conn.execute(
                 "INSERT INTO agent_runtime.research_action VALUES (%s,%s,%s)",
                 (run_id, action.action_id, Jsonb(payload)),
@@ -253,7 +249,7 @@ class Store:
                 "command": payload,
                 "error": None,
             }
-            if action.kind in {"confirm_plan", "start_companies", "resolve_entities"}:
+            if action.kind in {"confirm_plan", "start_companies"}:
                 payload = {**payload, "submitted_at": datetime.now(UTC).isoformat()}
                 artifacts = row["artifacts"]
                 artifacts["resume_command"] = payload
@@ -369,64 +365,3 @@ def validate_plan(plan, context):
     ids = [d.domain_id for d in plan.directions]
     if len(ids) != len(set(ids)):
         raise ResearchError("PLAN_OUT_OF_SCOPE", "检索方向标识不能重复")
-
-
-def validate_decisions(decisions, artifacts):
-    pending = {
-        item["candidate_id"]: item
-        for item in artifacts.get("unverified", [])
-        if item["requires_confirmation"]
-    }
-    ids = [d["candidate_id"] for d in decisions]
-    if len(ids) != len(set(ids)) or set(ids) != set(pending):
-        raise ResearchError(
-            "INVALID_DECISIONS", "请为每个待确认主体提供一个决定，可跳过"
-        )
-    snapshot = artifacts["snapshot"]
-    companies = {c["company_id"] for c in snapshot["companies"]}
-    evidence = {e["evidence_id"]: e for e in snapshot["entity-evidence"]}
-    for decision in decisions:
-        if decision["action"] != "confirm":
-            continue
-        if decision["company_id"] not in companies or not decision["evidence_ids"]:
-            raise ResearchError("INVALID_DECISIONS", "确认需已有公司及身份依据")
-        accepted = {
-            e
-            for e in decision["evidence_ids"]
-            if e in evidence and evidence[e]["candidate_id"] == decision["candidate_id"]
-        }
-        if accepted != set(decision["evidence_ids"]):
-            raise ResearchError("INVALID_DECISIONS", "身份依据不属于该候选")
-        identifiers = {
-            (i["identifier_type"], i["identifier_value"])
-            for i in snapshot["external-identifiers"]
-            if i["company_id"] == decision["company_id"]
-        }
-        company = next(
-            c
-            for c in snapshot["companies"]
-            if c["company_id"] == decision["company_id"]
-        )
-        names = {
-            str(company.get("legal_name") or "").casefold(),
-            company["preferred_name"].casefold(),
-        }
-        supports_identity = any(
-            (evidence[e].get("identifier_type"), evidence[e].get("identifier_value"))
-            in identifiers
-            or (
-                bool(evidence[e].get("legal_name"))
-                and evidence[e]["legal_name"].casefold() in names
-                and bool(company.get("country"))
-                and evidence[e].get("country") == company["country"]
-            )
-            for e in accepted
-        )
-        if not supports_identity:
-            raise ResearchError(
-                "INVALID_DECISIONS", "证据未支持所选公司的标识或法律名称与国家"
-            )
-        if pending[decision["candidate_id"]].get("terminal_exclusion"):
-            raise ResearchError(
-                "INVALID_DECISIONS", "离线拒绝或非公司主体不可在本次强行合并"
-            )

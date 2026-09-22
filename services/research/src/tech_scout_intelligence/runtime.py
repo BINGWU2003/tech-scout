@@ -131,7 +131,6 @@ class Runtime:
                 elif command.get("kind") in {
                     "confirm_plan",
                     "start_companies",
-                    "resolve_entities",
                 }:
                     value = Command(resume=command)
                 elif command.get("kind") == "retry" and any(
@@ -161,13 +160,11 @@ class Runtime:
                         "awaiting_plan"
                         if "plan_gate" in saved.next
                         else "awaiting_companies"
-                        if "company_gate" in saved.next
-                        else "awaiting_entities"
                     )
                 else:
                     status = (
                         "completed"
-                        if saved.values.get("result", {}).get("companies")
+                        if saved.values.get("result", {}).get("patent_count")
                         else "empty"
                     )
                 await self.store.publish(

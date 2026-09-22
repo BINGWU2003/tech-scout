@@ -82,13 +82,6 @@ export class LibraryRepository implements OnModuleDestroy {
     )
     const row = rows[0]
     if (!row) throw new NotFoundException('记录不存在')
-    const relations = await this.pool.query(
-      `SELECT DISTINCT p.run_id AS "runId",r->>'patent_id' AS "patentId",
-      r->>'company_id' AS "companyId",'current_assignee' AS role,'confirmed' AS status
-      FROM catalog_v2.run_projection p CROSS JOIN LATERAL jsonb_array_elements(p.snapshot->'company-patent-relations') r
-      WHERE r->>$1=$2`,
-      [kind === 'patent' ? 'patent_id' : 'company_id', id]
-    )
     return libraryDetailSchema.parse({
       ...this.record(row),
       abstract: row.data.abstract ?? null,
@@ -96,7 +89,8 @@ export class LibraryRepository implements OnModuleDestroy {
       description: row.data.description ?? null,
       cpcs: row.data.cpcs ?? [],
       businessInfo: row.data.fields ?? {},
-      relations: relations.rows,
+      // v2 keeps Agent-inferred ownership inside each research run, never globally.
+      relations: [],
     })
   }
 }

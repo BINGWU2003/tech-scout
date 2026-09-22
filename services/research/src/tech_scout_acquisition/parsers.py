@@ -21,12 +21,33 @@ def normalized(value):
     return re.sub(r"[\W_]+", "", unicodedata.normalize("NFKC", value).casefold())
 
 
+USCC_ALPHABET = "0123456789ABCDEFGHJKLMNPQRTUWXY"
+USCC_WEIGHTS = (1, 3, 9, 27, 19, 26, 16, 17, 20, 29, 25, 13, 8, 24, 10, 30, 28)
+MAINLAND_REGION_PREFIXES = {
+    "11", "12", "13", "14", "15", "21", "22", "23", "31", "32", "33", "34",
+    "35", "36", "37", "41", "42", "43", "44", "45", "46", "50", "51", "52",
+    "53", "54", "61", "62", "63", "64", "65",
+}
+
+
+def valid_mainland_uscc(value):
+    if len(value) != 18 or any(char not in USCC_ALPHABET for char in value):
+        return False
+    if value[2:4] not in MAINLAND_REGION_PREFIXES:
+        return False
+    checksum = sum(
+        USCC_ALPHABET.index(char) * weight
+        for char, weight in zip(value[:17], USCC_WEIGHTS, strict=True)
+    )
+    return value[-1] == USCC_ALPHABET[(31 - checksum % 31) % 31]
+
+
 def attribute(node, name):
     value = node.get(name)
     return value if isinstance(value, str) else ""
 
 
-def source(url, content, suffix="html", parser_version="google-patents-browser-v1"):
+def source(url, content, suffix="html", parser_version="google-patents-browser-v2"):
     digest = hashlib.sha256(content.encode()).hexdigest()
     return {
         "source_url": url,
@@ -304,7 +325,7 @@ def parse_company_item(item, url):
         raise AcquisitionBlocked(
             "UNSUPPORTED_COMPANY", "该主体没有中国统一社会信用代码"
         )
-    if not re.fullmatch(r"[0-9A-Z]{18}", credit):
+    if not valid_mainland_uscc(credit):
         if item.get("companyType") == 2 or clean(item.get("base")) in {
             "香港",
             "澳门",
@@ -313,7 +334,7 @@ def parse_company_item(item, url):
             raise AcquisitionBlocked(
                 "UNSUPPORTED_COMPANY", "该主体不是中国大陆登记企业"
             )
-        raise AcquisitionBlocked("PARSE_CHANGED", "企业信用代码缺失或格式异常")
+        raise AcquisitionBlocked("UNSUPPORTED_COMPANY", "企业信用代码无效")
     name = fields.get("企业名称", "")
     if not name:
         raise AcquisitionBlocked("PARSE_CHANGED", "企业名称缺失")

@@ -17,7 +17,6 @@ export function researchActivityLabel(
   const labels: Record<string, string> = {
     awaiting_plan: '待确认计划',
     awaiting_companies: '专利已就绪 · 待查询企业',
-    awaiting_entities: '待核验主体',
     completed: '研究已完成',
     empty: '研究已结束 · 无匹配结果',
     cancelled: '研究已取消',
@@ -29,7 +28,7 @@ export function researchActivityLabel(
   if (run.status === 'queued' || run.ready === false) {
     if (run.node === 'plan_gate') return '正在准备检索专利'
     if (run.node === 'company_gate') return '正在准备查询企业'
-    if (run.node === 'entity') return '正在准备生成报告'
+    if (run.node === 'entity') return '正在准备解析主体'
     return '等待开始'
   }
   const acquisition = run.acquisition
@@ -54,11 +53,12 @@ export function researchActivityLabel(
     search_planner: '正在生成检索条件',
     snapshot: '正在检索专利',
     patent: '正在筛选专利',
+    assignee: '正在聚合权利人',
     company_gate: '正在准备查询企业',
     company_snapshot: '正在查询企业信息',
-    company: '正在匹配企业',
-    entity: '正在核验主体',
-    evidence: '正在分析证据',
+    company: '正在整理企业候选',
+    entity: '正在解析主体',
+    analyze: '正在分析企业技术相关性',
     finish: '正在生成研究报告',
   }
   return (

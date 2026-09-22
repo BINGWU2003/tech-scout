@@ -580,44 +580,24 @@ export function CompanySnapshotDetails({
             </summary>
             <ul className='mt-3 max-h-60 space-y-1 overflow-y-auto text-xs'>
               {query.data.relations.map((r, i) => (
-                <li key={i}>
-                  {r.patentId} · {r.method} · {r.decision ?? '本次人工确认'}
-                </li>
+                <li key={i}>{r.patentId} · Agent 推断关联</li>
               ))}
             </ul>
           </details>
-          {query.data.confirmations.map((c, i) => (
-            <div key={i} className='rounded-lg border p-3 text-sm'>
-              <p className='font-medium'>本次人工确认记录</p>
-              <p>
-                {c.confirmedAt} · 确认者 {c.actorId}
+          {query.data.resolution && (
+            <div className='rounded-lg border p-3 text-sm'>
+              <p className='font-medium'>本次主体解析</p>
+              <p className='mt-1'>
+                {query.data.resolution.confidence === 'high'
+                  ? '高置信推断'
+                  : '中置信推断'}
+                · 权利人 {query.data.resolution.name}
               </p>
-              <p>{c.note || '未填写说明'}</p>
-              <p className='text-xs break-all'>
-                证据：{c.evidenceIds.join('、')}
+              <p className='mt-1 text-xs text-muted-foreground'>
+                {query.data.resolution.reason}
               </p>
             </div>
-          ))}
-          <details className='rounded-lg border p-3'>
-            <summary className='cursor-pointer font-medium'>
-              身份来源（{query.data.evidence.length} 条）
-            </summary>
-            <p className='my-2 text-xs text-muted-foreground'>
-              身份依据不证明产品能力；来源正文当前不可用。
-            </p>
-            {query.data.evidence.map((e) => (
-              <div key={e.id} className='my-3 border-t pt-3 text-sm'>
-                <p>
-                  {e.publisher ?? '未知发布者'} · {e.legalName ?? e.id}
-                </p>
-                <p>
-                  {e.identifierType}: {e.identifierValue ?? '无标识'} ·{' '}
-                  {e.observedAt ?? '观察时间缺失'}
-                </p>
-                <SourceReference source={e.source} />
-              </div>
-            ))}
-          </details>
+          )}
         </div>
       )}
     </section>

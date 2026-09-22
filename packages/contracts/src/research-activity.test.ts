@@ -19,8 +19,8 @@ it('keeps stage completion distinct from whole-research completion', () => {
   expect(
     researchActivityLabel({ status: 'completed', node: 'finish', acquisition })
   ).toBe('研究已完成')
-  expect(researchActivityLabel({ status: 'awaiting_entities' })).toBe(
-    '待核验主体'
+  expect(researchActivityLabel({ status: 'running', node: 'entity' })).toBe(
+    '正在解析主体'
   )
 })
 
@@ -42,8 +42,8 @@ it('shows detailed progress only in the corresponding acquisition node', () => {
     researchActivityLabel({ status: 'running', node: 'snapshot', acquisition })
   ).toBe('正在获取专利详情 · 18/50')
   expect(
-    researchActivityLabel({ status: 'running', node: 'evidence', acquisition })
-  ).toBe('正在分析证据')
+    researchActivityLabel({ status: 'running', node: 'analyze', acquisition })
+  ).toBe('正在分析企业技术相关性')
   expect(
     researchActivityLabel({
       status: 'queued',

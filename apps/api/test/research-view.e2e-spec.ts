@@ -43,7 +43,10 @@ const company = {
   preferred_name: 'Acme',
   legal_name: 'Acme',
   country: 'US',
-  identity: 'catalog_verified',
+  confidence: 'high',
+  resolution_kind: 'agent_inferred',
+  assignee_names: ['Acme candidate'],
+  resolution_reason: '法定名称精确匹配',
   patent_ids: ['p1'],
   patent_count: 1,
   grant_year_trend: { '2025': 1 },
@@ -52,31 +55,27 @@ const company = {
   inference: { summary: '仅为技术相关性推断', patent_ids: ['p1'] },
   relations: [
     {
-      candidate_id: 'u1',
-      patent_id: 'p1',
-      match_method: 'exact',
-      entity_match_decision: 'accepted',
+      assignee_id: 'u1',
+      status: 'matched',
+      company_id: 'c1',
+      confidence: 'high',
+      reason: '法定名称精确匹配',
     },
   ],
   ...source,
 }
-const candidate = {
-  candidate_id: 'u1',
+const subject = {
+  assignee_id: 'u1',
   name: 'Acme candidate',
-  status: 'unverified',
-  country: 'US',
-  requires_confirmation: true,
-  terminal_exclusion: false,
   patent_ids: ['p1'],
+  candidates: [{ company_id: 'c1' }, { company_id: 'c2' }],
 }
-const evidence = {
-  evidence_id: 'e1',
-  candidate_id: 'u1',
-  legal_name: 'Acme',
-  country: 'US',
-  publisher: 'Registry',
-  preserved: true,
-  ...source,
+const resolution = {
+  assignee_id: 'u1',
+  status: 'matched',
+  company_id: 'c1',
+  confidence: 'high',
+  reason: '法定名称精确匹配',
 }
 
 describe.skipIf(!enabled)(
@@ -171,7 +170,7 @@ describe.skipIf(!enabled)(
           confirmed_plan: plan,
           context: {
             release: {
-              release_id: 'saved-v1',
+              release_id: 'saved-v2',
               period_from_year: 2019,
               period_to_year: 2025,
             },
@@ -179,26 +178,59 @@ describe.skipIf(!enabled)(
           },
           patents: [patent],
           companies: [company],
-          unverified: [candidate],
+          assignees: [subject],
+          subjects: [subject],
+          resolutions: [resolution],
+          unresolved: [],
           snapshot: {
+            release: { release_id: 'saved-v2' },
             patents: [patent],
             companies: [
-              company,
-              { company_id: 'c2', preferred_name: 'Different', country: 'US' },
+              {
+                company_id: 'c1',
+                preferred_name: 'Acme',
+                legal_name: 'Acme',
+                country: 'US',
+                business_info: {},
+                ...source,
+              },
+              {
+                company_id: 'c2',
+                preferred_name: 'Different',
+                legal_name: 'Different',
+                country: 'US',
+                business_info: {},
+                ...source,
+              },
             ],
-            'entity-evidence': [evidence],
             'external-identifiers': [],
             'company-aliases': [],
+            'company-search-hits': [
+              {
+                assignee_id: 'u1',
+                query_name: 'Acme candidate',
+                company_id: 'c1',
+                provider_rank: 0,
+              },
+              {
+                assignee_id: 'u1',
+                query_name: 'Acme candidate',
+                company_id: 'c2',
+                provider_rank: 1,
+              },
+            ],
+            'patent-parties': [],
           },
           raw_private_material: 'NEVER_SEND'.repeat(100000),
           result: {
-            release_id: 'saved-v1',
+            release_id: 'saved-v2',
             patent_count: 1,
             companies: [company],
             missing: ['正文'],
-            unverified: [candidate],
-            conflicts: [],
+            unresolved_subjects: [],
+            warnings: [],
             empty_reason: null,
+            workflow_version: 'browser-v2',
           },
         },
       }
@@ -253,11 +285,15 @@ describe.skipIf(!enabled)(
         .expect(200)
       expect(summary.body).toMatchObject({
         ready: true,
-        releaseId: 'saved-v1',
+        releaseId: 'saved-v2',
         plan,
         confirmedPlan: plan,
         hasResult: true,
-        pendingCandidateIds: ['u1'],
+        workflowVersion: 'browser-v2',
+        queriedAssigneeCount: 1,
+        discoveredCompanyCount: 2,
+        resolvedSubjectCount: 1,
+        unresolvedSubjectCount: 0,
       })
       expect(JSON.stringify(summary.body).length).toBeLessThan(5000)
       expect(JSON.stringify(summary.body)).not.toContain('NEVER_SEND')
@@ -314,30 +350,36 @@ describe.skipIf(!enabled)(
         ).body.items
       ).toEqual([])
       const candidates = await owner
-        .get(`/api/v1/research/ui/runs/${id}/candidates?pending=true`)
+        .get(`/api/v1/research/ui/runs/${id}/companies`)
         .expect(200)
-      expect(candidates.body.total).toBe(1)
+      expect(candidates.body.total).toBe(2)
+      expect(candidates.body.items[0]).toMatchObject({
+        id: 'c1',
+        queryNames: ['Acme candidate'],
+        providerRank: 0,
+      })
       const detail = await owner
-        .get(`/api/v1/research/ui/runs/${id}/candidates/u1`)
+        .get(`/api/v1/research/ui/runs/${id}/subject-resolutions`)
         .expect(200)
-      expect(detail.body.companyOptions).toEqual([
-        {
-          id: 'c1',
-          name: 'Acme',
-          country: 'US',
-          supportingEvidenceIds: ['e1'],
-        },
-        {
-          id: 'c2',
-          name: 'Different',
-          country: 'US',
-          supportingEvidenceIds: [],
-        },
-      ])
+      expect(detail.body.items[0]).toMatchObject({
+        id: 'u1',
+        status: 'matched',
+        companyId: 'c1',
+        confidence: 'high',
+        patentCount: 1,
+        candidateCount: 2,
+        candidates: [
+          { id: 'c1', name: 'Acme' },
+          { id: 'c2', name: 'Different' },
+        ],
+      })
       const companyResult = await owner
         .get(`/api/v1/research/ui/runs/${id}/companies/c1`)
         .expect(200)
-      expect(companyResult.body.evidence[0].id).toBe('e1')
+      expect(companyResult.body.resolution).toMatchObject({
+        id: 'u1',
+        status: 'matched',
+      })
       expect(JSON.stringify(companyResult.body)).not.toContain('NEVER_SEND')
     })
 
@@ -345,12 +387,11 @@ describe.skipIf(!enabled)(
       for (const suffix of [
         '',
         '/result',
-        '/conflicts',
         '/patents',
         '/patent-stats',
         '/company-stats',
-        '/candidates',
-        '/candidates/u1',
+        '/companies',
+        '/subject-resolutions',
         '/companies/c1',
         '/events',
         '/stream',
@@ -405,7 +446,7 @@ describe.skipIf(!enabled)(
       }
     })
 
-    it('轻量写入返回摘要，原有所有权、幂等动作和新轮次逻辑仍生效', async () => {
+    it('轻量写入返回摘要，所有权和幂等动作生效，已完成项目不可重开', async () => {
       const action = { action_id: randomUUID(), kind: 'cancel' }
       await stranger
         .post(`/api/v1/research/ui/runs/${id}/actions`)
@@ -452,24 +493,36 @@ describe.skipIf(!enabled)(
         .set('x-csrf-token', csrf)
         .send({ action_id: randomUUID(), kind: 'cancel' })
         .expect(201)
-      const round = await owner
+      await owner
         .post(`/api/v1/research/ui/projects/${response.body.projectId}/runs`)
         .set('Origin', 'http://localhost:5173')
         .set('x-csrf-token', csrf)
         .send(payload)
-        .expect(201)
-      expect(round.body.id).not.toBe(id)
-      expect(round.body).not.toHaveProperty('state')
-      expect(round.body.status).toBe('awaiting_plan')
+        .expect(409)
     })
 
-    it('连续对话独立保存已选计划，建议确认、并发版本和旧结果均可追溯', async () => {
-      const run = await prisma.researchRun.findUniqueOrThrow({ where: { id } })
-      const projectId = run.projectId
-      await prisma.researchRun.updateMany({
-        where: { projectId },
-        data: { status: 'awaiting_plan' },
+    it('未执行项目的连续对话保存已选计划、建议确认和并发版本', async () => {
+      const original = await prisma.researchRun.findUniqueOrThrow({
+        where: { id },
+        include: { project: true },
       })
+      const project = await prisma.researchProject.create({
+        data: {
+          userId: original.project.userId,
+          title: '计划讨论测试',
+          question: '视觉计划讨论',
+          requestKey: randomUUID(),
+          runs: {
+            create: {
+              question: '生成视觉计划',
+              requestKey: randomUUID(),
+              status: 'awaiting_plan',
+              state: { artifacts: { plan, candidate_plan: plan } },
+            },
+          },
+        },
+      })
+      const projectId = project.id
       const url = `/api/v1/research/ui/projects/${projectId}/workspace`
       const post = (body: object) =>
         owner
@@ -601,7 +654,6 @@ describe.skipIf(!enabled)(
       'completed',
       'empty',
       'awaiting_companies',
-      'awaiting_entities',
       'recoverable',
       'failed',
       'cancelled',

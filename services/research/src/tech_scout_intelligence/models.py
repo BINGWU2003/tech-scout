@@ -72,27 +72,17 @@ class ConversationReply(Model):
     to_year: int | None = Field(default=None, ge=1800, le=2100)
 
 
-class IdentityDecision(Model):
-    candidate_id: str = Field(min_length=1, max_length=255)
-    action: Literal["confirm", "reject", "skip"]
-    company_id: str | None = None
-    evidence_ids: list[str] = Field(default_factory=list, max_length=30)
-    note: str = Field(default="", max_length=2000)
-
-
 class Action(Model):
     action_id: UUID
     kind: Literal[
         "confirm_plan",
         "start_companies",
-        "resolve_entities",
         "retry",
         "cancel",
         "pause",
     ]
     actor_id: UUID
     plan: Plan | None = None
-    decisions: list[IdentityDecision] = Field(default_factory=list, max_length=1000)
 
     @model_validator(mode="after")
     def valid_payload(self):
@@ -100,8 +90,6 @@ class Action(Model):
             raise ValueError("确认计划需要 plan")
         if self.kind != "confirm_plan" and self.plan is not None:
             raise ValueError("当前动作不接受 plan")
-        if self.kind != "resolve_entities" and self.decisions:
-            raise ValueError("当前动作不接受身份决定")
         return self
 
 
@@ -128,7 +116,6 @@ Status = Literal[
     "running",
     "awaiting_plan",
     "awaiting_companies",
-    "awaiting_entities",
     "completed",
     "empty",
     "failed",
@@ -162,6 +149,25 @@ class Explanation(Model):
 
 class Analysis(Model):
     companies: list[Explanation] = Field(max_length=10)
+
+
+class SubjectResolution(Model):
+    assignee_id: str = Field(min_length=1, max_length=255)
+    status: Literal["matched", "unresolved"]
+    company_id: str | None = None
+    confidence: Literal["high", "medium"] | None = None
+    reason: str = Field(min_length=1, max_length=1000)
+
+    @model_validator(mode="after")
+    def valid_resolution(self):
+        matched = self.status == "matched"
+        if matched != bool(self.company_id) or matched != bool(self.confidence):
+            raise ValueError("匹配结果必须同时提供候选企业与置信度")
+        return self
+
+
+class SubjectResolutionBatch(Model):
+    resolutions: list[SubjectResolution] = Field(max_length=20)
 
 
 class ResearchError(Exception):

@@ -45,8 +45,6 @@ const run = researchSummaryViewSchema.parse({
       },
     ],
   },
-  pendingCandidateIds: [],
-  candidateCount: 0,
   hasResult: false,
 })
 const event = (

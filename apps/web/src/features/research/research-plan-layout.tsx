@@ -43,14 +43,14 @@ export function ResearchPlanLayout({
   const leftTitle = report
     ? '报告概览与企业名单'
     : companies
-      ? '企业概览与核验'
+      ? '企业概览与主体解析'
       : patents
         ? '专利概览'
         : '已选方向'
   const rightTitle = report
     ? '企业分析与依据'
     : companies
-      ? '发现记录与主体依据'
+      ? '发现记录与解析依据'
       : patents
         ? '专利搜索记录'
         : 'AI 对话'

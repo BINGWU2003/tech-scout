@@ -11,9 +11,10 @@ from .models import (
     Plan,
     ResearchError,
     SelectedPlan,
+    SubjectResolutionBatch,
 )
 from .prompts import CONVERSATION_PROMPT, DIRECTION_PROMPT
-from .store import validate_decisions, validate_plan
+from .store import validate_plan
 
 
 class State(TypedDict, total=False):
@@ -25,16 +26,22 @@ class State(TypedDict, total=False):
     snapshot: dict
     patents: list[dict]
     companies: list[dict]
-    unverified: list[dict]
-    decisions: list[dict]
+    assignees: list[dict]
+    subjects: list[dict]
+    resolutions: list[dict]
+    unresolved: list[dict]
+    warnings: list[str]
     analysis: dict
-    evidence_findings: dict
     result: dict
     acquisition: dict
     candidate_plan: dict
     proposal_plan: dict | None
     reply: str
     reply_intent: str
+
+
+def identity_name(value):
+    return "".join(char for char in value.casefold() if char.isalnum())
 
 
 def conversation_update(response, conversation):
@@ -134,113 +141,142 @@ def patent_workset(snapshot, plan):
     return sorted(found, key=lambda p: p["patent_id"])
 
 
-def company_workset(snapshot, patents):
-    patent_ids = {p["patent_id"] for p in patents}
-    by_company: dict[str, set] = {}
-    links: dict[str, list] = {}
-    linked_parties = set()
-    review_by_id = {d["candidate_id"]: d for d in snapshot["entity-review-decisions"]}
-    conflicting = set()
-    for relation in snapshot["company-patent-relations"]:
-        if relation["patent_id"] in patent_ids:
-            review = review_by_id.get(relation["candidate_id"])
-            if review and (
-                review["decision"] != "accepted"
-                or review["selected_company_id"] != relation["company_id"]
-            ):
-                conflicting.add(relation["candidate_id"])
-                continue
-            by_company.setdefault(relation["company_id"], set()).add(
-                relation["patent_id"]
-            )
-            links.setdefault(relation["company_id"], []).append(relation)
-            linked_parties.add(relation["patent_party_id"])
-    companies = [
-        {
-            **company,
-            "patent_ids": sorted(by_company[company["company_id"]]),
-            "relations": links[company["company_id"]],
-            "identity": "catalog_verified",
-        }
-        for company in snapshot["companies"]
-        if company["company_id"] in by_company
-    ]
-    candidates = {
-        (c["name_normalized"], c["country"]): c for c in snapshot["company-candidates"]
-    }
-    decisions = {d["candidate_id"]: d for d in snapshot["entity-review-decisions"]}
-    unverified: dict[str, dict] = {}
-    for party in snapshot["patent-parties"]:
-        if (
-            party["patent_id"] not in patent_ids
-            or party["patent_party_id"] in linked_parties
-            or party["party_role"] != "assignee"
-        ):
+def assignee_workset(snapshot, patents, limit=20):
+    patent_by_id = {patent["patent_id"]: patent for patent in patents}
+    result = []
+    for candidate in snapshot.get("assignee-candidates", []):
+        patent_ids = sorted(set(candidate["patent_ids"]) & set(patent_by_id))
+        if not patent_ids:
             continue
-        candidate = candidates.get((party["party_name_normalized"], party["country"]))
-        cid = (
-            candidate["candidate_id"]
-            if candidate
-            else "party:" + party["patent_party_id"]
-        )
-        decision = decisions.get(cid)
-        excluded = bool(
-            decision and decision["decision"] not in {"accepted", "unresolved"}
-        )
-        evidence = [e for e in snapshot["entity-evidence"] if e["candidate_id"] == cid]
-        evidence_countries = {e["country"] for e in evidence if e.get("country")}
-        suggested_country = (
-            next(iter(evidence_countries)) if len(evidence_countries) == 1 else None
-        )
-        country = party["country"] or suggested_country
-        country_status = (
-            "verified"
-            if party["country"]
-            else "suggested"
-            if suggested_country
-            else "unknown"
-        )
-        evidence_publishers = {
-            e["publisher"]
-            for e in evidence
-            if e.get("country") == suggested_country and e.get("publisher")
-        }
-        country_source = (
-            "patent"
-            if party["country"]
-            else next(iter(evidence_publishers))
-            if len(evidence_publishers) == 1
-            else None
-        )
-        item = unverified.setdefault(
-            cid,
+        rows = [patent_by_id[patent_id] for patent_id in patent_ids]
+        result.append(
             {
-                "candidate_id": cid,
-                "name": party["party_name"],
-                "country": country,
-                "country_status": country_status,
-                "country_source": country_source,
+                **candidate,
+                "patent_ids": patent_ids,
+                "patent_count": len(patent_ids),
+                "rule_score": max(
+                    match["total_score"]
+                    for patent in rows
+                    for match in patent["matches"]
+                ),
+                "latest_year": max(
+                    patent.get("publication_year") or patent.get("grant_year") or 0
+                    for patent in rows
+                ),
+            }
+        )
+    return sorted(
+        result,
+        key=lambda item: (
+            -item["rule_score"],
+            -item["patent_count"],
+            -item["latest_year"],
+            item["assignee_id"],
+        ),
+    )[:limit]
+
+
+def resolution_workset(snapshot, assignees, limit=5):
+    companies = {company["company_id"]: company for company in snapshot["companies"]}
+    aliases: dict[str, list[str]] = {}
+    for alias in snapshot["company-aliases"]:
+        aliases.setdefault(alias["company_id"], []).append(alias["alias_name"])
+    hits: dict[str, list[dict]] = {}
+    for hit in snapshot.get("company-search-hits", []):
+        hits.setdefault(hit["assignee_id"], []).append(hit)
+    workset = []
+    for assignee in assignees:
+        rows = []
+        for hit in hits.get(assignee["assignee_id"], []):
+            company = companies.get(hit["company_id"])
+            if not company:
+                continue
+            legal_exact = assignee["name_normalized"] == identity_name(
+                company["legal_name"]
+            )
+            alias_exact = assignee["name_normalized"] in {
+                identity_name(name) for name in aliases.get(company["company_id"], [])
+            }
+            fields = company.get("business_info", {})
+            rows.append(
+                {
+                    "company_id": company["company_id"],
+                    "legal_name": company["legal_name"],
+                    "aliases": aliases.get(company["company_id"], []),
+                    "english_name": company.get("english_name"),
+                    "country": company.get("country"),
+                    "city": fields.get("所在城市"),
+                    "district": fields.get("所在区县"),
+                    "registered_address": fields.get("注册地址"),
+                    "operating_status": fields.get("经营状态"),
+                    "established_at": fields.get("成立日期"),
+                    "provider_rank": hit["provider_rank"],
+                    "source_sha256": company.get("source_sha256"),
+                    "_legal_exact": legal_exact,
+                    "_alias_exact": alias_exact,
+                }
+            )
+        rows.sort(
+            key=lambda company: (
+                not company["_legal_exact"],
+                not company["_alias_exact"],
+                company["provider_rank"],
+                company["company_id"],
+            )
+        )
+        candidates = [
+            {
+                key: value
+                for key, value in company.items()
+                if key not in {"_legal_exact", "_alias_exact"}
+            }
+            for company in rows[:limit]
+        ]
+        workset.append({**assignee, "candidates": candidates})
+    return workset
+
+
+def apply_resolutions(snapshot, subjects, resolutions):
+    subject_by_id = {subject["assignee_id"]: subject for subject in subjects}
+    company_by_id = {
+        company["company_id"]: company for company in snapshot["companies"]
+    }
+    resolved: dict[str, dict] = {}
+    unresolved = []
+    for resolution in resolutions:
+        subject = subject_by_id[resolution["assignee_id"]]
+        if resolution["status"] == "unresolved":
+            unresolved.append({**subject, **resolution})
+            continue
+        company = company_by_id[resolution["company_id"]]
+        item = resolved.setdefault(
+            company["company_id"],
+            {
+                **company,
                 "patent_ids": [],
-                "party_ids": [],
-                "catalog_decision": decision,
-                "terminal_exclusion": excluded,
-                "requires_confirmation": cid in conflicting or decision is None,
-                "status": "not_found"
-                if candidate and candidate.get("lookup_status") == "not_found"
-                else "unverified",
-                "suggestions": [
-                    m for m in snapshot["entity-matches"] if m["candidate_id"] == cid
-                ],
-                "evidence": evidence,
+                "assignee_names": [],
+                "resolution_reasons": [],
+                "confidence": "high",
+                "resolution_kind": "agent_inferred",
+                "relations": [],
             },
         )
-        item["patent_ids"] = sorted(set(item["patent_ids"]) | {party["patent_id"]})
-        item["party_ids"].append(party["patent_party_id"])
-    return companies, sorted(unverified.values(), key=lambda c: c["candidate_id"])
+        item["patent_ids"] = sorted(
+            set(item["patent_ids"]) | set(subject["patent_ids"])
+        )
+        item["assignee_names"].append(subject["name"])
+        item["resolution_reasons"].append(resolution["reason"])
+        item["relations"].append(resolution)
+        if resolution["confidence"] == "medium":
+            item["confidence"] = "medium"
+    for item in resolved.values():
+        item["assignee_names"] = sorted(set(item["assignee_names"]))
+        item["resolution_reason"] = "；".join(dict.fromkeys(item["resolution_reasons"]))
+    return list(resolved.values()), unresolved
 
 
 def scoped_snapshot(snapshot, plan):
-    """Retain actual research facts and their identity/provenance dependencies."""
+    """Retain the scoped patent facts and independent company observations."""
     patents = patent_workset(snapshot, plan)
     patent_ids = {p["patent_id"] for p in patents}
     result = dict(snapshot)
@@ -249,39 +285,22 @@ def scoped_snapshot(snapshot, plan):
         "patent-classifications",
         "patent-parties",
         "patent-domain-matches",
-        "company-patent-relations",
     ):
         result[table] = [r for r in snapshot[table] if r["patent_id"] in patent_ids]
-    names = {
-        (p["party_name_normalized"], p["country"]) for p in result["patent-parties"]
-    }
-    candidate_ids = {r["candidate_id"] for r in result["company-patent-relations"]}
-    candidate_ids.update(
-        c["candidate_id"]
-        for c in snapshot["company-candidates"]
-        if (c["name_normalized"], c["country"]) in names
-    )
-    for table in (
-        "company-candidates",
-        "entity-matches",
-        "entity-review-decisions",
-        "entity-evidence",
-    ):
-        result[table] = [
-            r for r in snapshot[table] if r["candidate_id"] in candidate_ids
-        ]
-    company_ids = {r["company_id"] for r in result["company-patent-relations"]}
-    company_ids.update(r.get("suggested_company_id") for r in result["entity-matches"])
-    company_ids.update(
-        r.get("selected_company_id") for r in result["entity-review-decisions"]
-    )
-    result["company-relations"] = [
-        r
-        for r in snapshot["company-relations"]
-        if r["start_company_id"] in company_ids or r["end_company_id"] in company_ids
+    result["assignee-candidates"] = [
+        {**candidate, "patent_ids": sorted(set(candidate["patent_ids"]) & patent_ids)}
+        for candidate in snapshot.get("assignee-candidates", [])
+        if set(candidate["patent_ids"]) & patent_ids
     ]
-    for relation in result["company-relations"]:
-        company_ids.update((relation["start_company_id"], relation["end_company_id"]))
+    assignee_ids = {
+        candidate["assignee_id"] for candidate in result["assignee-candidates"]
+    }
+    result["company-search-hits"] = [
+        hit
+        for hit in snapshot.get("company-search-hits", [])
+        if hit["assignee_id"] in assignee_ids
+    ]
+    company_ids = {hit["company_id"] for hit in result["company-search-hits"]}
     for table in ("companies", "company-aliases", "external-identifiers"):
         result[table] = [r for r in snapshot[table] if r["company_id"] in company_ids]
     evaluation_ids = {r.get("evaluation_id") for r in result["patent-domain-matches"]}
@@ -325,61 +344,6 @@ def rank(companies, patents):
             c["company_id"],
         ),
     )[:10]
-
-
-def evidence_findings(snapshot, unverified):
-    evidence = {e["evidence_id"]: e for e in snapshot["entity-evidence"]}
-    by_candidate: dict[str, list] = {}
-    for item in evidence.values():
-        by_candidate.setdefault(item["candidate_id"], []).append(item)
-    conflicts = []
-    for candidate_id, rows in by_candidate.items():
-        fields: dict[str, dict[str, list]] = {}
-        for row in rows:
-            if row.get("identifier_type") and row.get("identifier_value"):
-                values = fields.setdefault(row["identifier_type"], {})
-                values.setdefault(row["identifier_value"], []).append(
-                    row["evidence_id"]
-                )
-        for identifier_type, values in fields.items():
-            if len(values) > 1:
-                conflicts.append(
-                    {
-                        "candidate_id": candidate_id,
-                        "kind": "identity_identifier_conflict",
-                        "identifier_type": identifier_type,
-                        "values": values,
-                        "note": "同一候选的来源包含不同标识，需结合观察时间复核",
-                    }
-                )
-    for item in unverified:
-        if item.get("requires_confirmation") and item.get("catalog_decision"):
-            conflicts.append(
-                {
-                    "candidate_id": item["candidate_id"],
-                    "kind": "relation_review_conflict",
-                    "note": "正式关系与审核结论需复核，未静默覆盖",
-                }
-            )
-    return {
-        "conflicts": conflicts,
-        "identity_evidence": [
-            {
-                "evidence_id": e["evidence_id"],
-                "candidate_id": e["candidate_id"],
-                "scope": "identity_only",
-                "publisher": e.get("publisher"),
-                "observed_at": e.get("observed_at"),
-                "preserved": bool(e.get("preserved")),
-                "has_content_hash": bool(e.get("content_sha256")),
-                "has_source_locator": bool(
-                    e.get("source_sha256") and e.get("source_path")
-                ),
-                "original_text_available": False,
-            }
-            for e in sorted(evidence.values(), key=lambda e: e["evidence_id"])
-        ],
-    }
 
 
 def build_graph(llm, store, checkpointer, acquisition):
@@ -535,7 +499,7 @@ def build_graph(llm, store, checkpointer, acquisition):
         validate_plan(generated, state["context"])
         return {"confirmed_plan": generated.model_dump()}
 
-    async def collect_snapshot(state, config, phase):
+    async def collect_snapshot(state, config, phase, company_targets=None):
         run_id, lease = identity(config)
 
         async def progress(value):
@@ -562,6 +526,7 @@ def build_graph(llm, store, checkpointer, acquisition):
             progress,
             after=current.artifacts.get("acquisition_cursor", 0),
             phase=phase,
+            company_targets=company_targets,
         )
         return {
             "snapshot": scoped_snapshot(
@@ -577,11 +542,25 @@ def build_graph(llm, store, checkpointer, acquisition):
         return await collect_snapshot(state, config, "patents")
 
     async def company_gate(state, config):
-        interrupt({"kind": "companies", "patent_count": len(state["patents"])})
+        interrupt(
+            {
+                "kind": "companies",
+                "patent_count": len(state["patents"]),
+                "assignee_count": len(state["assignees"]),
+            }
+        )
         return {}
 
     async def company_snapshot(state, config):
-        return await collect_snapshot(state, config, "companies")
+        targets = [
+            {
+                "assignee_id": item["assignee_id"],
+                "query_key": item["query_key"],
+                "name": item["name"],
+            }
+            for item in state["assignees"]
+        ]
+        return await collect_snapshot(state, config, "companies", targets)
 
     async def patent(state, config):
         return {
@@ -590,58 +569,110 @@ def build_graph(llm, store, checkpointer, acquisition):
             )
         }
 
+    async def assignee(state, config):
+        return {"assignees": assignee_workset(state["snapshot"], state["patents"])}
+
     async def company(state, config):
-        companies, unverified = company_workset(state["snapshot"], state["patents"])
-        return {"companies": companies, "unverified": unverified}
+        return {"subjects": resolution_workset(state["snapshot"], state["assignees"])}
 
     async def entity(state, config):
-        pending = [u for u in state["unverified"] if u["requires_confirmation"]]
-        payload = interrupt({"kind": "entities", "unverified": pending})
-        decisions = payload["decisions"]
-        validate_decisions(decisions, state)
-        companies = {c["company_id"]: dict(c) for c in state["companies"]}
-        originals = {c["company_id"]: c for c in state["snapshot"]["companies"]}
-        unverified = {u["candidate_id"]: dict(u) for u in state["unverified"]}
-        for decision in decisions:
-            item = unverified[decision["candidate_id"]]
-            item["user_decision"] = {
-                **decision,
-                "actor_id": payload["actor_id"],
-                "action_id": payload["action_id"],
-                "confirmed_at": payload["submitted_at"],
+        if not state["subjects"]:
+            return {
+                "companies": [],
+                "resolutions": [],
+                "unresolved": [],
+                "warnings": [],
             }
-            if decision["action"] == "confirm":
-                cid = decision["company_id"]
-                target = companies.setdefault(
-                    cid,
-                    {
-                        **originals[cid],
-                        "patent_ids": [],
-                        "relations": [],
-                        "identity": "user_confirmed",
-                        "user_evidence": [],
-                    },
-                )
-                target["patent_ids"] = sorted(
-                    set(target["patent_ids"]) | set(item["patent_ids"])
-                )
-                target.setdefault("user_evidence", []).append(item["user_decision"])
-                item["status"] = "user_confirmed"
-            else:
-                item["status"] = (
-                    "rejected" if decision["action"] == "reject" else "unverified"
-                )
-        return {
-            "companies": list(companies.values()),
-            "unverified": list(unverified.values()),
-            "decisions": decisions,
+        run_id, lease = identity(config)
+        payload = {
+            "subjects": [
+                {
+                    "assignee_id": subject["assignee_id"],
+                    "name": subject["name"],
+                    "candidates": [
+                        {
+                            key: candidate.get(key)
+                            for key in (
+                                "company_id",
+                                "legal_name",
+                                "aliases",
+                                "english_name",
+                                "country",
+                                "city",
+                                "district",
+                                "registered_address",
+                                "operating_status",
+                                "established_at",
+                                "source_sha256",
+                            )
+                        }
+                        for candidate in subject["candidates"]
+                    ],
+                }
+                for subject in state["subjects"]
+            ],
         }
+        try:
+            generated = await llm.generate(
+                run_id,
+                lease,
+                "逐个解析专利权利人可能对应的企业。只能选择提供的候选企业；"
+                "名称、别名、英文名、注册地址等可以作为依据，统一社会信用代码不能"
+                "证明专利归属。证据不足或存在多个合理候选时必须 unresolved。",
+                payload,
+                SubjectResolutionBatch,
+            )
+            resolutions = [item.model_dump() for item in generated.resolutions]
+            expected = {subject["assignee_id"] for subject in state["subjects"]}
+            actual = [item["assignee_id"] for item in resolutions]
+            if len(actual) != len(set(actual)) or set(actual) != expected:
+                raise ResearchError("MODEL_OUTPUT_INVALID", "模型改变了权利人集合")
+            allowed = {
+                subject["assignee_id"]: {
+                    company["company_id"] for company in subject["candidates"]
+                }
+                for subject in state["subjects"]
+            }
+            if any(
+                item["status"] == "matched"
+                and item["company_id"] not in allowed[item["assignee_id"]]
+                for item in resolutions
+            ):
+                raise ResearchError("MODEL_OUTPUT_INVALID", "模型选择了未提供的企业")
+            companies, unresolved = apply_resolutions(
+                state["snapshot"], state["subjects"], resolutions
+            )
+            return {
+                "companies": companies,
+                "resolutions": resolutions,
+                "unresolved": unresolved,
+                "warnings": [],
+            }
+        except ResearchError:
+            resolutions = [
+                {
+                    "assignee_id": subject["assignee_id"],
+                    "status": "unresolved",
+                    "company_id": None,
+                    "confidence": None,
+                    "reason": "主体解析暂不可用，已保留专利权利人事实",
+                }
+                for subject in state["subjects"]
+            ]
+            _, unresolved = apply_resolutions(
+                state["snapshot"], state["subjects"], resolutions
+            )
+            return {
+                "companies": [],
+                "resolutions": resolutions,
+                "unresolved": unresolved,
+                "warnings": ["企业主体解析失败，报告已降级为专利权利人结果。"],
+            }
 
-    async def evidence(state, config):
-        findings = evidence_findings(state["snapshot"], state["unverified"])
+    async def analyze(state, config):
         ranked = rank(state["companies"], state["patents"])
         if not ranked:
-            return {"analysis": {"companies": []}, "evidence_findings": findings}
+            return {"analysis": {"companies": []}}
         run_id, lease = identity(config)
         samples = {p["patent_id"]: p for p in state["patents"]}
         payload = {
@@ -666,32 +697,47 @@ def build_graph(llm, store, checkpointer, acquisition):
                 for c in ranked
             ],
         }
-        analysis = await llm.generate(
-            run_id,
-            lease,
-            "逐家解释技术相关性，不修改公司集合或程序排序。每家解释引用所提供专利 ID。"
-            "依据给出的标题、摘要（如果有）与 IPC 解释相关性，不声称产品、客户、"
-            "市场份额或投资价值。",
-            payload,
-            Analysis,
-        )
-        allowed = {
-            c["company_id"]: {p["patent_id"] for p in c["patents"]}
-            for c in payload["companies"]
-        }
-        ids = [c.company_id for c in analysis.companies]
-        if len(set(ids)) != len(ids) or set(ids) != set(allowed):
-            raise ResearchError("MODEL_CITATION_INVALID", "模型改变了候选公司集合")
-        for explanation in analysis.companies:
-            if not set(explanation.patent_ids) <= allowed[explanation.company_id]:
-                raise ResearchError(
-                    "MODEL_CITATION_INVALID", "模型引用不属于该公司证据"
-                )
-        return {"analysis": analysis.model_dump(), "evidence_findings": findings}
+        try:
+            analysis = await llm.generate(
+                run_id,
+                lease,
+                "逐家解释技术相关性，不修改公司集合或程序排序。"
+                "每家解释引用所提供专利 ID。"
+                "依据给出的标题、摘要（如果有）与 IPC 解释相关性，不声称产品、客户、"
+                "市场份额或投资价值。",
+                payload,
+                Analysis,
+            )
+            allowed = {
+                company["company_id"]: {
+                    patent["patent_id"] for patent in company["patents"]
+                }
+                for company in payload["companies"]
+            }
+            ids = [company.company_id for company in analysis.companies]
+            if len(set(ids)) != len(ids) or set(ids) != set(allowed):
+                raise ResearchError("MODEL_CITATION_INVALID", "模型改变了候选公司集合")
+            for explanation in analysis.companies:
+                if not set(explanation.patent_ids) <= allowed[explanation.company_id]:
+                    raise ResearchError(
+                        "MODEL_CITATION_INVALID", "模型引用不属于该公司证据"
+                    )
+            return {"analysis": analysis.model_dump()}
+        except ResearchError:
+            return {
+                "analysis": {"companies": []},
+                "warnings": [
+                    *state.get("warnings", []),
+                    "企业技术解释生成失败，已保留映射、专利和统计结果。",
+                ],
+            }
 
     async def finish(state, config):
-        ranked = rank(state["companies"], state["patents"])
-        explanations = {c["company_id"]: c for c in state["analysis"]["companies"]}
+        ranked = rank(state.get("companies", []), state["patents"])
+        explanations = {
+            c["company_id"]: c
+            for c in state.get("analysis", {}).get("companies", [])
+        }
         for item in ranked:
             item["inference"] = explanations.get(item["company_id"])
             item["ranking_reason"] = (
@@ -700,19 +746,16 @@ def build_graph(llm, store, checkpointer, acquisition):
         return {
             "result": {
                 "companies": ranked,
-                "unverified": [
-                    u for u in state["unverified"] if u["status"] != "user_confirmed"
-                ],
+                "unresolved_subjects": state.get("unresolved", []),
+                "warnings": state.get("warnings", []),
                 "patent_count": len(state["patents"]),
                 "release_id": state["snapshot"]["release"]["release_id"],
                 "missing": ["完整法律状态", "产品与客户", "新闻与论文"],
-                "empty_reason": "没有符合条件的专利或已核验公司；可修改并确认新计划"
-                if not ranked
+                "empty_reason": "没有符合条件的专利；可修改并确认新计划"
+                if not state["patents"]
                 else None,
-                "workflow_version": "browser-v1",
-                "prompt_version": "browser-v1",
-                "evidence_quality": state["evidence_findings"]["identity_evidence"],
-                "conflicts": state["evidence_findings"]["conflicts"],
+                "workflow_version": "browser-v2",
+                "prompt_version": "browser-v2",
             }
         }
 
@@ -724,11 +767,12 @@ def build_graph(llm, store, checkpointer, acquisition):
         "search_planner": search_planner,
         "snapshot": snapshot,
         "patent": patent,
+        "assignee": assignee,
         "company_gate": company_gate,
         "company_snapshot": company_snapshot,
         "company": company,
         "entity": entity,
-        "evidence": evidence,
+        "analyze": analyze,
         "finish": finish,
     }
     previous = START
@@ -743,8 +787,13 @@ def build_graph(llm, store, checkpointer, acquisition):
             return result
 
         builder.add_node(name, wrapped)
-        builder.add_edge(previous, name)
+        if previous != "assignee":
+            builder.add_edge(previous, name)
         previous = name
+    builder.add_conditional_edges(
+        "assignee",
+        lambda state: "company_gate" if state["patents"] else "finish",
+    )
     builder.add_edge(previous, END)
     return builder.compile(checkpointer=checkpointer)
 

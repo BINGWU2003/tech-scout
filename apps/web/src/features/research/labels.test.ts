@@ -1,30 +1,25 @@
 import { describe, expect, it } from 'vitest'
-import { candidateCountryLabel } from './labels'
+import { countryName, eventLabels, nodeLabels, statusLabels } from './labels'
 
-describe('待核对主体注册地文案', () => {
-  it('区分已确认、候选建议和尚未核验', () => {
-    expect(
-      [
-        {
-          country: 'CN',
-          countryStatus: 'verified' as const,
-          countrySource: 'patent',
-        },
-        {
-          country: 'CN',
-          countryStatus: 'suggested' as const,
-          countrySource: 'tianyancha',
-        },
-        {
-          country: null,
-          countryStatus: 'unknown' as const,
-          countrySource: null,
-        },
-      ].map(candidateCountryLabel)
-    ).toEqual([
-      '企业注册地：中国（已确认）',
-      '候选企业注册地：中国（天眼查，待确认）',
-      '申请人注册地尚未核验',
-    ])
+describe('v2 研究文案', () => {
+  it('使用自动主体解析状态且不再暴露人工核验动作', () => {
+    expect(nodeLabels).toMatchObject({
+      assignee: '聚合权利人',
+      entity: '解析主体',
+      analyze: '分析企业技术相关性',
+    })
+    expect(Object.keys(statusLabels)).toEqual(
+      expect.arrayContaining([
+        'awaiting_plan',
+        'awaiting_companies',
+        'completed',
+      ])
+    )
+    expect(eventLabels.start_companies).toBe('开始企业发现')
+  })
+
+  it('显示已知国家名称', () => {
+    expect(countryName('CN')).toBe('中国')
+    expect(countryName(null)).toBe('未提供')
   })
 })

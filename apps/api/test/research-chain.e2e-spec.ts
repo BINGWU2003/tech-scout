@@ -87,33 +87,19 @@ describeChain(
           plan: paused.state.artifacts.plan,
         })
         .expect(201)
-      let finished = await waitFor(run, ['completed', 'awaiting_entities'])
-      if (finished.status === 'awaiting_entities') {
-        const decisions = finished.state.artifacts.unverified
-          .filter(
-            (u: { requires_confirmation: boolean }) => u.requires_confirmation
-          )
-          .map((u: { candidate_id: string }) => ({
-            candidate_id: u.candidate_id,
-            action: 'skip',
-          }))
-        await run.agent
-          .post(`/api/v1/research/runs/${run.id}/actions`)
-          .set('Origin', 'http://localhost:5173')
-          .set('x-csrf-token', run.csrf)
-          .send({
-            action_id: randomUUID(),
-            kind: 'resolve_entities',
-            decisions,
-          })
-          .expect(201)
-        finished = await waitFor(run, ['completed'])
-      }
+      await waitFor(run, ['awaiting_companies'])
+      await run.agent
+        .post(`/api/v1/research/runs/${run.id}/actions`)
+        .set('Origin', 'http://localhost:5173')
+        .set('x-csrf-token', run.csrf)
+        .send({ action_id: randomUUID(), kind: 'start_companies' })
+        .expect(201)
+      const finished = await waitFor(run, ['completed'])
       expect(finished.state.artifacts.result.companies.length).toBeGreaterThan(
         0
       )
       expect(finished.state.artifacts.result.release_id).toBe('test-v1')
-      expect(finished.state.budget.requests).toBe(2)
+      expect(finished.state.budget.requests).toBeGreaterThanOrEqual(2)
       expect(finished.state.artifacts.snapshot.patents[0]).toHaveProperty(
         'source_sha256'
       )

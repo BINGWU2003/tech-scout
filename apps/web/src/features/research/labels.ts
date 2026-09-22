@@ -3,7 +3,6 @@ export const statusLabels: Record<string, string> = {
   running: '研究中',
   awaiting_plan: '待确认计划',
   awaiting_companies: '待开始企业发现',
-  awaiting_entities: '待确认主体',
   completed: '已完成',
   empty: '无匹配结果',
   failed: '执行失败',
@@ -17,31 +16,13 @@ export const nodeLabels: Record<string, string> = {
   plan_gate: '确认计划',
   snapshot: '采集专利',
   patent: '筛选专利',
+  assignee: '聚合权利人',
   company_gate: '确认企业发现',
   company_snapshot: '查询企业信息',
-  company: '关联企业',
-  entity: '核验主体',
-  evidence: '分析证据',
+  company: '整理企业候选',
+  entity: '解析主体',
+  analyze: '分析企业技术相关性',
   finish: '保存结果',
-}
-export const decisionLabels: Record<string, string> = {
-  not_found: '天眼查未找到',
-  unverified: '待核对',
-  accepted: '已接受',
-  auto_accepted: '自动匹配',
-  insufficient_evidence: '证据不足',
-  non_company: '非公司主体',
-  rejected: '已拒绝',
-  reject: '本次拒绝',
-  skip: '本次跳过',
-  confirm: '本次确认',
-  unresolved: '待处理',
-}
-
-type CandidateCountry = {
-  country: string | null
-  countryStatus: 'verified' | 'suggested' | 'unknown'
-  countrySource: string | null
 }
 
 const countryLabels: Record<string, string> = {
@@ -49,27 +30,8 @@ const countryLabels: Record<string, string> = {
   US: '美国',
 }
 
-const countrySourceLabels: Record<string, string> = {
-  patent: '专利来源',
-  tianyancha: '天眼查',
-}
-
 export function countryName(country: string | null) {
   return country ? (countryLabels[country] ?? country) : '未提供'
-}
-
-export function candidateCountryLabel(candidate: CandidateCountry) {
-  if (!candidate.country || candidate.countryStatus === 'unknown')
-    return '申请人注册地尚未核验'
-  const country = countryName(candidate.country)
-  if (candidate.countryStatus === 'suggested') {
-    const source = candidate.countrySource
-      ? (countrySourceLabels[candidate.countrySource] ??
-        candidate.countrySource)
-      : '企业登记证据'
-    return `候选企业注册地：${country}（${source}，待确认）`
-  }
-  return `企业注册地：${country}（已确认）`
 }
 
 export const eventLabels: Record<string, string> = {
@@ -80,14 +42,12 @@ export const eventLabels: Record<string, string> = {
   model_reserved: '预留调用预算',
   model_usage: '记录模型用量',
   awaiting_plan: '等待计划确认',
-  awaiting_entities: '等待主体确认',
   execution_stopped: '执行已停止',
   confirm_plan: '计划已确认',
   start_companies: '开始企业发现',
   awaiting_companies: '专利采集完成，等待开始企业发现',
   planner_progress: '技术方向生成进度',
   search_progress: '检索记录',
-  resolve_entities: '主体决定已提交',
   completed: '研究完成',
   empty: '无匹配结果',
   failed: '执行失败',

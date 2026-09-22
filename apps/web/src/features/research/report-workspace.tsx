@@ -1,13 +1,12 @@
 import { useQuery } from '@tanstack/react-query'
 import { ArrowRight, Building2, FileText } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
-import { ContentSkeleton, LoadingRegion } from '@/components/loading'
+import { ContentSkeleton } from '@/components/loading'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { researchApi } from '@/lib/research-api'
 import { countryName } from './labels'
 import { ResearchPlanLayout } from './research-plan-layout'
-import { Pager } from './shared'
 import {
   CompanySnapshotDetails,
   PatentList,
@@ -70,7 +69,7 @@ export function ReportWorkspace({
                 {[
                   ['去重专利', result.patentCount],
                   ['候选主体', result.companies.length],
-                  ['隔离条目', result.unverifiedCount],
+                  ['未解析主体', result.unresolvedSubjects.length],
                 ].map(([label, value]) => (
                   <div
                     key={label}
@@ -88,12 +87,14 @@ export function ReportWorkspace({
                   结果保留程序原始排序。模型解释仅为标题 / IPC
                   推断，不证明产品能力；名单可能包含非商业主体或宽泛硬件相关项。
                 </p>
-                {result.conflictCount > 0 && (
-                  <p>
-                    身份依据存在 {result.conflictCount}{' '}
-                    项差异或冲突，需结合来源与观察时间复核。
+                {result.warnings.map((warning) => (
+                  <p
+                    key={warning}
+                    className='text-amber-700 dark:text-amber-300'
+                  >
+                    {warning}
                   </p>
-                )}
+                ))}
                 {result.missing.length > 0 && (
                   <p>数据缺失：{result.missing.join('、')}</p>
                 )}
@@ -116,7 +117,7 @@ export function ReportWorkspace({
                       {result.emptyReason ?? '没有符合条件的候选企业。'}
                     </p>
                     <p className='text-muted-foreground'>
-                      可点击“调整研究”，修改要求并确认计划。
+                      如需调整条件，请新建研究并确认新的计划。
                     </p>
                   </div>
                 )}
@@ -140,10 +141,8 @@ export function ReportWorkspace({
                           {item.name}
                         </span>
                         <span className='block text-xs text-muted-foreground'>
-                          {countryName(item.country)} ·{' '}
-                          {item.identity === 'user_confirmed'
-                            ? '本次人工确认身份'
-                            : '来源身份匹配'}
+                          {countryName(item.country)} · Agent 推断关联 ·{' '}
+                          {item.confidence === 'high' ? '高置信' : '中置信'}
                         </span>
                       </span>
                       <ArrowRight
@@ -157,6 +156,9 @@ export function ReportWorkspace({
                       </Badge>
                       <Badge variant='outline'>规则分 {item.ruleScore}</Badge>
                     </span>
+                    <span className='block text-xs leading-5 text-muted-foreground'>
+                      专利权利人：{item.assigneeNames.join('、')}
+                    </span>
                   </button>
                 ))}
               </section>
@@ -166,7 +168,32 @@ export function ReportWorkspace({
                 </summary>
                 <LazyPatents runId={runId!} />
               </details>
-              {result.conflictCount > 0 && <ConflictList runId={runId!} />}
+              {result.unresolvedSubjects.length > 0 && (
+                <details className='rounded-xl border p-4'>
+                  <summary className='cursor-pointer font-medium'>
+                    查看未解析主体
+                  </summary>
+                  <div className='mt-3 space-y-3'>
+                    {result.unresolvedSubjects.map((subject) => (
+                      <div
+                        key={subject.id}
+                        className='rounded-md bg-muted p-3 text-sm'
+                      >
+                        <p className='font-medium break-words'>
+                          {subject.name}
+                        </p>
+                        <p className='text-xs text-muted-foreground'>
+                          {subject.patentCount} 条专利 · {subject.reason}
+                        </p>
+                        <p className='mt-1 text-xs break-all text-muted-foreground'>
+                          代表专利：
+                          {subject.representativePatentIds.join('、') || '无'}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </details>
+              )}
             </>
           )}
           {records}
@@ -190,6 +217,12 @@ export function ReportWorkspace({
                     {selected.patentCount} 条相关专利
                   </p>
                 </div>
+              </div>
+              <div className='space-y-2 rounded-lg border bg-muted/20 p-4'>
+                <h4 className='text-sm font-medium'>主体解析</h4>
+                <p className='text-sm leading-6 break-words'>
+                  {selected.resolutionReason}
+                </p>
               </div>
               <div className='space-y-2 rounded-lg border bg-muted/20 p-4'>
                 <h4 className='text-sm font-medium'>模型推断</h4>
@@ -267,53 +300,6 @@ export function ReportWorkspace({
   )
 }
 
-function ConflictList({ runId }: { runId: string }) {
-  const [page, setPage] = useState(1),
-    [open, setOpen] = useState(false)
-  const query = useQuery({
-    placeholderData: (previous, previousQuery) =>
-      previousQuery?.queryKey[1] === runId ? previous : undefined,
-    queryKey: ['research', runId, 'conflicts', page],
-    queryFn: () => researchApi.conflicts(runId, page),
-    enabled: open,
-  })
-  return (
-    <details
-      className='rounded-xl border p-4'
-      onToggle={(event) => setOpen(event.currentTarget.open)}
-    >
-      <summary className='cursor-pointer font-medium'>
-        查看身份差异与冲突
-      </summary>
-      <LoadingRegion
-        busy={query.isPlaceholderData && query.isFetching}
-        className='mt-3 flex flex-col gap-3'
-      >
-        {query.isError && (
-          <p role='alert'>冲突记录加载失败，请收起后重新打开。</p>
-        )}
-        {open && query.isPending && (
-          <ContentSkeleton variant='list' label='读取冲突记录…' />
-        )}
-        {query.data?.items.map((c, i) => (
-          <div key={i} className='rounded-md bg-muted p-3 text-sm'>
-            <p className='font-medium break-all'>{c.name}</p>
-            <p>{c.note}</p>
-            {c.identifierType && <p>标识类型：{c.identifierType}</p>}
-            {Object.entries(c.values).map(([value, ids]) => (
-              <p key={value} className='text-xs break-all'>
-                {value} · 证据：{ids.join('、')}
-              </p>
-            ))}
-          </div>
-        ))}
-        {query.data && (
-          <Pager page={page} total={query.data.total} onChange={setPage} />
-        )}
-      </LoadingRegion>
-    </details>
-  )
-}
 function LazyPatents({ runId }: { runId: string }) {
   const [show, setShow] = useState(false)
   return (

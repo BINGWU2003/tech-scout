@@ -379,7 +379,7 @@ export class ResearchService implements OnModuleInit, OnModuleDestroy {
       })
       const canContinue =
         execution?.id === runId &&
-        ['start_companies', 'resolve_entities', 'retry'].includes(input.kind)
+        ['start_companies', 'retry'].includes(input.kind)
       if (
         latest?.id !== runId &&
         !canContinue &&
@@ -399,14 +399,7 @@ export class ResearchService implements OnModuleInit, OnModuleDestroy {
       }
       if (input.kind === 'confirm_plan')
         await assertResearchPlanEditable(tx, owned.projectId)
-      if (
-        [
-          'confirm_plan',
-          'start_companies',
-          'resolve_entities',
-          'retry',
-        ].includes(input.kind)
-      ) {
+      if (['confirm_plan', 'start_companies', 'retry'].includes(input.kind)) {
         // Follow-up chat retries remain available; execution cannot restart a completed task.
         const artifacts = object(object(owned.state).artifacts)
         if (
