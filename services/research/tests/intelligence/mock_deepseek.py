@@ -16,7 +16,9 @@ async def completions(request: Request):
         return JSONResponse(
             status_code=503, content={"error": {"message": "fixture failure"}}
         )
-    if "context" in payload:
+    if "direction" in payload:
+        data = {"keywords": [payload["direction"]["name"]]}
+    elif "context" in payload:
         context = payload["context"]
         directions = (
             payload.get("directions")
@@ -30,6 +32,9 @@ async def completions(request: Request):
             ]
             or [{"domain_id": "fixture", "name": "测试方向", "explanation": "测试范围"}]
         )
+        directions = [
+            {**d, "keywords": d.get("keywords") or [d["name"]]} for d in directions
+        ]
         data = {"directions": directions}
         if "directions" not in payload:
             data = {"reply": "结合研究需求，推荐以下技术方向。", **data}
@@ -40,8 +45,7 @@ async def completions(request: Request):
                 risks=[],
             )
             data["directions"] = [
-                {**d, "keywords": [], "excluded_keywords": [], "cpc_prefixes": []}
-                for d in directions
+                {**d, "excluded_keywords": [], "cpc_prefixes": []} for d in directions
             ]
     else:
         data = {

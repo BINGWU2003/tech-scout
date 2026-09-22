@@ -190,7 +190,7 @@ export function PatentWorkspace({
         conversation={
           <>
             <p className='text-xs leading-5 text-muted-foreground'>
-              关键词生成后自动开始检索。每项显示实际进度与结束原因。
+              按已确认关键词检索。每项显示实际进度与结束原因。
             </p>
             {eventsError && (
               <div role='alert' className='text-sm'>

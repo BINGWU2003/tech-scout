@@ -311,10 +311,10 @@ function RunWorkspace({
     return (
       <LoadingRegion busy={refreshing} className='flex min-h-0 flex-1 flex-col'>
         {header}
-        {summary.isPending && (
+        {summary.isPending && !directions && (
           <ContentSkeleton variant='workspace' label='正在读取运行状态…' />
         )}
-        {run && (
+        {(run || directions) && (
           <ResearchPlanLayout
             directions={directions}
             conversation={conversation?.(events.data ?? [])}
@@ -637,6 +637,7 @@ function ProjectWorkspace({
 
   const [question, setQuestion] = useState('')
   const [thinking, setThinking] = useState(true)
+  const [generatingKeywords, setGeneratingKeywords] = useState(false)
   const requestKey = useRef({ signature: '', id: createRequestId() })
   const client = useQueryClient(),
     navigate = useNavigate()
@@ -708,7 +709,11 @@ function ProjectWorkspace({
     workspace.isError ||
     workspace.data.blocked
   const editingBusy =
-    blocked || change.isPending || create.isPending || planLocked
+    blocked ||
+    change.isPending ||
+    create.isPending ||
+    planLocked ||
+    generatingKeywords
   const savePlan = (plan: ResearchWorkspace['selectedPlan']) => {
     const parsed = researchSelectedPlanSchema.safeParse(plan)
     if (!parsed.success || plan.directions.some((d) => !d.explanation.trim()))
@@ -819,7 +824,7 @@ function ProjectWorkspace({
         (stage === 'plan' ||
           (workspace.data && stages.indexOf(stage) <= reached)) && (
           <RunWorkspace
-            key={`${selected.id}-${stage}`}
+            key={`${stage === 'plan' ? projectId : selected.id}-${stage}`}
             id={selected.id}
             projectId={projectId}
             stage={stage}
@@ -855,6 +860,24 @@ function ProjectWorkspace({
                   busy={editingBusy}
                   onDirty={editPlan}
                   onSave={savePlan}
+                  onGenerateKeywords={async (direction) => {
+                    setGeneratingKeywords(true)
+                    try {
+                      return await researchApi.generateKeywords(projectId, {
+                        requestKey: createRequestId(),
+                        direction: {
+                          domain_id: direction.domain_id,
+                          name: direction.name,
+                          explanation: direction.explanation,
+                        },
+                      })
+                    } finally {
+                      setGeneratingKeywords(false)
+                      void client.invalidateQueries({
+                        queryKey: ['research', projectId],
+                      })
+                    }
+                  }}
                   onStart={async (plan) => {
                     const saved = dirty ? await savePlan(plan) : workspace.data!
                     await updateWorkspace({
@@ -890,7 +913,7 @@ function ProjectWorkspace({
                         ...plan.directions,
                         {
                           ...direction,
-                          keywords: [],
+                          keywords: direction.keywords,
                           excluded_keywords: [],
                           cpc_prefixes: [],
                         },
@@ -925,7 +948,7 @@ function ProjectWorkspace({
                   onChange={setQuestion}
                   onSubmit={() => create.mutate()}
                   busy={create.isPending}
-                  blocked={blocked || change.isPending}
+                  blocked={blocked || change.isPending || generatingKeywords}
                   autoSave={dirty}
                   thinking={thinking}
                   onThinkingChange={setThinking}

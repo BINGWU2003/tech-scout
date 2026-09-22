@@ -35,6 +35,7 @@ const scope = (v: unknown) => {
       domain_id: d.domain_id,
       name: d.name,
       explanation: d.explanation,
+      keywords: d.keywords,
     })),
   }
 }

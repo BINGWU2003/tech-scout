@@ -241,6 +241,16 @@ it('工作台从左侧切换项目，确认前追问保留上下文，并在手�
         workspace.revision += 1
       }
       if (input.kind === 'start_search') {
+        project.runs = [
+          ...project.runs.filter((run) => run.id !== secondId),
+          {
+            id: secondId,
+            question: '开始检索',
+            status: 'awaiting_plan',
+            sequence: 3,
+            createdAt: now,
+          },
+        ]
         workspace.reachedStage = 'patents'
         workspace.currentStageStatus = 'completed'
         advanced = true
@@ -422,6 +432,44 @@ it('工作台从左侧切换项目，确认前追问保留上下文，并在手�
   await page.screenshot({ path: '__screenshots__/research-mobile.png' })
   await page.viewport(1280, 900)
   await screen.getByRole('textbox', { name: '方向描述' }).fill('最终检索范围')
+  const keywordRunId = crypto.randomUUID()
+  let finishKeywords!: (keywords: string[]) => void
+  vi.spyOn(researchApi, 'generateKeywords').mockImplementation(async () => {
+    project.runs.push({
+      id: keywordRunId,
+      question: '生成关键词',
+      status: 'awaiting_plan',
+      sequence: 3,
+      createdAt: now,
+    })
+    return new Promise<string[]>((resolve) => {
+      finishKeywords = resolve
+    })
+  })
+  await screen.getByRole('button', { name: '重新生成', exact: true }).click()
+  // A new run arrives during generation; the editor must stay mounted.
+  await expect
+    .poll(() => project.runs[project.runs.length - 1]?.id)
+    .toBe(keywordRunId)
+  await expect
+    .poll(
+      () =>
+        vi
+          .mocked(researchApi.summary)
+          .mock.calls.some(([id]) => id === keywordRunId),
+      { timeout: 8000 }
+    )
+    .toBe(true)
+  await expect
+    .element(screen.getByRole('button', { name: '正在生成…' }))
+    .toBeVisible()
+  finishKeywords(['界面稳定性', '离子传导'])
+  await expect
+    .element(screen.getByRole('textbox', { name: '关键词 1', exact: true }))
+    .toHaveValue('界面稳定性')
+  await expect
+    .element(screen.getByRole('textbox', { name: '方向描述' }))
+    .toHaveValue('最终检索范围')
   await screen.getByRole('button', { name: '保存并开始研究' }).click()
   await expect
     .element(screen.getByRole('heading', { name: '专利检索', exact: true }))
@@ -435,6 +483,10 @@ it('工作台从左侧切换项目，确认前追问保留上下文，并在手�
     .element(screen.getByRole('button', { name: /开始企业查询/ }))
     .toBeVisible()
   expect(workspaceAction).toHaveBeenCalledTimes(3)
+  expect(workspace.selectedPlan.directions[0].keywords).toEqual([
+    '界面稳定性',
+    '离子传导',
+  ])
   await expect
     .element(screen.getByRole('textbox', { name: '继续研究' }))
     .not.toBeInTheDocument()

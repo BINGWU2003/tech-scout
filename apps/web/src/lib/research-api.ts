@@ -1,5 +1,8 @@
 import {
   researchWorkspaceSchema,
+  researchRunSchema,
+  researchKeywordsSchema,
+  researchKeywordRequestSchema,
   type ResearchWorkspaceAction,
   researchProjectSchema,
   researchProjectSummarySchema,
@@ -20,6 +23,41 @@ import { apiRequest } from './api-client'
 
 const run = (id: string) => `research/ui/runs/${encodeURIComponent(id)}`
 export const researchApi = {
+  generateKeywords: async (
+    id: string,
+    input: z.infer<typeof researchKeywordRequestSchema>
+  ) => {
+    const started = await apiRequest(
+      `research/projects/${id}/keywords`,
+      researchRunSchema,
+      {
+        method: 'POST',
+        json: input,
+        retry: 0,
+      }
+    )
+    const deadline = Date.now() + 300000
+    let current = started
+    for (;;) {
+      const state = current.state
+      if (
+        current.status === 'awaiting_plan' &&
+        'artifacts' in state &&
+        state.artifacts.generated_keywords
+      )
+        return researchKeywordsSchema.parse(state.artifacts.generated_keywords)
+          .keywords
+      if (!['queued', 'running'].includes(current.status))
+        throw new Error('关键词生成失败，请重试；原关键词已保留。')
+      if (Date.now() >= deadline)
+        throw new Error('关键词生成超时，请稍后重试；原关键词已保留。')
+      await new Promise((resolve) => setTimeout(resolve, 1000))
+      current = await apiRequest(
+        `research/runs/${started.id}`,
+        researchRunSchema
+      )
+    }
+  },
   workspace: (id: string) =>
     apiRequest(`research/ui/projects/${id}/workspace`, researchWorkspaceSchema),
   workspaceAction: (id: string, input: ResearchWorkspaceAction) =>

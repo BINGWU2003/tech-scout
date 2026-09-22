@@ -211,7 +211,7 @@ async def test_streams_intro_before_direction_cards_are_validated(setup_model):
                 + chunk(
                     {
                         "content": '{"domain_id":"d","name":"边缘推理",'
-                        '"explanation":"关注轻量化模型"}]}'
+                        '"explanation":"关注轻量化模型","keywords":["边缘推理"]}]}'
                     },
                     "stop",
                 )

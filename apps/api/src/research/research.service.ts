@@ -210,7 +210,8 @@ export class ResearchService implements OnModuleInit, OnModuleDestroy {
     userId: string,
     projectId: string,
     input: ResearchCreate,
-    searchRevision?: number
+    searchRevision?: number,
+    keywordDirection?: { domain_id: string; name: string; explanation: string }
   ) {
     const project = await this.project(userId, projectId)
     const run = await this.prisma.$transaction(async (tx) => {
@@ -224,6 +225,8 @@ export class ResearchService implements OnModuleInit, OnModuleDestroy {
       if (existing) {
         if (
           existing.question !== input.question ||
+          JSON.stringify(object(existing.context).keywordDirection ?? null) !==
+            JSON.stringify(keywordDirection ?? null) ||
           object(existing.context).thinking !== input.thinking ||
           Boolean(object(existing.context).startSearch) !==
             (searchRevision !== undefined) ||
@@ -278,6 +281,11 @@ export class ResearchService implements OnModuleInit, OnModuleDestroy {
         !researchPlanSchema.safeParse(selected).success
       )
         throw new ConflictException('请先选择至少一个研究方向')
+      if (
+        searchRevision !== undefined &&
+        selected.directions.some((d) => !d.keywords.length)
+      )
+        throw new ConflictException('每个方向至少需要一个检索关键词')
       const messages = await tx.$queryRaw<Record<string, unknown>[]>(Prisma.sql`
         SELECT question, state #>> '{artifacts,reply}' AS reply
         FROM app.research_run
@@ -292,6 +300,7 @@ export class ResearchService implements OnModuleInit, OnModuleDestroy {
           question: input.question,
           context: json({
             workspace: true,
+            ...(keywordDirection ? { keywordDirection } : {}),
             thinking: input.thinking,
             selectedPlan: selected,
             selectedRevision: revision(workspace),

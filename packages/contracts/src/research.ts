@@ -1,6 +1,23 @@
 import { z } from 'zod'
 
 const term = z.string().trim().min(1).max(200)
+export const researchKeywordRequestSchema = z
+  .object({
+    requestKey: z.uuid(),
+    direction: z
+      .object({
+        domain_id: z.string().min(1).max(100),
+        name: term,
+        explanation: z.string().trim().min(1).max(2000),
+      })
+      .strict(),
+  })
+  .strict()
+export const researchKeywordsSchema = z
+  .object({
+    keywords: z.array(term).min(1).max(12),
+  })
+  .strict()
 export const researchDirectionSchema = z
   .object({
     domain_id: z.string().min(1).max(100),

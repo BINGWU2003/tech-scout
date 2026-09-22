@@ -1,9 +1,9 @@
 """Validated internal protocol. No product database types cross this boundary."""
 
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
 
 
 class Model(BaseModel):
@@ -14,11 +14,30 @@ class DirectionDraft(Model):
     domain_id: str = Field(min_length=1, max_length=100)
     name: str = Field(min_length=1, max_length=200)
     explanation: str = Field(min_length=1, max_length=2000)
+    keywords: list[
+        Annotated[
+            str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)
+        ]
+    ] = Field(default_factory=list, max_length=12)
+
+
+class Keywords(Model):
+    keywords: list[
+        Annotated[
+            str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)
+        ]
+    ] = Field(min_length=1, max_length=12)
 
 
 class DirectionProposal(Model):
     reply: str = Field(min_length=1, max_length=4000)
     directions: list[DirectionDraft] = Field(min_length=1, max_length=3)
+
+    @model_validator(mode="after")
+    def candidate_keywords(self):
+        if any(not direction.keywords for direction in self.directions):
+            raise ValueError("推荐方向必须包含检索关键词")
+        return self
 
 
 class Direction(Model):
@@ -71,6 +90,14 @@ class ConversationReply(Model):
     remove_ids: list[str] = Field(default_factory=list, max_length=3)
     from_year: int | None = Field(default=None, ge=1800, le=2100)
     to_year: int | None = Field(default=None, ge=1800, le=2100)
+
+    @model_validator(mode="after")
+    def candidate_keywords(self):
+        if self.intent in {"refresh_candidates", "update_candidate"} and any(
+            not direction.keywords for direction in self.updates
+        ):
+            raise ValueError("推荐方向必须包含检索关键词")
+        return self
 
 
 class Action(Model):

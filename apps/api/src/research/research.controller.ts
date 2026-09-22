@@ -20,6 +20,7 @@ import {
   researchProjectSummarySchema,
   researchRunSchema,
   researchStoredEventSchema,
+  researchKeywordRequestSchema,
   type ResearchAction,
   type ResearchCreate,
 } from '@tech-scout/contracts'
@@ -86,6 +87,29 @@ export class ResearchController {
     @Body(new ZodValidationPipe(researchCreateSchema)) input: ResearchCreate
   ) {
     return this.research.newRun(auth.user.id, id, input)
+  }
+
+  @Post('projects/:projectId/keywords')
+  @ZodResponse(researchRunSchema)
+  @UseGuards(CsrfGuard)
+  keywords(
+    @CurrentAuth() auth: AuthenticatedRequest['auth'],
+    @Param('projectId', uuid) id: string,
+    @Body(new ZodValidationPipe(researchKeywordRequestSchema)) input: z.infer<
+      typeof researchKeywordRequestSchema
+    >
+  ) {
+    return this.research.newRun(
+      auth.user.id,
+      id,
+      {
+        requestKey: input.requestKey,
+        question: `生成“${input.direction.name}”的检索关键词`,
+        thinking: false,
+      },
+      undefined,
+      input.direction
+    )
   }
 
   @Get('runs/:runId')

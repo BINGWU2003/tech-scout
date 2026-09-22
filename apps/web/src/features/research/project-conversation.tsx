@@ -166,6 +166,21 @@ export function ProjectConversation({
                       <p className='break-words whitespace-pre-wrap text-muted-foreground'>
                         {d.explanation}
                       </p>
+                      {d.keywords.length > 0 && (
+                        <div
+                          className='flex flex-wrap gap-1.5'
+                          aria-label='推荐检索关键词'
+                        >
+                          {d.keywords.map((keyword, index) => (
+                            <span
+                              key={index}
+                              className='max-w-full rounded-md bg-muted px-2 py-1 text-xs break-words'
+                            >
+                              {keyword}
+                            </span>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   ))}
                   {message.recommendation &&

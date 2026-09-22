@@ -13,6 +13,7 @@ from tech_scout_intelligence.models import (
     Analysis,
     DirectionProposal,
     Explanation,
+    Keywords,
     Plan,
     ResearchError,
     SubjectResolution,
@@ -223,6 +224,7 @@ class FakeLLM:
                         "domain_id": d.domain_id,
                         "name": d.name,
                         "explanation": d.explanation,
+                        "keywords": d.keywords,
                     }
                     for d in plan().directions
                 ],
@@ -499,7 +501,7 @@ async def test_no_patents_finishes_empty_without_subject_agent_calls():
     graph = build_graph(llm, runtime_store(), InMemorySaver(), acquisition)
     config = graph_config()
     await graph.ainvoke({"question": "工业视觉"}, config)
-    await graph.ainvoke(Command(resume={"plan": plan().model_dump()}), config)
+    await graph.ainvoke(Command(resume={"plan": llm.search_plan.model_dump()}), config)
     result = (await graph.aget_state(config)).values["result"]
     assert result["patent_count"] == 0
     assert result["empty_reason"]
@@ -567,7 +569,14 @@ def test_workspace_refresh_and_partial_proposal_preserve_selected_directions():
         ConversationReply(
             intent="refresh_candidates",
             reply="新候选",
-            updates=[{"domain_id": "new", "name": "新方向", "explanation": "推荐"}],
+            updates=[
+                {
+                    "domain_id": "new",
+                    "name": "新方向",
+                    "explanation": "推荐",
+                    "keywords": ["新方向"],
+                }
+            ],
         ),
         conversation,
     )
@@ -587,6 +596,10 @@ def test_workspace_refresh_and_partial_proposal_preserve_selected_directions():
         conversation,
     )
     assert proposal["proposal_plan"]["directions"][1] == other
+    assert (
+        proposal["proposal_plan"]["directions"][0]["keywords"]
+        == original["directions"][0]["keywords"]
+    )
     assert conversation["selectedPlan"] == original
 
 
@@ -603,6 +616,10 @@ async def test_search_planner_preserves_user_depth_and_partial_progress():
             company_targets=None,
         ):
             assert confirmed_plan["pages_per_keyword"] == 10
+            assert confirmed_plan["directions"][0]["keywords"] == [
+                "vision",
+                "用户编辑词",
+            ]
             await progress(
                 {
                     "status": "awaiting_companies",
@@ -624,6 +641,7 @@ async def test_search_planner_preserves_user_depth_and_partial_progress():
     await graph.ainvoke({"question": "工业视觉"}, config)
     confirmed = plan().model_dump()
     confirmed["pages_per_keyword"] = 10
+    confirmed["directions"][0]["keywords"] = ["vision", "用户编辑词"]
     await graph.ainvoke(Command(resume={"plan": confirmed}), config)
     state = await graph.aget_state(config)
     assert state.next == ("company_gate",)
@@ -631,3 +649,46 @@ async def test_search_planner_preserves_user_depth_and_partial_progress():
     assert state.values["acquisition"]["total"] == 3
     assert state.values["acquisition"]["detailFailed"] == 1
     assert state.values["acquisition"]["searchFailed"] == 1
+
+
+@pytest.mark.asyncio
+async def test_empty_keywords_cannot_start_collection():
+    acquisition = FakeAcquisition()
+    graph = build_graph(FakeLLM(), runtime_store(), InMemorySaver(), acquisition)
+    config = graph_config()
+    await graph.ainvoke({"question": "工业视觉"}, config)
+    confirmed = plan().model_dump()
+    confirmed["directions"][0]["keywords"] = []
+    with pytest.raises(ResearchError, match="至少需要一个检索关键词"):
+        await graph.ainvoke(Command(resume={"plan": confirmed}), config)
+    assert acquisition.reads == 0
+
+
+@pytest.mark.asyncio
+async def test_keyword_generation_is_a_draft_and_preserves_candidates():
+    acquisition, llm = FakeAcquisition(), AsyncMock()
+    llm.generate.return_value = Keywords(keywords=["工业视觉", "机器视觉", "工业视觉"])
+    original = plan().model_dump()
+    graph = build_graph(llm, runtime_store(), InMemorySaver(), acquisition)
+    config = graph_config()
+    result = await graph.ainvoke(
+        {
+            "question": "生成检索关键词",
+            "conversation": {
+                "workspace": True,
+                "keywordDirection": {
+                    "domain_id": "manual",
+                    "name": "工业视觉",
+                    "explanation": "缺陷检测",
+                },
+                "candidatePlan": original,
+                "selectedPlan": original,
+            },
+        },
+        config,
+    )
+    assert result["generated_keywords"]["keywords"] == ["工业视觉", "机器视觉"]
+    assert result["candidate_plan"] == original
+    assert (await graph.aget_state(config)).next == ("plan_gate",)
+    assert "confirmed_plan" not in result
+    assert acquisition.reads == 0

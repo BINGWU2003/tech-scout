@@ -50,6 +50,9 @@ export function useResearchRun(id: string) {
       void client.invalidateQueries({ queryKey: ['research', id, 'events'] })
   }, [client, id, status, sequence])
   const cursor = useRef(0)
+  useEffect(() => {
+    cursor.current = 0
+  }, [id])
   const ready = events.isSuccess
   useEffect(() => {
     if (!active || !ready) return

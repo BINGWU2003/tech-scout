@@ -8,6 +8,7 @@ from .models import (
     Analysis,
     ConversationReply,
     DirectionProposal,
+    Keywords,
     Plan,
     ResearchError,
     SelectedPlan,
@@ -38,6 +39,7 @@ class State(TypedDict, total=False):
     proposal_plan: dict | None
     reply: str
     reply_intent: str
+    generated_keywords: dict
 
 
 def identity_name(value):
@@ -82,7 +84,11 @@ def conversation_update(response, conversation):
             )
         patches = {d.domain_id: d.model_dump() for d in updates}
         directions = [
-            patches.get(d.domain_id, d.model_dump())
+            {
+                **d.model_dump(),
+                **patches.get(d.domain_id, {}),
+                **({"keywords": d.keywords} if selected else {}),
+            }
             for d in plan.directions
             if d.domain_id not in response.remove_ids
         ]
@@ -353,6 +359,23 @@ def build_graph(llm, store, checkpointer, acquisition):
     async def planner(state, config):
         run_id, lease = identity(config)
         conversation = state.get("conversation", {})
+        if conversation.get("keywordDirection"):
+            generated = await llm.generate(
+                run_id,
+                lease,
+                "为给定技术方向生成 1–12 个专利检索关键词，默认中文，允许必要英文术语。"
+                "每项不超过 200 字符，避免重复和过窄条件。",
+                {"direction": conversation["keywordDirection"]},
+                Keywords,
+            )
+            return {
+                "generated_keywords": {
+                    "keywords": list(dict.fromkeys(generated.keywords))
+                },
+                "candidate_plan": conversation.get("candidatePlan"),
+                "reply": "关键词已生成，请在方向卡片中检查并保存。",
+                "reply_intent": "discuss",
+            }
         if conversation.get("startSearch"):
             plan = Plan.model_validate(conversation["selectedPlan"])
             validate_plan(plan, state["context"])
@@ -442,7 +465,8 @@ def build_graph(llm, store, checkpointer, acquisition):
         plan = Plan.model_validate(confirmed)
         validate_plan(plan, state["context"])
         for direction in plan.directions:
-            direction.keywords = []
+            if not direction.keywords:
+                raise ResearchError("INVALID_PLAN", "每个方向至少需要一个检索关键词")
             direction.excluded_keywords = []
             direction.cpc_prefixes = []
         plan.risks = []
@@ -452,7 +476,12 @@ def build_graph(llm, store, checkpointer, acquisition):
         run_id, lease = identity(config)
         confirmed = Plan.model_validate(state["confirmed_plan"])
         directions = [
-            {"domain_id": d.domain_id, "name": d.name, "explanation": d.explanation}
+            {
+                "domain_id": d.domain_id,
+                "name": d.name,
+                "explanation": d.explanation,
+                "keywords": d.keywords,
+            }
             for d in confirmed.directions
         ]
         current = await store.get(run_id)
@@ -474,7 +503,7 @@ def build_graph(llm, store, checkpointer, acquisition):
             lease,
             "根据用户最终确认的 directions 生成 Google Patents 检索条件。"
             "保持方向 domain_id、名称和描述不变，不增删方向。"
-            "最终方向与描述优先于历史计划，重新生成关键词、排除词、IPC 和公开年份。"
+            "保留用户确认的 keywords 原值，只生成排除词、IPC 和公开年份。"
             "关键词组内 OR，关键词与 IPC 条件 AND，方向间 OR，避免过窄条件。"
             "年份不得超出 context 范围，不能表达的限制记录在 risks。",
             {
@@ -496,12 +525,11 @@ def build_graph(llm, store, checkpointer, acquisition):
         ):
             output.name = original.name
             output.explanation = original.explanation
+            output.keywords = original.keywords
         validate_plan(generated, state["context"])
         generated.pages_per_keyword = confirmed.pages_per_keyword
         for direction in generated.directions:
-            direction.keywords = list(dict.fromkeys(direction.keywords)) or [
-                direction.name
-            ]
+            direction.keywords = list(dict.fromkeys(direction.keywords))
         return {"confirmed_plan": generated.model_dump()}
 
     async def collect_snapshot(state, config, phase, company_targets=None):

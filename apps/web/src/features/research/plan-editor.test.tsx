@@ -12,7 +12,7 @@ const direction = (id: string) => ({
   domain_id: id,
   name: id,
   explanation: `${id}范围`,
-  keywords: [],
+  keywords: ['固态电解质'],
   excluded_keywords: [],
   cpc_prefixes: [],
 })
@@ -36,6 +36,96 @@ const initial: ResearchWorkspace = {
   resultOutdated: false,
   blocked: false,
 }
+
+it('关键词可编辑、去重和删除，空关键词可保存但不能开始', async () => {
+  const onSave = vi.fn(),
+    onStart = vi.fn()
+  function Editor() {
+    const [draft, setDraft] = useState<ResearchWorkspace['selectedPlan']>(plan)
+    return (
+      <SelectedPlanEditor
+        workspace={initial}
+        initialPlan={draft}
+        busy={false}
+        onSave={onSave}
+        onStart={onStart}
+        onDirty={(_, next) => {
+          if (next) setDraft(next)
+        }}
+      />
+    )
+  }
+  const screen = await render(<Editor />)
+  await screen
+    .getByRole('textbox', { name: '关键词 1', exact: true })
+    .fill('solid electrolyte')
+  await screen
+    .getByRole('textbox', { name: '添加检索关键词' })
+    .fill('solid electrolyte')
+  await screen.getByRole('button', { name: '添加关键词', exact: true }).click()
+  expect(screen.getByRole('textbox', { name: /^关键词 / }).all()).toHaveLength(
+    1
+  )
+  await screen.getByRole('textbox', { name: '方向描述' }).fill('新的研究范围')
+  await expect
+    .element(
+      screen.getByText(
+        '方向已修改，关键词已保留，请检查是否需要调整或重新生成。'
+      )
+    )
+    .toBeVisible()
+  await screen.getByRole('button', { name: '保存并开始研究' }).click()
+  expect(onStart.mock.lastCall?.[0].directions[0].keywords).toEqual([
+    'solid electrolyte',
+  ])
+  await screen
+    .getByRole('button', { name: '删除关键词 1：solid electrolyte' })
+    .click()
+  await expect
+    .element(screen.getByRole('button', { name: '保存并开始研究' }))
+    .toBeDisabled()
+  await screen.getByRole('button', { name: '保存调整', exact: true }).click()
+  expect(onSave.mock.lastCall?.[0].directions[0].keywords).toEqual([])
+})
+
+it('重新生成失败保留手动关键词，成功后替换且支持重试', async () => {
+  const generate = vi
+    .fn()
+    .mockRejectedValueOnce(new Error('failed'))
+    .mockResolvedValueOnce(['锂离子传导', '界面稳定性'])
+  function Editor() {
+    const [draft, setDraft] = useState<ResearchWorkspace['selectedPlan']>(plan)
+    return (
+      <SelectedPlanEditor
+        workspace={initial}
+        initialPlan={draft}
+        busy={false}
+        onSave={vi.fn()}
+        onStart={vi.fn()}
+        onGenerateKeywords={generate}
+        onDirty={(_, next) => {
+          if (next) setDraft(next)
+        }}
+      />
+    )
+  }
+  const screen = await render(<Editor />)
+  await screen.getByRole('button', { name: '重新生成', exact: true }).click()
+  await expect
+    .element(screen.getByRole('alert'))
+    .toHaveTextContent('原关键词已保留')
+  await expect
+    .element(screen.getByRole('textbox', { name: '关键词 1', exact: true }))
+    .toHaveValue('固态电解质')
+  await screen.getByRole('button', { name: '重新生成', exact: true }).click()
+  await expect
+    .element(screen.getByRole('textbox', { name: '关键词 1', exact: true }))
+    .toHaveValue('锂离子传导')
+  await expect
+    .element(screen.getByRole('textbox', { name: '关键词 2', exact: true }))
+    .toHaveValue('界面稳定性')
+  expect(generate).toHaveBeenCalledTimes(2)
+})
 
 it.each([1280, 390])(
   '宽度 %i 时研究对话回到底部按钮按距离显示，回看不受新消息打断',
@@ -292,6 +382,7 @@ it.each([1280, 390])(
           busy={false}
           onSave={vi.fn()}
           onStart={onStart}
+          onGenerateKeywords={vi.fn().mockResolvedValue(['固态电解质'])}
           onDirty={(_, next) => {
             if (next) setDraft(next)
           }}
