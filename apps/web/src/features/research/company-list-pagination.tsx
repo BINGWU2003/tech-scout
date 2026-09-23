@@ -1,6 +1,5 @@
 import { useEffect, useRef } from 'react'
 import { LoadingIndicator } from '@/components/loading'
-import { Button } from '@/components/ui/button'
 
 export function CompanyListPagination({
   loaded,
@@ -46,17 +45,7 @@ export function CompanyListPagination({
       {isFetchingNextPage ? (
         <LoadingIndicator label='正在加载更多…' />
       ) : isFetchNextPageError ? (
-        <>
-          <span role='alert'>加载失败，已保留现有列表。</span>
-          <Button
-            size='sm'
-            variant='ghost'
-            disabled={paused || isFetching}
-            onClick={() => void fetchNextPage({ cancelRefetch: false })}
-          >
-            重试加载
-          </Button>
-        </>
+        <span role='alert'>加载失败，已保留现有列表。</span>
       ) : hasNextPage ? (
         <span>向下滚动加载更多</span>
       ) : (

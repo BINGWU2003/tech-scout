@@ -115,7 +115,7 @@ it('慢速切换专利时保留旧详情并遮罩，关闭入口仍可操作', a
   await page.getByRole('button', { name: '关闭详情' }).click()
 })
 
-it('触底追加下一页，加载和失败保留位置，重试后展示结束状态', async () => {
+it('触底追加下一页失败后保留现有专利和滚动位置', async () => {
   await page.viewport(1280, 900)
   const { list } = setup()
   await expect
@@ -144,23 +144,12 @@ it('触底追加下一页，加载和失败保留位置，重试后展示结束�
   expect(panel.scrollTop).toBe(scrollTop)
   expect(panel.querySelectorAll('li')).toHaveLength(20)
   expect(list).toHaveBeenCalledTimes(2)
-  await page.getByRole('button', { name: '重试加载' }).click()
-  await expect.poll(() => panel.querySelectorAll('li').length).toBe(21)
+  await expect
+    .element(page.getByRole('button', { name: '重试加载' }))
+    .not.toBeInTheDocument()
   expect(panel.querySelector('li')).toBe(first)
   expect(panel.scrollTop).toBe(scrollTop)
-  expect(list).toHaveBeenCalledTimes(3)
-  panel.scrollTop += 500
-  await expect.element(page.getByText('已全部加载')).toBeVisible()
-  await expect.element(page.getByText('已加载 21 / 21 篇')).toBeVisible()
-  await page
-    .getByRole('button', { name: patents[20].title, exact: true })
-    .click()
-  await expect
-    .element(page.getByRole('heading', { name: patents[20].title }))
-    .toBeVisible()
-  await expect.element(page.getByText('21 / 21', { exact: true })).toBeVisible()
-  await page.getByRole('button', { name: '关闭详情' }).click()
-  expect(list).toHaveBeenCalledTimes(3)
+  expect(list).toHaveBeenCalledTimes(2)
 })
 
 it('直接打开详情、长文滚动、跨页阅读后返回原列表与焦点', async () => {
@@ -226,17 +215,21 @@ it('手机企业抽屉内打开弹窗，Escape 只关闭专利并回到企业', 
   await expect.element(trigger).toHaveFocus()
 })
 
-it('详情请求失败可重试，跨页失败保留当前专利', async () => {
+it('详情请求失败显示提示，跨页失败保留当前专利', async () => {
   await page.viewport(1280, 900)
   const { detail, list } = setup()
   detail.mockRejectedValueOnce(new Error('offline'))
   await page
     .getByRole('button', { name: patents[19].title, exact: true })
     .click()
+  await expect.element(page.getByText('专利详情加载失败。')).toBeVisible()
   await expect
-    .element(page.getByText('专利详情加载失败，请重试。'))
-    .toBeVisible()
-  await page.getByRole('button', { name: '重新加载', exact: true }).click()
+    .element(page.getByRole('button', { name: '重新加载', exact: true }))
+    .not.toBeInTheDocument()
+  await page.getByRole('button', { name: '关闭详情' }).click()
+  await page
+    .getByRole('button', { name: patents[19].title, exact: true })
+    .click()
   await expect
     .element(page.getByRole('heading', { name: patents[19].title }))
     .toBeVisible()

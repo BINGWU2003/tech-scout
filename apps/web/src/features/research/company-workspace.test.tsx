@@ -137,7 +137,6 @@ it('企业工作台概览展示查询统计', async () => {
           controls={null}
           report={null}
           recordsError={false}
-          retryRecords={() => undefined}
         />
       </div>
     </QueryClientProvider>

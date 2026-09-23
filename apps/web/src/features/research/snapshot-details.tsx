@@ -100,12 +100,9 @@ export function PatentSnapshot({
             />
           )}
           {query.isError && (
-            <div role='alert' className='flex-1 space-y-3 p-7 text-sm'>
-              <p>专利详情加载失败，请重试。</p>
-              <Button variant='outline' onClick={() => void query.refetch()}>
-                重新加载
-              </Button>
-            </div>
+            <p role='alert' className='flex-1 p-7 text-sm'>
+              专利详情加载失败。
+            </p>
           )}
           {query.isSuccess && !patent && (
             <p className='flex-1 p-7 text-sm text-muted-foreground'>
@@ -370,12 +367,9 @@ export function PatentList({
         <ContentSkeleton variant='list' label='读取快照专利…' />
       )}
       {query.isError && !query.data && (
-        <div role='alert' className='text-sm'>
+        <p role='alert' className='text-sm'>
           专利列表加载失败。
-          <Button size='sm' variant='link' onClick={() => void query.refetch()}>
-            重新加载
-          </Button>
-        </div>
+        </p>
       )}
       {query.data && total === 0 && (
         <p className='rounded-xl border border-dashed p-6 text-sm text-muted-foreground'>
@@ -438,16 +432,7 @@ export function PatentList({
         {query.isFetchingNextPage ? (
           <LoadingIndicator label='正在加载更多专利…' />
         ) : isFetchNextPageError ? (
-          <>
-            <span role='alert'>加载失败，已保留现有专利。</span>
-            <Button
-              size='sm'
-              variant='ghost'
-              onClick={() => void fetchNextPage({ cancelRefetch: false })}
-            >
-              重试加载
-            </Button>
-          </>
+          <span role='alert'>加载失败，已保留现有专利。</span>
         ) : hasNextPage ? (
           <Button
             size='sm'
@@ -523,9 +508,6 @@ export function CompanySnapshotDetails({
       {query.isError && (
         <p role='alert' className='text-sm'>
           企业快照加载失败。
-          <Button variant='link' size='sm' onClick={() => void query.refetch()}>
-            重新加载
-          </Button>
         </p>
       )}
       {query.isPending && (

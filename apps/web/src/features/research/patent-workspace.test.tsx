@@ -145,7 +145,6 @@ it('120 次详情更新只显示一张进度卡，双栏可调整，手机切换
           events={events}
           active
           eventsError={false}
-          onRetryEvents={() => {}}
           controls={<button>暂停本次研究</button>}
           actions={null}
         />
@@ -232,7 +231,6 @@ it.each([1280, 390])(
             events={currentEvents}
             active
             eventsError={false}
-            onRetryEvents={() => {}}
             controls={null}
             actions={null}
           />
@@ -321,24 +319,21 @@ it.each([1280, 390])(
   }
 )
 
-it('完成后统计使用全量结果，保留列表和详情，并允许统计失败后重试', async () => {
+it('完成后统计使用全量结果，并保留列表和详情', async () => {
   await page.viewport(1280, 900)
-  const stats = vi
-    .spyOn(researchApi, 'patentStats')
-    .mockRejectedValueOnce(new Error('暂不可用'))
-    .mockResolvedValue({
-      total: 63,
-      years: [
-        { year: 2024, dateKind: 'publication', count: 40 },
-        { year: 2025, dateKind: 'publication', count: 23 },
-      ],
-      unknownYearCount: 0,
-      classifications: [
-        { code: 'H01M', count: 51 },
-        { code: 'C01B', count: 24 },
-      ],
-      unclassifiedCount: 2,
-    })
+  const stats = vi.spyOn(researchApi, 'patentStats').mockResolvedValue({
+    total: 63,
+    years: [
+      { year: 2024, dateKind: 'publication', count: 40 },
+      { year: 2025, dateKind: 'publication', count: 23 },
+    ],
+    unknownYearCount: 0,
+    classifications: [
+      { code: 'H01M', count: 51 },
+      { code: 'C01B', count: 24 },
+    ],
+    unclassifiedCount: 2,
+  })
   const patent = {
     id: 'CN123A',
     title: '固态电解质材料及其制备方法',
@@ -391,16 +386,14 @@ it('完成后统计使用全量结果，保留列表和详情，并允许统计�
           events={events}
           active={false}
           eventsError={false}
-          onRetryEvents={() => {}}
           controls={null}
           actions={<button>开始企业发现</button>}
         />
       </div>
     </QueryClientProvider>
   )
-  await screen.getByRole('button', { name: '重新加载统计' }).click()
   await expect.element(screen.getByText('150', { exact: true })).toBeVisible()
-  expect(stats).toHaveBeenCalledTimes(2)
+  expect(stats).toHaveBeenCalledOnce()
   await expect
     .element(screen.getByText('已获取 150 / 150 篇专利详情'))
     .toBeVisible()
@@ -500,7 +493,6 @@ it('部分失败保留真实详情分母并列出失败专利，不提供重试�
           ]}
           active={false}
           eventsError={false}
-          onRetryEvents={() => {}}
           controls={null}
           actions={null}
         />

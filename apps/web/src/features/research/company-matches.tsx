@@ -2,7 +2,6 @@ import { useInfiniteQuery } from '@tanstack/react-query'
 import { ChevronRight } from 'lucide-react'
 import { useRef, useState } from 'react'
 import { ContentSkeleton } from '@/components/loading'
-import { Button } from '@/components/ui/button'
 import { researchApi } from '@/lib/research-api'
 import { CompanyNavigation } from './company-dialog'
 import { nextCompanyListPage } from './company-list-data'
@@ -28,12 +27,7 @@ export function CompanyMatches({ runId }: { runId: string }) {
       </h3>
 
       {query.isError && !query.isFetchNextPageError && (
-        <p role='alert'>
-          企业列表加载失败。
-          <Button variant='link' onClick={() => void query.refetch()}>
-            重试
-          </Button>
-        </p>
+        <p role='alert'>企业列表加载失败。</p>
       )}
       {query.isPending && (
         <ContentSkeleton variant='list' label='正在读取企业查询结果…' />

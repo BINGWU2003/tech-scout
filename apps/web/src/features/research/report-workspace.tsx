@@ -58,13 +58,6 @@ export function ReportWorkspace({
             {runId && query.isError && (
               <p role='alert' className='text-sm'>
                 报告加载失败。
-                <Button
-                  variant='link'
-                  size='sm'
-                  onClick={() => void query.refetch()}
-                >
-                  重新加载
-                </Button>
               </p>
             )}
             {!runId && empty}

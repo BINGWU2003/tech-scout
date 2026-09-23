@@ -346,7 +346,6 @@ function RunWorkspace({
             )}
             active={inCurrentStage && isExecuting(run.status)}
             eventsError={events.isError}
-            onRetryEvents={() => void events.refetch()}
             controls={statusContent}
             actions={
               <>
@@ -419,7 +418,6 @@ function RunWorkspace({
             active={inCurrentStage && isExecuting(run.status)}
             controls={statusContent}
             recordsError={events.isError}
-            retryRecords={() => void events.refetch()}
             report={
               run.hasResult && (
                 <Button asChild>
@@ -445,14 +443,7 @@ function RunWorkspace({
       {summary.isPending && (
         <ContentSkeleton variant='workspace' label='正在读取运行状态…' />
       )}
-      {summary.isError && (
-        <p role='alert'>
-          运行状态加载失败。
-          <Button variant='link' onClick={() => void summary.refetch()}>
-            重新加载
-          </Button>
-        </p>
-      )}
+      {summary.isError && <p role='alert'>运行状态加载失败。</p>}
       {run && (
         <ReportWorkspace
           key={resultId ?? id}

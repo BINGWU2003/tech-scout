@@ -18,7 +18,6 @@ import {
   LoaderCircle,
   Pause,
   Plus,
-  RefreshCw,
   SearchX,
   Trash2,
   type LucideIcon,
@@ -48,7 +47,6 @@ import {
   SidebarMenuAction,
   useSidebar,
 } from '@/components/ui/sidebar'
-import { resetApiErrors } from '@/lib/api-error-notifications'
 import { researchApi } from '@/lib/research-api'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth-store'
@@ -284,16 +282,12 @@ export function ResearchSidebar() {
                   />
                 )}
                 {query.isError && (
-                  <DropdownMenuItem
-                    onSelect={(event) => {
-                      event.preventDefault()
-                      resetApiErrors()
-                      void query.refetch()
-                    }}
+                  <p
+                    role='alert'
+                    className='px-2 py-3 text-xs text-destructive'
                   >
-                    <RefreshCw />
-                    刷新研究记录
-                  </DropdownMenuItem>
+                    研究记录加载失败。
+                  </p>
                 )}
                 {query.data?.length === 0 && (
                   <p className='px-2 py-3 text-xs text-muted-foreground'>
@@ -355,15 +349,9 @@ export function ResearchSidebar() {
             <ContentSkeleton variant='sidebar' label='正在读取研究记录…' />
           )}
           {query.isError && (
-            <SidebarMenuButton
-              onClick={() => {
-                resetApiErrors()
-                void query.refetch()
-              }}
-            >
-              <RefreshCw />
-              <span>刷新研究记录</span>
-            </SidebarMenuButton>
+            <p role='alert' className='px-2 py-3 text-xs text-destructive'>
+              研究记录加载失败。
+            </p>
           )}
           {query.data?.length === 0 && (
             <p className='px-2 py-3 text-xs text-muted-foreground group-data-[collapsible=icon]:hidden'>

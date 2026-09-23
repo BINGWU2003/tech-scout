@@ -6,7 +6,6 @@ import type {
 import { Check, LoaderCircle } from 'lucide-react'
 import { lazy, Suspense, type ReactNode } from 'react'
 import { ContentSkeleton } from '@/components/loading'
-import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { researchApi } from '@/lib/research-api'
 import { CompanyDiscoveryRecords } from './company-discovery-records'
@@ -22,7 +21,6 @@ export function CompanyWorkspace({
   controls,
   report,
   recordsError,
-  retryRecords,
 }: {
   run: ResearchSummaryView
   events: ResearchProgressView[]
@@ -30,7 +28,6 @@ export function CompanyWorkspace({
   controls: ReactNode
   report: ReactNode
   recordsError: boolean
-  retryRecords: () => void
 }) {
   const stats = useQuery({
     queryKey: ['research', run.id, 'company-stats'],
@@ -88,14 +85,7 @@ export function CompanyWorkspace({
                   </div>
                 ))}
               </dl>
-              {stats.isError && (
-                <p role='alert'>
-                  企业统计加载失败。
-                  <Button variant='link' onClick={() => void stats.refetch()}>
-                    重试统计
-                  </Button>
-                </p>
-              )}
+              {stats.isError && <p role='alert'>企业统计加载失败。</p>}
               {run.hasCompanies && stats.isPending && (
                 <ContentSkeleton variant='chart' label='正在汇总企业统计…' />
               )}
@@ -126,14 +116,7 @@ export function CompanyWorkspace({
         }
         conversation={
           <>
-            {recordsError && (
-              <p role='alert'>
-                发现记录加载失败。
-                <Button variant='link' onClick={retryRecords}>
-                  重试记录
-                </Button>
-              </p>
-            )}
+            {recordsError && <p role='alert'>发现记录加载失败。</p>}
             <CompanyDiscoveryRecords events={events} active={active} />
             <section
               aria-label='企业信息采集进度'

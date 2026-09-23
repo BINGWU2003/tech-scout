@@ -6,7 +6,6 @@ import type {
 import { Check, LoaderCircle, Search } from 'lucide-react'
 import { lazy, Suspense, useMemo, type ReactNode } from 'react'
 import { ContentSkeleton } from '@/components/loading'
-import { Button } from '@/components/ui/button'
 import { researchApi } from '@/lib/research-api'
 import { patentSearchData } from './patent-search-data'
 import { ResearchPlanLayout } from './research-plan-layout'
@@ -37,7 +36,6 @@ export function PatentWorkspace({
   events,
   active,
   eventsError,
-  onRetryEvents,
   controls,
   actions,
 }: {
@@ -45,7 +43,6 @@ export function PatentWorkspace({
   events: ResearchProgressView[]
   active: boolean
   eventsError: boolean
-  onRetryEvents: () => void
   controls: ReactNode
   actions: ReactNode
 }) {
@@ -159,16 +156,9 @@ export function PatentWorkspace({
               <ContentSkeleton variant='chart' label='正在汇总全部专利…' />
             )}
             {stats.isError && (
-              <div role='alert' className='text-sm'>
+              <p role='alert' className='text-sm'>
                 统计暂时无法加载。
-                <Button
-                  variant='link'
-                  size='sm'
-                  onClick={() => void stats.refetch()}
-                >
-                  重新加载统计
-                </Button>
-              </div>
+              </p>
             )}
             {stats.data && (
               <Suspense
@@ -193,12 +183,9 @@ export function PatentWorkspace({
               按已确认关键词检索。每项显示实际进度与结束原因。
             </p>
             {eventsError && (
-              <div role='alert' className='text-sm'>
+              <p role='alert' className='text-sm'>
                 搜索记录加载失败。
-                <Button variant='link' size='sm' onClick={onRetryEvents}>
-                  重新加载记录
-                </Button>
-              </div>
+              </p>
             )}
             {data.groups.length === 0 && (
               <p className='rounded-lg border border-dashed p-5 text-sm text-muted-foreground'>
