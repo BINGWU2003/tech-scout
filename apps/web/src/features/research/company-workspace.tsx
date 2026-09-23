@@ -12,7 +12,6 @@ import { researchApi } from '@/lib/research-api'
 import { CompanyDiscoveryRecords } from './company-discovery-records'
 import { CompanyMatches } from './company-matches'
 import { ResearchPlanLayout } from './research-plan-layout'
-import { SubjectResolutions } from './subject-resolutions'
 
 const CompanyRanking = lazy(() => import('./company-ranking'))
 
@@ -69,8 +68,7 @@ export function CompanyWorkspace({
             <div className='shrink-0 border-b p-3'>
               <TabsList aria-label='切换企业视图' className='w-full'>
                 <TabsTrigger value='overview'>概览</TabsTrigger>
-                <TabsTrigger value='candidates'>企业候选</TabsTrigger>
-                <TabsTrigger value='resolutions'>主体解析</TabsTrigger>
+                <TabsTrigger value='candidates'>企业查询结果</TabsTrigger>
               </TabsList>
             </div>
             <TabsContent
@@ -81,8 +79,6 @@ export function CompanyWorkspace({
                 {[
                   ['查询权利人', run.queriedAssigneeCount],
                   ['发现企业', run.discoveredCompanyCount],
-                  ['已映射主体', run.resolvedSubjectCount],
-                  ['未解析主体', run.unresolvedSubjectCount],
                 ].map(([label, value]) => (
                   <div key={label} className='rounded-lg bg-muted/40 p-3'>
                     <dt className='text-xs text-muted-foreground'>{label}</dt>
@@ -126,16 +122,6 @@ export function CompanyWorkspace({
                 <EmptyCompanyState active={active} />
               )}
             </TabsContent>
-            <TabsContent
-              value='resolutions'
-              className='min-h-0 overflow-y-auto overscroll-contain p-4'
-            >
-              {run.hasCompanies ? (
-                <SubjectResolutions runId={run.id} />
-              ) : (
-                <EmptyCompanyState active={active} />
-              )}
-            </TabsContent>
           </Tabs>
         }
         conversation={
@@ -162,17 +148,19 @@ export function CompanyWorkspace({
                     aria-hidden='true'
                   />
                 ) : null}
-                {run.hasCompanies
-                  ? '企业发现与主体解析完成'
-                  : active
-                    ? '正在发现相关企业'
-                    : '企业发现进度'}
+                {run.hasResult
+                  ? '企业查询完成'
+                  : run.hasCompanies
+                    ? '企业查询完成，正在生成研究报告'
+                    : active
+                      ? '正在发现相关企业'
+                      : '企业发现进度'}
               </div>
               <p className='text-sm tabular-nums'>
                 {completed != null
                   ? `已查询 ${completed}${total != null ? ` / ${total}` : ''} 个主体`
                   : run.hasCompanies
-                    ? '可查看企业候选和 Agent 主体解析结果。'
+                    ? '可查看本次企业查询结果及其来源。'
                     : '查询开始后，进度将在这里持续更新。'}
               </p>
               {completed != null && total != null && total > 0 && (

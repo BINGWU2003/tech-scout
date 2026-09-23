@@ -17,34 +17,24 @@ const companies = Array.from({ length: 10 }, (_, i) => ({
     ['示例储能科技有限公司', '示例智能电网技术有限公司'][i % 2] +
     (i > 1 ? ` · ${i + 1}` : ''),
   country: 'CN',
-  resolutionKind: 'agent_inferred',
-  confidence: i < 6 ? 'high' : 'medium',
+  priority: i < 6 ? 'high' : 'medium',
   assigneeNames: [`示例权利人 ${i + 1}`],
-  resolutionReason: '企业法定名称或别名与专利权利人一致。',
-  patentCount: 36 - i,
-  ruleScore: 82 - i,
-  explanation:
+  leadPatentCount: 36 - i,
+  summary:
     '该主体的相关专利集中在储能设备与充放电控制方向，涉及电池状态估计、能量管理及安全保护。依据专利标题和 IPC 分类推断，与本次研究方向具有相关性。实际产品能力仍需结合公开业务资料进一步核实。',
   citationIds: ['CN10001', 'CN10002'],
-  trend: { 2023: 5, 2024: 12, 2025: 19 },
-  latestYear: 2025,
 }))
 client.setQueryData(['research', 'preview', 'result'], {
   releaseId: '示例研究快照',
   patentCount: 156,
   companies,
+  patents: ['CN10001', 'CN10002'].map((id) => ({
+    id,
+    priority: 'high',
+    reason: '与储能控制方向相关。',
+  })),
   missing: [],
   emptyReason: null,
-  unresolvedSubjects: [
-    {
-      id: 'assignee-x',
-      name: '示例未解析权利人',
-      patentCount: 3,
-      representativePatentIds: ['CN10003'],
-      reason: '存在多个相似企业，无法可靠判断。',
-    },
-  ],
-  warnings: [],
 })
 for (const c of companies) {
   client.setQueryData(['research', 'preview', 'company', c.id], {
@@ -55,17 +45,6 @@ for (const c of companies) {
     businessInfo: { 所属行业: '新能源与储能' },
     source: { url: null, sha256: null },
     relations: [],
-    resolution: {
-      id: c.assigneeNames[0],
-      name: c.assigneeNames[0],
-      status: 'matched',
-      confidence: c.confidence,
-      companyId: c.id,
-      companyName: c.name,
-      patentCount: c.patentCount,
-      candidateCount: 2,
-      reason: c.resolutionReason,
-    },
   })
   client.setQueryData(['research', 'preview', 'patents', c.id, 1], {
     items: [

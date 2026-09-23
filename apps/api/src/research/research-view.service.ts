@@ -31,39 +31,50 @@ export const sourceView = (v: Record<string, unknown>) => ({
       : null,
   sha256: str(v.source_sha256),
 })
-export const subjectResolutionView = (
-  resolution: Record<string, unknown>,
-  subjects: Record<string, unknown>[],
-  companies: Record<string, unknown>[]
+const identityName = (value: string) =>
+  [...value.normalize('NFKC').toLowerCase()]
+    .filter((char) => /[\p{L}\p{N}]/u.test(char))
+    .join('')
+export const companyLeadRelations = (
+  artifacts: Record<string, unknown>,
+  companyId: string
 ) => {
-  const subject = subjects.find(
-    (item) => item.assignee_id === resolution.assignee_id
+  const snapshot = object(artifacts.snapshot)
+  const company = rows(snapshot.companies).find(
+    (item) => item.company_id === companyId
   )
-  const company = companies.find(
-    (item) => item.company_id === resolution.company_id
+  if (!company) return []
+  const aliases = new Set(
+    rows(snapshot['company-aliases'])
+      .filter((item) => item.company_id === companyId)
+      .map((item) => identityName(String(item.alias_name)))
   )
-  return {
-    id: String(resolution.assignee_id),
-    name: String(subject?.name ?? resolution.assignee_id),
-    status: resolution.status === 'matched' ? 'matched' : 'unresolved',
-    confidence:
-      resolution.confidence === 'high' || resolution.confidence === 'medium'
-        ? resolution.confidence
-        : null,
-    companyId: str(resolution.company_id),
-    companyName: company ? String(company.preferred_name) : null,
-    patentCount: strings(subject?.patent_ids).length,
-    candidateCount: rows(subject?.candidates).length,
-    candidates: rows(subject?.candidates).map((candidate) => {
-      const id = String(candidate.company_id)
-      const company = companies.find((item) => item.company_id === id)
-      return {
-        id,
-        name: String(candidate.legal_name ?? company?.preferred_name ?? id),
-      }
-    }),
-    reason: String(resolution.reason ?? ''),
-  }
+  const assignees = new Map(
+    rows(artifacts.assignees).map((item) => [String(item.assignee_id), item])
+  )
+  const patentIds = new Set(
+    rows(artifacts.patents).map((item) => String(item.patent_id))
+  )
+  return rows(snapshot['company-search-hits'])
+    .filter((hit) => hit.company_id === companyId)
+    .flatMap((hit) => {
+      const assignee = assignees.get(String(hit.assignee_id))
+      if (!assignee) return []
+      const name = identityName(String(assignee.name))
+      const basis =
+        name === identityName(String(company.legal_name))
+          ? ('legal_name' as const)
+          : aliases.has(name)
+            ? ('alias' as const)
+            : ('search_hit' as const)
+      return strings(assignee.patent_ids)
+        .filter((patentId) => patentIds.has(patentId))
+        .map((patentId) => ({
+          patentId,
+          assigneeName: String(assignee.name),
+          basis,
+        }))
+    })
 }
 export function resultView(v: unknown) {
   const r = object(v)
@@ -73,29 +84,24 @@ export function resultView(v: unknown) {
     patentCount: num(r.patent_count) ?? 0,
     missing: strings(r.missing),
     emptyReason: str(r.empty_reason),
-    unresolvedSubjects: rows(r.unresolved_subjects).map((subject) => ({
-      id: String(subject.assignee_id),
-      name: String(subject.name),
-      patentCount: strings(subject.patent_ids).length,
-      representativePatentIds: strings(subject.patent_ids).slice(0, 5),
-      reason: String(subject.reason ?? '未找到可确认的企业主体'),
+    patents: rows(r.patents).map((p) => ({
+      id: String(p.patent_id),
+      priority: String(p.priority),
+      reason: String(p.reason),
     })),
-    warnings: strings(r.warnings),
     companies: rows(r.companies).map((c) => ({
       id: String(c.company_id),
       name: String(c.preferred_name),
       country: str(c.country),
-      resolutionKind: 'agent_inferred' as const,
-      confidence:
-        c.confidence === 'high' ? ('high' as const) : ('medium' as const),
-      assigneeNames: strings(c.assignee_names),
-      resolutionReason: String(c.resolution_reason ?? ''),
-      patentCount: num(c.patent_count) ?? 0,
-      ruleScore: num(c.rule_score) ?? 0,
-      trend: object(c.grant_year_trend),
-      latestYear: num(c.latest_grant_year),
-      explanation: str(object(c.inference).summary),
-      citationIds: strings(object(c.inference).patent_ids),
+      priority: String(c.priority),
+      summary: String(c.summary),
+      assigneeNames: [
+        ...new Set(rows(c.relations).map((r) => String(r.assignee_name))),
+      ],
+      leadPatentCount: new Set(
+        rows(c.relations).map((r) => String(r.patent_id))
+      ).size,
+      citationIds: strings(c.patent_ids),
     })),
   }
 }
@@ -169,15 +175,11 @@ export class ResearchViewService {
         r.state #> '{artifacts,plan}' AS plan, r.state #> '{artifacts,confirmed_plan}' AS confirmed,
         COALESCE(jsonb_array_length(r.state #> '{artifacts,assignees}'), 0) AS "queriedAssigneeCount",
         COALESCE(jsonb_array_length(r.state #> '{artifacts,snapshot,companies}'), 0) AS "discoveredCompanyCount",
-        (SELECT count(*)::int FROM jsonb_array_elements(
-          COALESCE(r.state #> '{artifacts,resolutions}', '[]'::jsonb)) x
-          WHERE x->>'status' = 'matched') AS "resolvedSubjectCount",
-        COALESCE(jsonb_array_length(r.state #> '{artifacts,unresolved}'), 0) AS "unresolvedSubjectCount",
         COALESCE(r.state #>> '{artifacts,result,workflow_version}',
-          r.state #>> '{artifacts,execution_config,workflow_version}', 'browser-v2') AS "workflowVersion",
+          r.state #>> '{artifacts,execution_config,workflow_version}') AS "workflowVersion",
         r.state #> '{artifacts,result}' IS NOT NULL AS "hasResult",
         r.state #> '{artifacts,patents}' IS NOT NULL AS "hasPatents",
-        r.state #> '{artifacts,subjects}' IS NOT NULL AS "hasCompanies"
+        r.state #> '{artifacts,company_leads}' IS NOT NULL AS "hasCompanies"
       FROM app.research_run r JOIN app.research_project p ON p.id = r.project_id
       WHERE r.id = ${id}::uuid AND p.user_id = ${userId}::uuid`)
     const r = found[0]
@@ -212,8 +214,6 @@ export class ResearchViewService {
       workflowVersion: r.workflowVersion,
       queriedAssigneeCount: r.queriedAssigneeCount,
       discoveredCompanyCount: r.discoveredCompanyCount,
-      resolvedSubjectCount: r.resolvedSubjectCount,
-      unresolvedSubjectCount: r.unresolvedSubjectCount,
       hasResult: r.hasResult,
       hasPatents: r.hasPatents ?? false,
       hasCompanies: r.hasCompanies ?? false,
@@ -300,9 +300,13 @@ export class ResearchViewService {
     let patents = rows(a.patents)
     if (q.patentId) patents = patents.filter((p) => p.patent_id === q.patentId)
     if (q.companyId) {
-      const c = rows(a.companies).find((c) => c.company_id === q.companyId)
+      const c = rows(object(a.snapshot).companies).find(
+        (c) => c.company_id === q.companyId
+      )
       if (!c) throw new NotFoundException('本次研究中没有该主体')
-      const ids = new Set(strings(c.patent_ids))
+      const ids = new Set(
+        companyLeadRelations(a, q.companyId).map((r) => r.patentId)
+      )
       patents = patents.filter((p) => ids.has(String(p.patent_id)))
     }
     return pageOf(
@@ -335,28 +339,20 @@ export class ResearchViewService {
     return patentStatsView((await this.artifacts(userId, id)).patents)
   }
 
-  async subjectResolutions(userId: string, id: string, q: ResearchViewQuery) {
-    const a = await this.artifacts(userId, id)
-    const subjects = rows(a.subjects)
-    const companies = rows(object(a.snapshot).companies)
-    return pageOf(
-      rows(a.resolutions).map((resolution) =>
-        subjectResolutionView(resolution, subjects, companies)
-      ),
-      q
-    )
-  }
-
   async companyStats(userId: string, id: string) {
     const a = await this.artifacts(userId, id)
     const companies = rows(object(a.snapshot).companies)
     return {
       total: companies.length,
-      ranking: rows(a.companies)
+      ranking: companies
         .map((company) => ({
           id: String(company.company_id),
           name: String(company.preferred_name),
-          patentCount: new Set(strings(company.patent_ids)).size,
+          patentCount: new Set(
+            companyLeadRelations(a, String(company.company_id)).map(
+              (r) => r.patentId
+            )
+          ).size,
         }))
         .sort((left, right) => right.patentCount - left.patentCount)
         .slice(0, 8),
@@ -396,13 +392,6 @@ export class ResearchViewService {
       (company) => company.company_id === companyId
     )
     if (!c) throw new NotFoundException('本次研究中没有该主体')
-    const resolved = rows(a.companies).find(
-      (company) => company.company_id === companyId
-    )
-    const subjects = rows(a.subjects)
-    const resolutions = rows(a.resolutions).filter(
-      (resolution) => resolution.company_id === companyId
-    )
     return {
       id: companyId,
       name: String(c.preferred_name),
@@ -423,14 +412,7 @@ export class ResearchViewService {
           type: String(x.identifier_type),
           value: String(x.identifier_value),
         })),
-      relations: strings(resolved?.patent_ids).map((patentId) => ({
-        patentId,
-        method: 'agent_inferred',
-        decision: 'matched',
-      })),
-      resolution: resolutions.length
-        ? subjectResolutionView(resolutions[0], subjects, rows(s.companies))
-        : null,
+      relations: companyLeadRelations(a, companyId),
     }
   }
 }

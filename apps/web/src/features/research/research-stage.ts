@@ -15,7 +15,7 @@ export const researchStages = {
   },
   companies: {
     title: '企业发现',
-    description: '查看独立入库的企业候选与 Agent 主体解析。',
+    description: '查看天眼查企业查询结果与权利人线索。',
   },
   report: { title: '研究报告', description: '查看分析结论与引用证据。' },
 } as const
@@ -58,9 +58,9 @@ export function stageForNode(node: string | null): ResearchStage {
     ].includes(node ?? '')
   )
     return 'patents'
-  if (['company_snapshot', 'company', 'entity'].includes(node ?? ''))
-    return 'companies'
-  if (['analyze', 'finish'].includes(node ?? '')) return 'report'
+  if (['company_snapshot', 'company'].includes(node ?? '')) return 'companies'
+  if (['assess_patents', 'analyze', 'finish'].includes(node ?? ''))
+    return 'report'
   return 'plan'
 }
 export function stageForRun(run: ResearchSummaryView): ResearchStage {
@@ -68,7 +68,7 @@ export function stageForRun(run: ResearchSummaryView): ResearchStage {
   if (run.status === 'queued') {
     if (run.node === 'plan_gate') return 'patents'
     if (run.node === 'company_gate') return 'companies'
-    if (run.node === 'entity') return 'report'
+    if (run.node === 'assess_patents') return 'report'
   }
   return stageForNode(run.error?.node ?? run.node)
 }

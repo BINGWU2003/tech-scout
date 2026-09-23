@@ -43,7 +43,7 @@ export function ResearchPlanLayout({
   const leftTitle = report
     ? '报告概览与企业名单'
     : companies
-      ? '企业概览与主体解析'
+      ? '企业查询结果'
       : patents
         ? '专利概览'
         : '已选方向'

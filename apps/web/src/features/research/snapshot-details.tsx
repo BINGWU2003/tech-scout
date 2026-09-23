@@ -567,7 +567,7 @@ export function CompanySnapshotDetails({
             </p>
           </div>
           <section className='space-y-3'>
-            <h3 className='font-semibold'>本次相关专利</h3>
+            <h3 className='font-semibold'>关联专利线索</h3>
             <PatentList
               runId={runId}
               companyId={companyId}
@@ -576,28 +576,24 @@ export function CompanySnapshotDetails({
           </section>
           <details className='rounded-lg border p-3'>
             <summary className='cursor-pointer font-medium'>
-              关联依据（{query.data.relations.length} 条）
+              查询线索（{query.data.relations.length} 条）
             </summary>
             <ul className='mt-3 max-h-60 space-y-1 overflow-y-auto text-xs'>
               {query.data.relations.map((r, i) => (
-                <li key={i}>{r.patentId} · Agent 推断关联</li>
+                <li key={i}>
+                  {r.patentId} · 权利人 {r.assigneeName} ·{' '}
+                  {r.basis === 'legal_name'
+                    ? '法定名称一致'
+                    : r.basis === 'alias'
+                      ? '曾用名一致'
+                      : '企业查询命中'}
+                </li>
               ))}
             </ul>
           </details>
-          {query.data.resolution && (
-            <div className='rounded-lg border p-3 text-sm'>
-              <p className='font-medium'>本次主体解析</p>
-              <p className='mt-1'>
-                {query.data.resolution.confidence === 'high'
-                  ? '高置信推断'
-                  : '中置信推断'}
-                · 权利人 {query.data.resolution.name}
-              </p>
-              <p className='mt-1 text-xs text-muted-foreground'>
-                {query.data.resolution.reason}
-              </p>
-            </div>
-          )}
+          <p className='text-xs text-muted-foreground'>
+            查询线索不证明企业拥有这些专利。
+          </p>
         </div>
       )}
     </section>

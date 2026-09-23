@@ -116,7 +116,13 @@ describe('研究完成后的服务端保护', () => {
         kind: 'save_plan',
         requestKey: randomUUID(),
         revision: 0,
-        plan: { from_year: 2020, to_year: 2026, directions: [], risks: [] },
+        plan: {
+          from_year: 2020,
+          to_year: 2026,
+          pages_per_keyword: 5,
+          directions: [],
+          risks: [],
+        },
       })
     ).rejects.toThrow('技术方向已确认')
     await expect(

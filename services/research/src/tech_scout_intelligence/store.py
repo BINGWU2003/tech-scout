@@ -249,6 +249,12 @@ class Store:
                 "command": payload,
                 "error": None,
             }
+            if action.kind == "retry":
+                budget = row["budget"]
+                budget["max_requests"] = max(budget["max_requests"], self.config.research_max_requests)
+                budget["max_seconds"] = max(budget["max_seconds"], self.config.research_max_seconds)
+                budget["max_cny"] = max(budget["max_cny"], self.config.research_max_cny)
+                changes["budget"] = budget
             if action.kind in {"confirm_plan", "start_companies"}:
                 payload = {**payload, "submitted_at": datetime.now(UTC).isoformat()}
                 artifacts = row["artifacts"]

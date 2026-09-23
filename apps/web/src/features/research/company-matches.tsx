@@ -24,7 +24,7 @@ export function CompanyMatches({ runId }: { runId: string }) {
   return (
     <div className='flex flex-col gap-4'>
       <h3 className='text-sm font-semibold'>
-        企业候选{query.data ? ` · ${total} 家` : ''}
+        企业查询结果{query.data ? ` · ${total} 家` : ''}
       </h3>
 
       {query.isError && !query.isFetchNextPageError && (
@@ -36,14 +36,14 @@ export function CompanyMatches({ runId }: { runId: string }) {
         </p>
       )}
       {query.isPending && (
-        <ContentSkeleton variant='list' label='正在读取企业候选…' />
+        <ContentSkeleton variant='list' label='正在读取企业查询结果…' />
       )}
       {query.data && total === 0 && (
         <p className='rounded-xl border border-dashed p-6 text-sm text-muted-foreground'>
-          本次企业查询没有返回有效的境内企业候选。
+          本次企业查询没有返回有效的境内企业。
         </p>
       )}
-      <ul aria-label='企业候选列表' className='divide-y border-y'>
+      <ul aria-label='企业查询结果列表' className='divide-y border-y'>
         {items.map((company) => (
           <li key={company.id}>
             <button

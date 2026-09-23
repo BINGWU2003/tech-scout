@@ -11,7 +11,6 @@ import {
   researchResultViewSchema,
   researchPatentPageSchema,
   researchPatentStatsSchema,
-  researchSubjectResolutionPageSchema,
   researchCompanyDetailViewSchema,
   researchCompanyMatchesSchema,
   researchCompanyStatsSchema,
@@ -124,11 +123,6 @@ export const researchApi = {
     apiRequest(
       `${run(id)}/patents?patentId=${encodeURIComponent(patentId)}`,
       researchPatentPageSchema
-    ),
-  subjectResolutions: (id: string, page: number) =>
-    apiRequest(
-      `${run(id)}/subject-resolutions?page=${page}`,
-      researchSubjectResolutionPageSchema
     ),
   company: (id: string, companyId: string) =>
     apiRequest(

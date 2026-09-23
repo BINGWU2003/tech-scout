@@ -19,9 +19,9 @@ it('keeps stage completion distinct from whole-research completion', () => {
   expect(
     researchActivityLabel({ status: 'completed', node: 'finish', acquisition })
   ).toBe('研究已完成')
-  expect(researchActivityLabel({ status: 'running', node: 'entity' })).toBe(
-    '正在解析主体'
-  )
+  expect(
+    researchActivityLabel({ status: 'running', node: 'assess_patents' })
+  ).toBe('正在评估专利优先级')
 })
 
 it('distinguishes pause from recoverable failure even with stale progress', () => {
@@ -43,7 +43,7 @@ it('shows detailed progress only in the corresponding acquisition node', () => {
   ).toBe('正在获取专利详情 · 18/50')
   expect(
     researchActivityLabel({ status: 'running', node: 'analyze', acquisition })
-  ).toBe('正在分析企业技术相关性')
+  ).toBe('正在分析企业调研优先级')
   expect(
     researchActivityLabel({
       status: 'queued',

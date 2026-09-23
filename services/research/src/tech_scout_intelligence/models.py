@@ -134,9 +134,9 @@ class Budget(Model):
     elapsed_seconds: float = 0
     input_tokens: int = 0
     output_tokens: int = 0
-    max_requests: int = 6
-    max_seconds: int = 300
-    max_cny: float = 1
+    max_requests: int = 300
+    max_seconds: int = 3600
+    max_cny: float = 10
 
 
 Status = Literal[
@@ -169,33 +169,25 @@ class Event(Model):
     data: RunView
 
 
-class Explanation(Model):
-    company_id: str
-    summary: str = Field(min_length=1, max_length=2000)
-    patent_ids: list[str] = Field(min_length=1, max_length=20)
-
-
-class Analysis(Model):
-    companies: list[Explanation] = Field(max_length=10)
-
-
-class SubjectResolution(Model):
-    assignee_id: str = Field(min_length=1, max_length=255)
-    status: Literal["matched", "unresolved"]
-    company_id: str | None = None
-    confidence: Literal["high", "medium"] | None = None
+class PatentAssessment(Model):
+    patent_id: str
+    priority: Literal["high", "medium", "low"]
     reason: str = Field(min_length=1, max_length=1000)
 
-    @model_validator(mode="after")
-    def valid_resolution(self):
-        matched = self.status == "matched"
-        if matched != bool(self.company_id) or matched != bool(self.confidence):
-            raise ValueError("匹配结果必须同时提供候选企业与置信度")
-        return self
+
+class PatentAssessmentBatch(Model):
+    patents: list[PatentAssessment] = Field(max_length=20)
 
 
-class SubjectResolutionBatch(Model):
-    resolutions: list[SubjectResolution] = Field(max_length=20)
+class CompanyAssessment(Model):
+    company_id: str
+    priority: Literal["high", "medium", "low"]
+    summary: str = Field(min_length=1, max_length=2000)
+    patent_ids: list[str] = Field(max_length=20)
+
+
+class CompanyAssessmentBatch(Model):
+    companies: list[CompanyAssessment] = Field(max_length=10)
 
 
 class ResearchError(Exception):

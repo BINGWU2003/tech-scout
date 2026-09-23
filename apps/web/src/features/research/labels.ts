@@ -19,9 +19,9 @@ export const nodeLabels: Record<string, string> = {
   assignee: '聚合权利人',
   company_gate: '确认企业发现',
   company_snapshot: '查询企业信息',
-  company: '整理企业候选',
-  entity: '解析主体',
-  analyze: '分析企业技术相关性',
+  company: '整理企业查询结果',
+  assess_patents: '评估专利优先级',
+  analyze: '分析企业调研优先级',
   finish: '保存结果',
 }
 
@@ -39,6 +39,7 @@ export const eventLabels: Record<string, string> = {
   started: '开始执行',
   node_started: '步骤开始',
   node_completed: '状态已保存',
+  analysis_progress: '报告分析进度已保存',
   model_reserved: '预留调用预算',
   model_usage: '记录模型用量',
   awaiting_plan: '等待计划确认',

@@ -28,7 +28,7 @@ export function researchActivityLabel(
   if (run.status === 'queued' || run.ready === false) {
     if (run.node === 'plan_gate') return '正在准备检索专利'
     if (run.node === 'company_gate') return '正在准备查询企业'
-    if (run.node === 'entity') return '正在准备解析主体'
+    if (run.node === 'assess_patents') return '正在准备评估专利'
     return '等待开始'
   }
   const acquisition = run.acquisition
@@ -56,9 +56,9 @@ export function researchActivityLabel(
     assignee: '正在聚合权利人',
     company_gate: '正在准备查询企业',
     company_snapshot: '正在查询企业信息',
-    company: '正在整理企业候选',
-    entity: '正在解析主体',
-    analyze: '正在分析企业技术相关性',
+    company: '正在整理企业查询结果',
+    assess_patents: '正在评估专利优先级',
+    analyze: '正在分析企业调研优先级',
     finish: '正在生成研究报告',
   }
   return (

@@ -18,7 +18,7 @@ export default function CompanyRanking({
   const mobile = useIsMobile()
   return (
     <section className='space-y-3 rounded-lg border p-4'>
-      <h3 className='text-sm font-semibold'>企业关联专利排行 · 前 8 项</h3>
+      <h3 className='text-sm font-semibold'>企业关联专利线索数量 · 前 8 项</h3>
       {items.length ? (
         <div style={{ height: Math.max(150, items.length * 42 + 32) }}>
           <ResponsiveContainer
@@ -59,7 +59,7 @@ export default function CompanyRanking({
               />
               <Tooltip
                 trigger={mobile ? 'click' : 'hover'}
-                formatter={(value) => [`${value} 篇`, '关联专利']}
+                formatter={(value) => [`${value} 条`, '专利线索']}
                 contentStyle={{
                   background: 'var(--popover)',
                   color: 'var(--popover-foreground)',
@@ -86,10 +86,10 @@ export default function CompanyRanking({
           </ResponsiveContainer>
         </div>
       ) : (
-        <p className='text-sm text-muted-foreground'>暂无已匹配企业。</p>
+        <p className='text-sm text-muted-foreground'>暂无企业查询结果。</p>
       )}
       <p className='text-xs text-muted-foreground'>
-        基于全部已匹配企业；同一专利可关联多个企业。悬停或点按查看完整名称与数量。
+        基于全部企业查询结果；同一专利可作为多家企业的调研线索，数量不代表专利权属。
       </p>
     </section>
   )

@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { countryName, eventLabels, nodeLabels, statusLabels } from './labels'
 
-describe('v2 研究文案', () => {
-  it('使用自动主体解析状态且不再暴露人工核验动作', () => {
+describe('v3 研究文案', () => {
+  it('将专利和企业评估归入报告阶段', () => {
     expect(nodeLabels).toMatchObject({
       assignee: '聚合权利人',
-      entity: '解析主体',
-      analyze: '分析企业技术相关性',
+      assess_patents: '评估专利优先级',
+      analyze: '分析企业调研优先级',
     })
     expect(Object.keys(statusLabels)).toEqual(
       expect.arrayContaining([

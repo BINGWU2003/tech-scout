@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { researchSubjectResolutionViewSchema } from './research-view.js'
+import { researchCompanyDetailViewSchema } from './research-view.js'
 import {
   researchActionSchema,
   researchCreateSchema,
@@ -80,25 +80,25 @@ describe('阶段 2 输入契约', () => {
   })
 })
 
-describe('主体解析输出契约', () => {
-  it('公开只读 Agent 选择、置信度和理由', () => {
-    const resolution = researchSubjectResolutionViewSchema.parse({
-      id: 'assignee-1',
-      name: '示例科技',
-      status: 'matched',
-      confidence: 'high',
-      companyId: 'company-1',
-      companyName: '示例科技有限公司',
-      patentCount: 6,
-      candidateCount: 3,
-      candidates: [{ id: 'company-1', name: '示例科技有限公司' }],
-      reason: '法定名称精确匹配',
+describe('企业查询线索契约', () => {
+  it('保留权利人和匹配依据，不宣称专利权属', () => {
+    const detail = researchCompanyDetailViewSchema.parse({
+      id: 'company-1',
+      name: '示例科技有限公司',
+      legalName: '示例科技有限公司',
+      country: 'CN',
+      businessInfo: {},
+      aliases: [],
+      identifiers: [],
+      source: { url: null, sha256: null },
+      relations: [
+        { patentId: 'p1', assigneeName: '示例科技', basis: 'search_hit' },
+      ],
     })
-
-    expect(resolution).toMatchObject({
-      status: 'matched',
-      confidence: 'high',
-      companyId: 'company-1',
+    expect(detail.relations[0]).toEqual({
+      patentId: 'p1',
+      assigneeName: '示例科技',
+      basis: 'search_hit',
     })
   })
 })

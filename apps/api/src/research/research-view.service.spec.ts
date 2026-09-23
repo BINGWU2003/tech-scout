@@ -4,7 +4,8 @@ import {
   ResearchViewService,
   patentStatsView,
   sourceView,
-  subjectResolutionView,
+  companyLeadRelations,
+  resultView,
 } from './research-view.service.js'
 
 describe('全部专利统计', () => {
@@ -64,39 +65,70 @@ describe('研究来源链接', () => {
   })
 })
 
-describe('主体解析视图', () => {
-  it('只公开输入工作集中的候选、选择和理由', () => {
-    expect(
-      subjectResolutionView(
-        {
-          assignee_id: 'assignee-1',
-          status: 'matched',
-          confidence: 'high',
-          company_id: 'company-1',
-          reason: '法定名称精确匹配',
-        },
-        [
-          {
-            assignee_id: 'assignee-1',
-            name: '示例科技',
-            patent_ids: ['CN1A', 'CN2A'],
-            candidates: [{ company_id: 'company-1' }],
-          },
+describe('企业查询线索', () => {
+  it('同一权利人命中多家企业，均保留专利线索且不宣称权属', () => {
+    const artifacts = {
+      patents: [{ patent_id: 'CN1A' }],
+      assignees: [
+        { assignee_id: 'a1', name: '示例科技有限公司', patent_ids: ['CN1A'] },
+      ],
+      snapshot: {
+        companies: [
+          { company_id: 'c1', legal_name: '示例科技有限公司' },
+          { company_id: 'c2', legal_name: '示例科技集团有限公司' },
         ],
-        [{ company_id: 'company-1', preferred_name: '示例科技有限公司' }]
-      )
-    ).toEqual({
-      id: 'assignee-1',
-      name: '示例科技',
-      status: 'matched',
-      confidence: 'high',
-      companyId: 'company-1',
-      companyName: '示例科技有限公司',
-      patentCount: 2,
-      candidateCount: 1,
-      candidates: [{ id: 'company-1', name: '示例科技有限公司' }],
-      reason: '法定名称精确匹配',
+        'company-aliases': [],
+        'company-search-hits': [
+          { company_id: 'c1', assignee_id: 'a1' },
+          { company_id: 'c2', assignee_id: 'a1' },
+        ],
+      },
+    }
+    expect(companyLeadRelations(artifacts, 'c1')).toEqual([
+      {
+        patentId: 'CN1A',
+        assigneeName: '示例科技有限公司',
+        basis: 'legal_name',
+      },
+    ])
+    expect(companyLeadRelations(artifacts, 'c2')).toEqual([
+      {
+        patentId: 'CN1A',
+        assigneeName: '示例科技有限公司',
+        basis: 'search_hit',
+      },
+    ])
+  })
+})
+
+describe('新版报告投影', () => {
+  it('分别呈现全部专利与企业优先级，不输出权属推断', () => {
+    const result = resultView({
+      release_id: 'release-1',
+      patent_count: 1,
+      missing: [],
+      patents: [{ patent_id: 'CN1A', priority: 'high', reason: '技术相关' }],
+      companies: [
+        {
+          company_id: 'c1',
+          preferred_name: '示例公司',
+          country: 'CN',
+          priority: 'medium',
+          summary: '值得核实',
+          patent_ids: ['CN1A'],
+          relations: [{ patent_id: 'CN1A', assignee_name: '示例权利人' }],
+        },
+      ],
     })
+    expect(result.patents).toEqual([
+      { id: 'CN1A', priority: 'high', reason: '技术相关' },
+    ])
+    expect(result.companies[0]).toMatchObject({
+      priority: 'medium',
+      leadPatentCount: 1,
+      assigneeNames: ['示例权利人'],
+    })
+    expect(result.companies[0]).not.toHaveProperty('resolutionKind')
   })
 })
 
@@ -105,17 +137,27 @@ describe('企业全量排行', () => {
     const findFirst = vi.fn().mockResolvedValue({
       state: {
         artifacts: {
+          execution_config: { workflow_version: 'browser-v3' },
+          patents: Array.from({ length: 40 }, (_, i) => ({
+            patent_id: `p${i}`,
+          })),
+          assignees: Array.from({ length: 40 }, (_, i) => ({
+            assignee_id: `a${i}`,
+            name: `权利人${i}`,
+            patent_ids: Array.from({ length: i + 1 }, (_, j) => `p${j}`),
+          })),
           snapshot: {
             companies: Array.from({ length: 40 }, (_, i) => ({
               company_id: `c${i}`,
               preferred_name: `公司${i}`,
+              legal_name: `公司${i}`,
+            })),
+            'company-aliases': [],
+            'company-search-hits': Array.from({ length: 40 }, (_, i) => ({
+              company_id: `c${i}`,
+              assignee_id: `a${i}`,
             })),
           },
-          companies: Array.from({ length: 40 }, (_, i) => ({
-            company_id: `c${i}`,
-            preferred_name: `公司${i}`,
-            patent_ids: Array.from({ length: i + 1 }, (_, j) => `p${j}`),
-          })),
         },
       },
     })

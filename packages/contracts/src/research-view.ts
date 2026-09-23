@@ -47,11 +47,9 @@ export const researchSummaryViewSchema = z.object({
   domains: z.array(z.object({ id: z.string(), name: z.string() })),
   plan: researchPlanSchema.nullable(),
   confirmedPlan: researchPlanSchema.nullable(),
-  workflowVersion: z.literal('browser-v2').default('browser-v2'),
+  workflowVersion: z.literal('browser-v3').default('browser-v3'),
   queriedAssigneeCount: z.number().int().nonnegative().default(0),
   discoveredCompanyCount: z.number().int().nonnegative().default(0),
-  resolvedSubjectCount: z.number().int().nonnegative().default(0),
-  unresolvedSubjectCount: z.number().int().nonnegative().default(0),
   hasResult: z.boolean(),
   hasPatents: z.boolean().default(false),
   hasCompanies: z.boolean().default(false),
@@ -107,33 +105,24 @@ export const researchCompanyViewSchema = z.object({
   id: z.string(),
   name: z.string(),
   country: z.string().nullable(),
-  resolutionKind: z.literal('agent_inferred'),
-  confidence: z.enum(['high', 'medium']),
-  assigneeNames: z.array(z.string()).min(1),
-  resolutionReason: z.string(),
-  patentCount: z.number().int(),
-  ruleScore: z.number(),
-  trend: z.record(z.string(), z.number()),
-  latestYear: z.number().nullable(),
-  explanation: z.string().nullable(),
+  priority: z.enum(['high', 'medium', 'low']),
+  summary: z.string(),
+  assigneeNames: z.array(z.string()),
+  leadPatentCount: z.number().int().nonnegative(),
   citationIds: z.array(z.string()),
+})
+export const researchPatentAssessmentSchema = z.object({
+  id: z.string(),
+  priority: z.enum(['high', 'medium', 'low']),
+  reason: z.string(),
 })
 export const researchResultViewSchema = z.object({
   releaseId: z.string(),
   patentCount: z.number().int(),
   companies: z.array(researchCompanyViewSchema),
+  patents: z.array(researchPatentAssessmentSchema),
   missing: z.array(z.string()),
   emptyReason: z.string().nullable(),
-  unresolvedSubjects: z.array(
-    z.object({
-      id: z.string(),
-      name: z.string(),
-      patentCount: z.number().int().nonnegative(),
-      representativePatentIds: z.array(z.string()),
-      reason: z.string(),
-    })
-  ),
-  warnings: z.array(z.string()),
 })
 export const researchPatentViewSchema = z.object({
   id: z.string(),
@@ -150,24 +139,6 @@ export const researchPatentViewSchema = z.object({
   domains: z.array(z.string()),
   source: researchSourceViewSchema,
 })
-export const researchSubjectResolutionViewSchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  status: z.enum(['matched', 'unresolved']),
-  confidence: z.enum(['high', 'medium']).nullable(),
-  companyId: z.string().nullable(),
-  companyName: z.string().nullable(),
-  patentCount: z.number().int(),
-  candidateCount: z.number().int().nonnegative(),
-  candidates: z.array(z.object({ id: z.string(), name: z.string() })),
-  reason: z.string(),
-})
-export const researchSubjectResolutionPageSchema = z.object({
-  items: z.array(researchSubjectResolutionViewSchema),
-  total: z.number().int(),
-  page: z.number().int(),
-  pageSize: z.number().int(),
-})
 export const researchCompanyDetailViewSchema = z.object({
   id: z.string(),
   name: z.string(),
@@ -179,12 +150,11 @@ export const researchCompanyDetailViewSchema = z.object({
   relations: z.array(
     z.object({
       patentId: z.string(),
-      method: z.string(),
-      decision: z.string().nullable(),
+      assigneeName: z.string(),
+      basis: z.enum(['legal_name', 'alias', 'search_hit']),
     })
   ),
   source: researchSourceViewSchema,
-  resolution: researchSubjectResolutionViewSchema.nullable(),
 })
 export const researchPatentPageSchema = z.object({
   items: z.array(researchPatentViewSchema),
@@ -213,9 +183,6 @@ export const researchPatentStatsSchema = z.object({
 export type ResearchSummaryView = z.infer<typeof researchSummaryViewSchema>
 export type ResearchProgressView = z.infer<typeof researchProgressViewSchema>
 export type ResearchResultView = z.infer<typeof researchResultViewSchema>
-export type ResearchSubjectResolutionView = z.infer<
-  typeof researchSubjectResolutionViewSchema
->
 export type ResearchSourceView = z.infer<typeof researchSourceViewSchema>
 export type ResearchViewQuery = z.infer<typeof researchViewQuerySchema>
 

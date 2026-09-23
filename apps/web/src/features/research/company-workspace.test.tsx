@@ -9,7 +9,6 @@ import { researchApi } from '@/lib/research-api'
 import { CompanyDiscoveryRecords } from './company-discovery-records'
 import { CompanyMatches } from './company-matches'
 import { CompanyWorkspace } from './company-workspace'
-import { SubjectResolutions } from './subject-resolutions'
 import '@/styles/index.css'
 
 const now = '2026-09-12T01:00:00Z'
@@ -31,11 +30,9 @@ const run = researchSummaryViewSchema.parse({
   domains: [],
   plan: null,
   confirmedPlan: null,
-  workflowVersion: 'browser-v2',
+  workflowVersion: 'browser-v3',
   queriedAssigneeCount: 20,
   discoveredCompanyCount: 36,
-  resolvedSubjectCount: 8,
-  unresolvedSubjectCount: 12,
   hasResult: true,
   hasPatents: true,
   hasCompanies: true,
@@ -90,7 +87,7 @@ it('企业记录区分查询结果与执行状态，保留失败原因和来源'
   await screen.unmount()
 })
 
-it('企业候选展示独立入库结果、查询来源和供应商顺序', async () => {
+it('企业查询结果展示独立入库结果、查询来源和供应商顺序', async () => {
   vi.spyOn(researchApi, 'companyMatches').mockResolvedValue({
     items: [
       {
@@ -119,74 +116,12 @@ it('企业候选展示独立入库结果、查询来源和供应商顺序', asyn
   await screen.unmount()
 })
 
-it('主体解析列表只读展示 Agent 映射和未解析原因', async () => {
-  vi.spyOn(researchApi, 'subjectResolutions').mockResolvedValue({
-    items: [
-      {
-        id: 'assignee-1',
-        name: '示例科技',
-        status: 'matched',
-        confidence: 'high',
-        companyId: 'company-1',
-        companyName: '示例科技有限公司',
-        patentCount: 4,
-        candidateCount: 2,
-        candidates: [
-          { id: 'company-1', name: '示例科技有限公司' },
-          { id: 'company-2', name: '示例技术有限公司' },
-        ],
-        reason: '法定名称与权利人名称一致',
-      },
-      {
-        id: 'assignee-2',
-        name: '示例研究院',
-        status: 'unresolved',
-        confidence: null,
-        companyId: null,
-        companyName: null,
-        patentCount: 2,
-        candidateCount: 0,
-        candidates: [],
-        reason: '没有企业候选',
-      },
-    ],
-    total: 2,
-    page: 1,
-    pageSize: 20,
-  })
-  const screen = await render(
-    <QueryClientProvider client={newClient()}>
-      <SubjectResolutions runId={run.id} />
-    </QueryClientProvider>
-  )
-  await expect.element(screen.getByText('高置信推断')).toBeVisible()
-  await expect
-    .element(screen.getByText('未解析', { exact: true }))
-    .toBeVisible()
-  await expect
-    .element(screen.getByText('关联企业：示例科技有限公司'))
-    .toBeVisible()
-  await expect
-    .element(screen.getByText('候选：示例科技有限公司、示例技术有限公司'))
-    .toBeVisible()
-  expect(
-    screen.getByRole('button', { name: /确认|拒绝|提交/ }).all()
-  ).toHaveLength(0)
-  await screen.unmount()
-})
-
-it('企业工作台概览展示 v2 汇总统计', async () => {
+it('企业工作台概览展示查询统计', async () => {
   vi.spyOn(researchApi, 'companyStats').mockResolvedValue({
     total: 36,
     ranking: [],
   })
   vi.spyOn(researchApi, 'companyMatches').mockResolvedValue({
-    items: [],
-    total: 0,
-    page: 1,
-    pageSize: 20,
-  })
-  vi.spyOn(researchApi, 'subjectResolutions').mockResolvedValue({
     items: [],
     total: 0,
     page: 1,
@@ -207,13 +142,11 @@ it('企业工作台概览展示 v2 汇总统计', async () => {
       </div>
     </QueryClientProvider>
   )
-  for (const value of ['20', '36', '8', '12'])
+  for (const value of ['20', '36'])
     await expect.element(screen.getByText(value, { exact: true })).toBeVisible()
   await expect
-    .element(screen.getByRole('tab', { name: '企业候选' }))
+    .element(screen.getByRole('tab', { name: '企业查询结果' }))
     .toBeVisible()
-  await expect
-    .element(screen.getByRole('tab', { name: '主体解析' }))
-    .toBeVisible()
+  expect(screen.getByRole('tab', { name: '主体解析' }).all()).toHaveLength(0)
   await screen.unmount()
 })

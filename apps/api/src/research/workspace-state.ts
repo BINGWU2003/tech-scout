@@ -51,7 +51,7 @@ export function reachedResearchStage(runs: Record<string, unknown>[]) {
     if (
       run.hasResult ||
       ['completed', 'empty'].includes(status) ||
-      ['entity', 'analyze', 'finish'].includes(node)
+      ['assess_patents', 'analyze', 'finish'].includes(node)
     )
       reached = Math.max(reached, 3)
     else if (

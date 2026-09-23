@@ -81,7 +81,8 @@ export class ResearchWorkspaceService {
         state #>> '{artifacts,reply_intent}' AS intent,
         state #> '{artifacts,proposal_plan}' AS proposal,
         state #> '{artifacts,result}' IS NOT NULL AS "hasResult"
-      FROM app.research_run WHERE project_id = ${projectId}::uuid ORDER BY created_at, id`)
+      FROM app.research_run WHERE project_id = ${projectId}::uuid
+      ORDER BY created_at, id`)
     const ws = object(project.workspace)
     const selected = selectedPlan(
       ws,

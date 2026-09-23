@@ -470,7 +470,7 @@ function RunWorkspace({
             <div className='space-y-4 rounded-xl border border-dashed p-5 text-sm'>
               <p>
                 {inCurrentStage && isExecuting(run.status)
-                  ? '正在解析主体并生成报告，完成后将在这里显示。'
+                  ? '正在评估专利和企业调研线索，完成后将在这里显示。'
                   : '请先在专利检索页开始企业发现，报告随后自动生成。'}
               </p>
               {!inCurrentStage && (

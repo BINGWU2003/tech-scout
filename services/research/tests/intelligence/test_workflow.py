@@ -7,32 +7,35 @@ import pytest
 from langchain_core.runnables import RunnableConfig
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.types import Command
-from pydantic import ValidationError
 
 from tech_scout_intelligence.models import (
-    Analysis,
+    CompanyAssessment,
+    CompanyAssessmentBatch,
     DirectionProposal,
-    Explanation,
+    PatentAssessment,
+    PatentAssessmentBatch,
     Keywords,
     Plan,
     ResearchError,
-    SubjectResolution,
-    SubjectResolutionBatch,
 )
 from tech_scout_intelligence.workflow import (
-    apply_resolutions,
+    company_lead_workset,
     assignee_workset,
     build_graph,
     conversation_update,
     patent_workset,
-    rank,
-    resolution_workset,
 )
 
 
 def runtime_store():
     store = AsyncMock()
     store.get.return_value = SimpleNamespace(artifacts={})
+
+    async def publish(*args, artifacts=None, **kwargs):
+        if artifacts is not None:
+            store.get.return_value.artifacts = artifacts
+
+    store.publish.side_effect = publish
     return store
 
 
@@ -208,8 +211,9 @@ class FakeLLM:
         self.fail: str | None = None
         self.payloads = []
         self.search_plan = plan()
-        self.invalid_resolution: str | None = None
         self.invalid_analysis = False
+        self.fail_patent_batch_once = False
+        self.fail_company_batch_once = False
 
     async def generate(self, run_id, lease, instruction, payload, schema):
         self.calls.append(schema.__name__)
@@ -231,92 +235,26 @@ class FakeLLM:
             )
         if schema is Plan:
             return self.search_plan.model_copy(deep=True)
-        if schema is SubjectResolutionBatch:
-            if self.invalid_resolution:
-                if self.invalid_resolution == "invalid_confidence":
-                    try:
-                        SubjectResolution(
-                            assignee_id=payload["subjects"][0]["assignee_id"],
-                            status="matched",
-                            company_id=payload["subjects"][0]["candidates"][0][
-                                "company_id"
-                            ],
-                            confidence="low",
-                            reason="非法置信度",
-                        )
-                    except ValidationError as exc:
-                        raise ResearchError(
-                            "MODEL_OUTPUT_INVALID", "模型输出不符合结构化契约"
-                        ) from exc
-                if self.invalid_resolution == "unknown_company":
-                    return SubjectResolutionBatch(
-                        resolutions=[
-                            SubjectResolution(
-                                assignee_id=subject["assignee_id"],
-                                status="matched",
-                                company_id="not-a-candidate",
-                                confidence="high",
-                                reason="错误选择",
-                            )
-                            for subject in payload["subjects"]
-                        ]
-                    )
-                assignee_id = (
-                    payload["subjects"][0]["assignee_id"]
-                    if self.invalid_resolution == "duplicate"
-                    else "unknown"
-                )
-                return SubjectResolutionBatch(
-                    resolutions=[
-                        SubjectResolution(
-                            assignee_id=assignee_id,
-                            status="unresolved",
-                            reason="未知主体",
-                        )
-                    ]
-                    * (2 if self.invalid_resolution == "duplicate" else 1)
-                )
-            return SubjectResolutionBatch(
-                resolutions=[
-                    SubjectResolution(
-                        assignee_id=subject["assignee_id"],
-                        status="matched" if subject["candidates"] else "unresolved",
-                        company_id=(
-                            subject["candidates"][0]["company_id"]
-                            if subject["candidates"]
-                            else None
-                        ),
-                        confidence="high" if subject["candidates"] else None,
-                        reason=(
-                            "名称与候选企业一致"
-                            if subject["candidates"]
-                            else "没有企业候选"
-                        ),
-                    )
-                    for subject in payload["subjects"]
-                ]
-            )
-        if self.invalid_analysis:
-            return Analysis(
-                companies=[
-                    Explanation(
-                        company_id=company["company_id"],
-                        summary="错误引用",
-                        patent_ids=["not-provided"],
-                    )
-                    for company in payload["companies"]
-                ]
-            )
-        return Analysis(
-            companies=[
-                Explanation(
-                    company_id=company["company_id"],
-                    summary="标题与 CPC 表明相关性，属于推断",
-                    patent_ids=[patent["patent_id"] for patent in company["patents"]],
-                )
-                for company in payload["companies"]
-            ]
-        )
+        if schema is PatentAssessmentBatch:
+            if self.fail_patent_batch_once and self.calls.count("PatentAssessmentBatch") == 2:
+                self.fail_patent_batch_once = False
+                raise ResearchError("MODEL_REQUEST_FAILED", "模型暂时不可用")
+            return PatentAssessmentBatch(patents=[
+                PatentAssessment(patent_id=p["patent_id"], priority="high", reason="与研究方向相关")
+                for p in payload["patents"]
+            ])
+        if schema is CompanyAssessmentBatch:
+            if self.fail_company_batch_once and self.calls.count("CompanyAssessmentBatch") == 2:
+                self.fail_company_batch_once = False
+                raise ResearchError("MODEL_REQUEST_FAILED", "企业分析暂时不可用")
+            return CompanyAssessmentBatch(companies=[
+                CompanyAssessment(
+                    company_id=c["company_id"], priority="high", summary="值得进一步技术调研",
+                    patent_ids=["not-provided"] if self.invalid_analysis else
+                    list(dict.fromkeys(lead["patent_id"] for lead in c["leads"]))[:20],
+                ) for c in payload["companies"]
+            ])
+        raise AssertionError(schema)
 
 
 def graph_config() -> RunnableConfig:
@@ -330,172 +268,115 @@ async def run_to_company_gate(graph, config):
     assert (await graph.aget_state(config)).next == ("company_gate",)
 
 
-def test_deterministic_assignee_candidate_and_company_ranking():
+def test_multiple_search_hits_remain_independent_leads():
     snapshot = sample()
     patents = patent_workset(snapshot, plan())
     assignees = assignee_workset(snapshot, patents)
-    assert [item["assignee_id"] for item in assignees] == ["a1", "a2"]
-    subjects = resolution_workset(snapshot, assignees)
-    assert [candidate["company_id"] for candidate in subjects[0]["candidates"]] == [
-        "c1",
-        "c2",
-    ]
-    resolutions = [
-        {
-            "assignee_id": subject["assignee_id"],
-            "status": "matched",
-            "company_id": "c1",
-            "confidence": "high" if index == 0 else "medium",
-            "reason": "名称匹配",
-        }
-        for index, subject in enumerate(subjects)
-    ]
-    companies, unresolved = apply_resolutions(snapshot, subjects, resolutions)
-    assert not unresolved
-    assert companies[0]["patent_ids"] == ["p1", "p2"]
-    assert companies[0]["confidence"] == "medium"
-    assert rank(companies, patents)[0]["patent_count"] == 2
-
-
-def test_only_top_twenty_assignees_and_five_candidates_are_selected():
-    snapshot = sample()
-    template_patent = snapshot["patents"][0]
-    template_match = snapshot["patent-domain-matches"][0]
-    snapshot["patents"] = []
-    snapshot["patent-classifications"] = []
-    snapshot["patent-domain-matches"] = []
-    snapshot["assignee-candidates"] = []
-    for index in range(25):
-        patent_id = f"bulk-{index:02d}"
-        snapshot["patents"].append(
-            {**template_patent, "patent_id": patent_id, "publication_year": 2025}
-        )
-        snapshot["patent-domain-matches"].append(
-            {**template_match, "patent_id": patent_id, "total_score": 25 - index}
-        )
-        snapshot["patent-classifications"].append(
-            {"patent_id": patent_id, "cpc_group": "G06N3/04"}
-        )
-        snapshot["assignee-candidates"].append(
-            {
-                "assignee_id": f"a-{index:02d}",
-                "name": f"示例{index}有限公司",
-                "name_normalized": f"示例{index}有限公司",
-                "query_key": f"示例{index}有限公司",
-                "patent_ids": [patent_id],
-                "source_roles": ["current_assignee"],
-            }
-        )
-    assignees = assignee_workset(snapshot, patent_workset(snapshot, plan()))
-    assert len(assignees) == 20
-    assert assignees[0]["assignee_id"] == "a-00"
-    snapshot["companies"] = [
-        {
-            "company_id": f"candidate-{index}",
-            "legal_name": f"候选{index}有限公司",
-            "country": "CN",
-            "business_info": {},
-        }
-        for index in range(7)
-    ]
-    snapshot["company-aliases"] = []
-    snapshot["company-search-hits"] = [
-        {
-            "assignee_id": assignees[0]["assignee_id"],
-            "company_id": f"candidate-{index}",
-            "provider_rank": index,
-        }
-        for index in range(7)
-    ]
-    assert len(resolution_workset(snapshot, assignees[:1])[0]["candidates"]) == 5
+    leads = company_lead_workset(snapshot, assignees, patents)
+    assert {c["company_id"] for c in leads} == {"c1", "c2"}
+    assert {r["patent_id"] for r in leads[0]["relations"]} == {"p1", "p2"}
+    assert all(r["basis"] in {"legal_name", "alias", "search_hit"} for c in leads for r in c["relations"])
 
 
 @pytest.mark.asyncio
-async def test_start_companies_automatically_resolves_and_completes_report():
+async def test_start_companies_assesses_all_patents_and_companies():
     acquisition, llm = FakeAcquisition(), FakeLLM()
     graph = build_graph(llm, runtime_store(), InMemorySaver(), acquisition)
-    config: RunnableConfig = graph_config()
+    config = graph_config()
     await run_to_company_gate(graph, config)
     await graph.ainvoke(Command(resume={"kind": "start_companies"}), config)
-    state = await graph.aget_state(config)
-    assert state.next == ()
-    result = state.values["result"]
+    result = (await graph.aget_state(config)).values["result"]
     assert result["patent_count"] == 2
-    assert result["companies"][0]["patent_count"] == 2
-    assert result["companies"][0]["resolution_kind"] == "agent_inferred"
-    assert acquisition.company_targets == [
-        {
-            "assignee_id": "a1",
-            "query_key": "示例科技有限公司",
-            "name": "示例科技有限公司",
-        },
-        {
-            "assignee_id": "a2",
-            "query_key": "示例科技集团有限公司",
-            "name": "示例科技集团有限公司",
-        },
-    ]
-    assert llm.calls == [
-        "DirectionProposal",
-        "Plan",
-        "SubjectResolutionBatch",
-        "Analysis",
-    ]
-    subject_payload = llm.payloads[2]["subjects"][0]
-    assert "patent_count" not in subject_payload
-    assert "provider_rank" not in subject_payload["candidates"][0]
-    assert "credit_code" not in subject_payload["candidates"][0]
+    assert len(result["patents"]) == 2
+    assert {c["company_id"] for c in result["companies"]} == {"c1", "c2"}
+    assert all("resolution_kind" not in c for c in result["companies"])
+    assert llm.calls == ["DirectionProposal", "Plan", "PatentAssessmentBatch", "CompanyAssessmentBatch"]
+    assert len(acquisition.company_targets) == 2
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize(
-    "invalid_resolution",
-    ["unknown_assignee", "duplicate", "unknown_company", "invalid_confidence"],
-)
-async def test_invalid_subject_output_degrades_to_assignee_report(invalid_resolution):
+async def test_invalid_company_citation_prevents_report():
     acquisition, llm = FakeAcquisition(), FakeLLM()
-    llm.invalid_resolution = invalid_resolution
+    llm.invalid_analysis = True
+    graph = build_graph(llm, runtime_store(), InMemorySaver(), acquisition)
+    config = graph_config()
+    await run_to_company_gate(graph, config)
+    with pytest.raises(ResearchError, match="模型引用不属于企业查询线索"):
+        await graph.ainvoke(Command(resume={"kind": "start_companies"}), config)
+    assert (await graph.aget_state(config)).values.get("result") is None
+
+
+@pytest.mark.asyncio
+async def test_completed_patent_batch_is_reused_after_retry():
+    acquisition, llm, store = FakeAcquisition(), FakeLLM(), runtime_store()
+    data = acquisition.data
+    template = data["patents"][0]
+    for index in range(3, 22):
+        patent_id = f"p{index}"
+        data["patents"].append({**template, "patent_id": patent_id})
+        data["patent-classifications"].append({"patent_id": patent_id, "cpc_group": "G06N3/04"})
+        data["patent-domain-matches"].append({
+            "patent_id": patent_id, "domain_id": "vision", "total_score": 8,
+            "evaluation_id": f"e{index}",
+        })
+        data["assignee-candidates"][0]["patent_ids"].append(patent_id)
+    llm.fail_patent_batch_once = True
+    graph = build_graph(llm, store, InMemorySaver(), acquisition)
+    config = graph_config()
+    await run_to_company_gate(graph, config)
+    with pytest.raises(ResearchError, match="模型暂时不可用"):
+        await graph.ainvoke(Command(resume={"kind": "start_companies"}), config)
+    assert len(store.get.return_value.artifacts["patent_assessments"]) == 20
+    await graph.ainvoke(None, config)
+    assert (await graph.aget_state(config)).values["result"]["patent_count"] == 21
+    assert llm.calls.count("PatentAssessmentBatch") == 3
+
+
+@pytest.mark.asyncio
+async def test_no_company_results_still_produces_patent_report():
+    acquisition, llm = FakeAcquisition(), FakeLLM()
+    acquisition.data["companies"] = []
+    acquisition.data["company-aliases"] = []
+    acquisition.data["company-search-hits"] = []
     graph = build_graph(llm, runtime_store(), InMemorySaver(), acquisition)
     config = graph_config()
     await run_to_company_gate(graph, config)
     await graph.ainvoke(Command(resume={"kind": "start_companies"}), config)
     result = (await graph.aget_state(config)).values["result"]
     assert result["companies"] == []
-    assert len(result["unresolved_subjects"]) == 2
-    assert result["patent_count"] == 2
-    assert result["warnings"] == ["企业主体解析失败，报告已降级为专利权利人结果。"]
+    assert len(result["patents"]) == 2
+    assert "CompanyAssessmentBatch" not in llm.calls
 
 
 @pytest.mark.asyncio
-async def test_analysis_failure_keeps_mapping_patents_and_statistics():
-    acquisition, llm = FakeAcquisition(), FakeLLM()
-    llm.fail = "Analysis"
-    graph = build_graph(llm, runtime_store(), InMemorySaver(), acquisition)
+async def test_completed_company_batch_is_reused_after_retry():
+    acquisition, llm, store = FakeAcquisition(), FakeLLM(), runtime_store()
+    for index in range(3, 12):
+        company_id = f"c{index}"
+        acquisition.data["companies"].append({
+            **acquisition.data["companies"][0],
+            "company_id": company_id,
+            "preferred_name": f"企业{index}",
+            "legal_name": f"企业{index}",
+        })
+        acquisition.data["company-search-hits"].append({
+            "assignee_id": "a1", "query_name": "示例科技有限公司",
+            "company_id": company_id, "provider_rank": index,
+        })
+    llm.fail_company_batch_once = True
+    graph = build_graph(llm, store, InMemorySaver(), acquisition)
     config = graph_config()
     await run_to_company_gate(graph, config)
-    await graph.ainvoke(Command(resume={"kind": "start_companies"}), config)
-    result = (await graph.aget_state(config)).values["result"]
-    assert result["companies"][0]["patent_count"] == 2
-    assert result["companies"][0]["inference"] is None
-    assert result["warnings"] == ["企业技术解释生成失败，已保留映射、专利和统计结果。"]
+    with pytest.raises(ResearchError, match="企业分析暂时不可用"):
+        await graph.ainvoke(Command(resume={"kind": "start_companies"}), config)
+    assert len(store.get.return_value.artifacts["company_assessments"]) == 10
+    await graph.ainvoke(None, config)
+    assert len((await graph.aget_state(config)).values["result"]["companies"]) == 11
+    assert llm.calls.count("CompanyAssessmentBatch") == 3
 
 
 @pytest.mark.asyncio
-async def test_analysis_cannot_cite_unprovided_patent():
-    acquisition, llm = FakeAcquisition(), FakeLLM()
-    llm.invalid_analysis = True
-    graph = build_graph(llm, runtime_store(), InMemorySaver(), acquisition)
-    config = graph_config()
-    await run_to_company_gate(graph, config)
-    await graph.ainvoke(Command(resume={"kind": "start_companies"}), config)
-    result = (await graph.aget_state(config)).values["result"]
-    assert result["companies"][0]["patent_count"] == 2
-    assert result["companies"][0]["inference"] is None
-    assert result["warnings"] == ["企业技术解释生成失败，已保留映射、专利和统计结果。"]
-
-
-@pytest.mark.asyncio
-async def test_no_patents_finishes_empty_without_subject_agent_calls():
+async def test_no_patents_finishes_empty_without_report_agent_calls():
     acquisition, llm = FakeAcquisition(), FakeLLM()
     llm.search_plan.directions[0].keywords = ["absent"]
     graph = build_graph(llm, runtime_store(), InMemorySaver(), acquisition)

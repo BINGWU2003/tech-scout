@@ -41,10 +41,10 @@ def build_snapshot(run_id, plan, patents, company_results):
         "period_from_year": plan["from_year"],
         "period_to_year": plan["to_year"],
         "published_at": datetime.now(UTC).isoformat(),
-        "workflow_version": "browser-v2",
+        "workflow_version": "browser-v3",
     }
     result["domains"] = [
-        {**direction, "definition": direction, "rule_version": "browser-v2"}
+        {**direction, "definition": direction, "rule_version": "browser-v3"}
         for direction in plan["directions"]
     ]
     assignees: dict[str, dict] = {}

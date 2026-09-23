@@ -43,23 +43,16 @@ const company = {
   preferred_name: 'Acme',
   legal_name: 'Acme',
   country: 'US',
-  confidence: 'high',
-  resolution_kind: 'agent_inferred',
-  assignee_names: ['Acme candidate'],
-  resolution_reason: '法定名称精确匹配',
+  business_info: {},
+  priority: 'high',
+  summary: '值得进一步技术调研',
   patent_ids: ['p1'],
-  patent_count: 1,
-  grant_year_trend: { '2025': 1 },
-  rule_score: 8,
-  latest_grant_year: 2025,
-  inference: { summary: '仅为技术相关性推断', patent_ids: ['p1'] },
   relations: [
     {
+      patent_id: 'p1',
       assignee_id: 'u1',
-      status: 'matched',
-      company_id: 'c1',
-      confidence: 'high',
-      reason: '法定名称精确匹配',
+      assignee_name: 'Acme candidate',
+      basis: 'search_hit',
     },
   ],
   ...source,
@@ -69,13 +62,6 @@ const subject = {
   name: 'Acme candidate',
   patent_ids: ['p1'],
   candidates: [{ company_id: 'c1' }, { company_id: 'c2' }],
-}
-const resolution = {
-  assignee_id: 'u1',
-  status: 'matched',
-  company_id: 'c1',
-  confidence: 'high',
-  reason: '法定名称精确匹配',
 }
 
 describe.skipIf(!enabled)(
@@ -161,9 +147,9 @@ describe.skipIf(!enabled)(
           elapsed_seconds: 40,
           input_tokens: 1000,
           output_tokens: 100,
-          max_requests: 6,
-          max_cny: 1,
-          max_seconds: 300,
+          max_requests: 300,
+          max_cny: 10,
+          max_seconds: 3600,
         },
         artifacts: {
           plan,
@@ -176,12 +162,10 @@ describe.skipIf(!enabled)(
             },
             domains: [{ domain_id: 'vision', name: '视觉' }],
           },
+          execution_config: { workflow_version: 'browser-v3' },
           patents: [patent],
-          companies: [company],
           assignees: [subject],
-          subjects: [subject],
-          resolutions: [resolution],
-          unresolved: [],
+          company_leads: [company],
           snapshot: {
             release: { release_id: 'saved-v2' },
             patents: [patent],
@@ -225,12 +209,22 @@ describe.skipIf(!enabled)(
           result: {
             release_id: 'saved-v2',
             patent_count: 1,
-            companies: [company],
-            missing: ['正文'],
-            unresolved_subjects: [],
-            warnings: [],
+            companies: [
+              company,
+              {
+                ...company,
+                company_id: 'c2',
+                preferred_name: 'Different',
+                legal_name: 'Different',
+                priority: 'medium',
+              },
+            ],
+            patents: [
+              { patent_id: 'p1', priority: 'high', reason: '技术相关' },
+            ],
+            missing: ['权属核验'],
             empty_reason: null,
-            workflow_version: 'browser-v2',
+            workflow_version: 'browser-v3',
           },
         },
       }
@@ -255,7 +249,11 @@ describe.skipIf(!enabled)(
                 requestKey: randomUUID(),
                 question: '等待服务',
                 status: 'queued',
-                state: {},
+                state: {
+                  artifacts: {
+                    execution_config: { workflow_version: 'browser-v3' },
+                  },
+                },
               },
             ],
           },
@@ -289,11 +287,9 @@ describe.skipIf(!enabled)(
         plan,
         confirmedPlan: plan,
         hasResult: true,
-        workflowVersion: 'browser-v2',
+        workflowVersion: 'browser-v3',
         queriedAssigneeCount: 1,
         discoveredCompanyCount: 2,
-        resolvedSubjectCount: 1,
-        unresolvedSubjectCount: 0,
       })
       expect(JSON.stringify(summary.body).length).toBeLessThan(5000)
       expect(JSON.stringify(summary.body)).not.toContain('NEVER_SEND')
@@ -321,7 +317,7 @@ describe.skipIf(!enabled)(
         .expect(200)
       expect(result.body.companies[0]).toMatchObject({
         id: 'c1',
-        patentCount: 1,
+        leadPatentCount: 1,
         citationIds: ['p1'],
       })
       expect(result.body.companies[0]).not.toHaveProperty('relations')
@@ -358,28 +354,13 @@ describe.skipIf(!enabled)(
         queryNames: ['Acme candidate'],
         providerRank: 0,
       })
-      const detail = await owner
-        .get(`/api/v1/research/ui/runs/${id}/subject-resolutions`)
-        .expect(200)
-      expect(detail.body.items[0]).toMatchObject({
-        id: 'u1',
-        status: 'matched',
-        companyId: 'c1',
-        confidence: 'high',
-        patentCount: 1,
-        candidateCount: 2,
-        candidates: [
-          { id: 'c1', name: 'Acme' },
-          { id: 'c2', name: 'Different' },
-        ],
-      })
       const companyResult = await owner
         .get(`/api/v1/research/ui/runs/${id}/companies/c1`)
         .expect(200)
-      expect(companyResult.body.resolution).toMatchObject({
-        id: 'u1',
-        status: 'matched',
-      })
+      expect(companyResult.body.relations).toEqual([
+        { patentId: 'p1', assigneeName: 'Acme candidate', basis: 'search_hit' },
+      ])
+      expect(companyResult.body).not.toHaveProperty('resolution')
       expect(JSON.stringify(companyResult.body)).not.toContain('NEVER_SEND')
     })
 
@@ -391,7 +372,6 @@ describe.skipIf(!enabled)(
         '/patent-stats',
         '/company-stats',
         '/companies',
-        '/subject-resolutions',
         '/companies/c1',
         '/events',
         '/stream',
