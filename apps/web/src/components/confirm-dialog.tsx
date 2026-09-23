@@ -1,4 +1,4 @@
-import { LoaderCircle } from 'lucide-react'
+import { LoadingSpinner } from '@/components/loading-spinner'
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -65,12 +65,7 @@ export function ConfirmDialog(props: ConfirmDialogProps) {
             disabled={disabled || isLoading}
             aria-busy={isLoading}
           >
-            {isLoading && (
-              <LoaderCircle
-                aria-hidden='true'
-                className='size-4 motion-safe:animate-spin'
-              />
-            )}
+            {isLoading && <LoadingSpinner />}
             {confirmText ?? 'Continue'}
           </Button>
         </AlertDialogFooter>

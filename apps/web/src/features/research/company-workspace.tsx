@@ -3,9 +3,10 @@ import type {
   ResearchProgressView,
   ResearchSummaryView,
 } from '@tech-scout/contracts'
-import { Check, LoaderCircle } from 'lucide-react'
+import { Check } from 'lucide-react'
 import { lazy, Suspense, type ReactNode } from 'react'
 import { ContentSkeleton } from '@/components/loading'
+import { LoadingSpinner } from '@/components/loading-spinner'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { researchApi } from '@/lib/research-api'
 import { CompanyDiscoveryRecords } from './company-discovery-records'
@@ -133,10 +134,7 @@ export function CompanyWorkspace({
                 {run.hasCompanies ? (
                   <Check className='size-4 text-primary' aria-hidden='true' />
                 ) : active ? (
-                  <LoaderCircle
-                    className='size-4 text-primary motion-safe:animate-spin'
-                    aria-hidden='true'
-                  />
+                  <LoadingSpinner className='text-primary' />
                 ) : null}
                 {run.hasResult
                   ? '企业查询完成'

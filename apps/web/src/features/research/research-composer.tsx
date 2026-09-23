@@ -1,5 +1,6 @@
-import { ArrowUp, Brain, LoaderCircle } from 'lucide-react'
+import { ArrowUp, Brain } from 'lucide-react'
 import type { Ref } from 'react'
+import { LoadingSpinner } from '@/components/loading-spinner'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 
@@ -92,13 +93,10 @@ export function ResearchComposer({
             size='icon'
             className='shrink-0 rounded-full'
             aria-label={busy ? '正在发送' : '发送研究需求'}
+            aria-busy={busy}
             disabled={!value.trim() || busy || blocked}
           >
-            {busy ? (
-              <LoaderCircle className='motion-safe:animate-spin' />
-            ) : (
-              <ArrowUp />
-            )}
+            {busy ? <LoadingSpinner /> : <ArrowUp />}
           </Button>
         </div>
       </div>

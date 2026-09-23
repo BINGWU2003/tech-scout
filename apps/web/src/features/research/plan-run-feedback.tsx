@@ -1,5 +1,6 @@
 import type { ResearchSummaryView } from '@tech-scout/contracts'
 import { Square } from 'lucide-react'
+import { LoadingSpinner } from '@/components/loading-spinner'
 import { Button } from '@/components/ui/button'
 import { isExecuting } from './use-research-run'
 
@@ -36,9 +37,14 @@ export function PlanRunFeedback({
           size='sm'
           className='h-7 shrink-0 rounded-full text-xs'
           disabled={busy}
+          aria-busy={busy}
           onClick={() => onAction('pause')}
         >
-          <Square className='size-3' aria-hidden='true' />
+          {busy ? (
+            <LoadingSpinner size='sm' />
+          ) : (
+            <Square className='size-3' aria-hidden='true' />
+          )}
           {busy ? '正在停止…' : '停止'}
         </Button>
       ) : failed ? (
@@ -48,8 +54,10 @@ export function PlanRunFeedback({
           size='sm'
           className='h-7 shrink-0 rounded-full text-xs'
           disabled={busy}
+          aria-busy={busy}
           onClick={() => onAction('retry')}
         >
+          {busy && <LoadingSpinner size='sm' />}
           {busy ? '正在重试…' : '重试'}
         </Button>
       ) : null}

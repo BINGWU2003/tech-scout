@@ -3,9 +3,10 @@ import type {
   ResearchProgressView,
   ResearchSummaryView,
 } from '@tech-scout/contracts'
-import { Check, LoaderCircle, Search } from 'lucide-react'
+import { Check, Search } from 'lucide-react'
 import { lazy, Suspense, useMemo, type ReactNode } from 'react'
 import { ContentSkeleton } from '@/components/loading'
+import { LoadingSpinner } from '@/components/loading-spinner'
 import { researchApi } from '@/lib/research-api'
 import { patentSearchData } from './patent-search-data'
 import { ResearchPlanLayout } from './research-plan-layout'
@@ -322,10 +323,7 @@ export function PatentWorkspace({
             >
               <div className='flex items-center gap-2 text-sm font-medium'>
                 {active && data.details && !detailDone ? (
-                  <LoaderCircle
-                    className='size-4 text-primary motion-safe:animate-spin'
-                    aria-hidden='true'
-                  />
+                  <LoadingSpinner className='text-primary' />
                 ) : detailDone ? (
                   <Check className='size-4 text-primary' aria-hidden='true' />
                 ) : null}

@@ -5,11 +5,12 @@ import {
   passwordSchema,
   usernameSchema,
 } from '@tech-scout/contracts'
-import { Loader2, UserPlus } from 'lucide-react'
+import { UserPlus } from 'lucide-react'
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 import { z } from 'zod'
+import { LoadingSpinner } from '@/components/loading-spinner'
 import { PasswordInput } from '@/components/password-input'
 import { Button } from '@/components/ui/button'
 import {
@@ -148,12 +149,8 @@ export function SignUpForm({
             </FormItem>
           )}
         />
-        <Button className='mt-2' disabled={isLoading}>
-          {isLoading ? (
-            <Loader2 className='motion-safe:animate-spin' />
-          ) : (
-            <UserPlus />
-          )}
+        <Button className='mt-2' disabled={isLoading} aria-busy={isLoading}>
+          {isLoading ? <LoadingSpinner /> : <UserPlus />}
           注册并登录
         </Button>
       </form>

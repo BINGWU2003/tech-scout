@@ -1,12 +1,7 @@
 import type { ResearchProgressView } from '@tech-scout/contracts'
-import {
-  Check,
-  ChevronDown,
-  LoaderCircle,
-  Search,
-  Sparkles,
-} from 'lucide-react'
+import { Check, ChevronDown, Search, Sparkles } from 'lucide-react'
 import { useState } from 'react'
+import { LoadingSpinner } from '@/components/loading-spinner'
 import { eventLabels, nodeLabels } from './labels'
 
 const stages: Record<string, string> = {
@@ -50,7 +45,7 @@ export function ResearchTimeline({
         className='flex w-full items-center gap-2 p-4 text-left text-sm'
       >
         {active ? (
-          <LoaderCircle className='size-4 text-primary motion-safe:animate-spin' />
+          <LoadingSpinner className='text-primary' />
         ) : (
           <Sparkles className='size-4 text-muted-foreground' />
         )}

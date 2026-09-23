@@ -1,12 +1,12 @@
-import { LoaderCircle } from 'lucide-react'
 import { type ReactNode } from 'react'
+import { LoadingSpinner } from '@/components/loading-spinner'
 import { Skeleton } from '@/components/ui/skeleton'
 import { TableCell, TableRow } from '@/components/ui/table'
 import { cn } from '@/lib/utils'
 
 export function PageLoading() {
   return (
-    <div className='flex min-h-svh w-full items-center justify-center bg-background/95 p-6'>
+    <div className='flex min-h-svh w-full items-center justify-center bg-background p-6'>
       <LoadingIndicator label='正在打开页面…' />
     </div>
   )
@@ -27,10 +27,7 @@ export function LoadingIndicator({
         className
       )}
     >
-      <LoaderCircle
-        aria-hidden='true'
-        className='size-4 shrink-0 motion-safe:animate-spin'
-      />
+      <LoadingSpinner />
       <span>{label}</span>
     </div>
   )
@@ -77,61 +74,87 @@ export function ContentSkeleton({
   className?: string
 }) {
   return (
-    <div
-      role='status'
-      aria-label={label}
-      className={cn('w-full min-w-0', className)}
-    >
+    <div role='status' className={cn('w-full min-w-0', className)}>
       <span className='sr-only'>{label}</span>
       <div
         aria-hidden='true'
-        className={cn('space-y-4', variant === 'sidebar' ? 'p-2' : 'py-4')}
+        className={variant === 'sidebar' ? 'p-2' : 'py-4'}
       >
         {variant === 'sidebar' ? (
           Array.from({ length: 5 }, (_, index) => (
-            <div key={index} className='flex h-9 items-center gap-3'>
+            <div key={index} className='flex h-12 items-center gap-3 px-2'>
               <Skeleton className='size-4 shrink-0' />
-              <Skeleton className={cn('h-3', index % 2 ? 'w-3/5' : 'w-4/5')} />
+              <div className='min-w-0 flex-1 space-y-2'>
+                <Skeleton
+                  className={cn('h-3', index % 2 ? 'w-3/5' : 'w-4/5')}
+                />
+                <Skeleton className='h-2.5 w-2/5' />
+              </div>
             </div>
           ))
         ) : variant === 'list' ? (
-          Array.from({ length: 4 }, (_, index) => (
-            <div key={index} className='space-y-3 rounded-lg border p-4'>
-              <Skeleton className='h-4 w-2/5' />
-              <Skeleton className='h-3 w-4/5' />
-              <Skeleton className='h-3 w-3/5' />
-            </div>
-          ))
-        ) : (
-          <>
-            <Skeleton className='h-6 w-2/5 max-w-64' />
-            {variant !== 'chart' && (
-              <div className='grid gap-3 sm:grid-cols-2'>
-                {Array.from({ length: 4 }, (_, index) => (
-                  <div key={index} className='space-y-3 rounded-lg border p-4'>
-                    <Skeleton className='h-3 w-1/2' />
-                    <Skeleton className='h-5 w-3/4' />
-                  </div>
-                ))}
-              </div>
-            )}
-            {variant === 'chart' ? (
-              <Skeleton className='h-64 w-full rounded-lg' />
-            ) : (
-              <div
-                className={cn(
-                  'space-y-4 rounded-lg border p-5',
-                  variant === 'workspace' ? 'min-h-64' : 'min-h-40'
-                )}
-              >
-                <Skeleton className='mb-6 h-4 w-1/3' />
-                <Skeleton className='h-3 w-full' />
-                <Skeleton className='h-3 w-11/12' />
+          <div className='divide-y border-y'>
+            {Array.from({ length: 4 }, (_, index) => (
+              <div key={index} className='space-y-2 px-2 py-3'>
+                <Skeleton className='h-4 w-2/5' />
                 <Skeleton className='h-3 w-4/5' />
                 <Skeleton className='h-3 w-3/5' />
               </div>
-            )}
-          </>
+            ))}
+          </div>
+        ) : variant === 'chart' ? (
+          <div className='space-y-4 rounded-lg border p-4'>
+            <Skeleton className='h-4 w-2/5 max-w-48' />
+            <div className='flex h-48 items-end gap-2 border-b pb-2'>
+              {[3, 5, 4, 7, 5, 8, 6, 9].map((height, index) => (
+                <Skeleton
+                  key={index}
+                  className='min-w-0 flex-1 rounded-sm'
+                  style={{ height: `${height * 10}%` }}
+                />
+              ))}
+            </div>
+          </div>
+        ) : variant === 'detail' ? (
+          <div className='space-y-5'>
+            <div className='space-y-3 border-b pb-5'>
+              <Skeleton className='h-5 w-3/5' />
+              <Skeleton className='h-3 w-2/5' />
+            </div>
+            <div className='grid gap-3 sm:grid-cols-2'>
+              {Array.from({ length: 4 }, (_, index) => (
+                <div key={index} className='space-y-3 rounded-lg border p-4'>
+                  <Skeleton className='h-3 w-1/2' />
+                  <Skeleton className='h-4 w-3/4' />
+                </div>
+              ))}
+            </div>
+            <div className='space-y-3 rounded-lg border p-5'>
+              <Skeleton className='h-4 w-1/3' />
+              <Skeleton className='h-3 w-full' />
+              <Skeleton className='h-3 w-11/12' />
+              <Skeleton className='h-3 w-4/5' />
+            </div>
+          </div>
+        ) : (
+          <div className='space-y-4'>
+            <Skeleton className='h-6 w-2/5 max-w-64' />
+            <div className='grid gap-3 sm:grid-cols-2'>
+              {Array.from({ length: 4 }, (_, index) => (
+                <div key={index} className='space-y-3 rounded-lg border p-4'>
+                  <Skeleton className='h-3 w-1/2' />
+                  <Skeleton className='h-5 w-3/4' />
+                </div>
+              ))}
+            </div>
+            <div className='min-h-64 space-y-4 rounded-lg border p-5'>
+              <Skeleton className='mb-6 h-4 w-1/3' />
+              <Skeleton className='h-3 w-full' />
+              <Skeleton className='h-3 w-11/12' />
+              <Skeleton className='h-3 w-4/5' />
+              <Skeleton className='h-3 w-3/5' />
+            </div>
+          </div>
         )}
       </div>
     </div>

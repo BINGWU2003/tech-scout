@@ -4,10 +4,10 @@ import {
   Check,
   CircleAlert,
   CircleDot,
-  LoaderCircle,
   Pause,
   SearchX,
 } from 'lucide-react'
+import { LoadingSpinner } from '@/components/loading-spinner'
 import { companyRecords } from './company-records'
 import { eventLabels, nodeLabels } from './labels'
 
@@ -29,7 +29,7 @@ function recordStatus(event: ResearchProgressView, active: boolean) {
   }
   if (process?.outcome === 'running')
     return active
-      ? { label: '查询中', Icon: LoaderCircle, className: 'text-primary' }
+      ? { label: '查询中', Icon: null, className: 'text-primary' }
       : { label: '已停止', Icon: Pause, className: 'text-muted-foreground' }
   if (event.kind === 'node_completed')
     return { label: '已完成', Icon: Check, className: 'text-primary' }
@@ -83,10 +83,11 @@ export function CompanyDiscoveryRecords({
             <div className='space-y-1 border-t pt-3 text-xs'>
               <div className='flex flex-wrap justify-between gap-2'>
                 <p className={`flex items-center gap-1.5 ${className}`}>
-                  <Icon
-                    className={`size-3.5 shrink-0 ${label === '查询中' ? 'motion-safe:animate-spin' : ''}`}
-                    aria-hidden='true'
-                  />
+                  {Icon ? (
+                    <Icon className='size-3.5 shrink-0' aria-hidden='true' />
+                  ) : (
+                    <LoadingSpinner size='sm' />
+                  )}
                   {label}
                 </p>
                 <time className='text-muted-foreground' dateTime={occurredAt}>

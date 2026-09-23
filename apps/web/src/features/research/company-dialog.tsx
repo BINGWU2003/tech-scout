@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { LoadingSpinner } from '@/components/loading-spinner'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -149,9 +150,11 @@ export function CompanyNavigation({
           index < 0 ||
           (index === ids.length - 1 && !hasNextPage)
         }
+        aria-busy={loading}
         onClick={() => void next()}
       >
-        {loading ? '加载中…' : '下一家'}
+        {loading && <LoadingSpinner size='sm' />}
+        {loading ? '正在加载…' : '下一家'}
       </Button>
       {error && (
         <span role='alert' className='text-xs text-destructive'>

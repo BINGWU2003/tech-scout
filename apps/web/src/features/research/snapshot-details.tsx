@@ -88,7 +88,10 @@ export function PatentSnapshot({
           )}
         </DialogHeader>
         <LoadingRegion
-          busy={switching || (query.isPlaceholderData && query.isFetching)}
+          busy={
+            !query.isPending &&
+            (switching || (query.isPlaceholderData && query.isFetching))
+          }
           label='正在切换专利…'
           className='flex min-h-0 flex-1 flex-col'
         >

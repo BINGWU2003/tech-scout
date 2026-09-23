@@ -1,11 +1,12 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useNavigate } from '@tanstack/react-router'
 import { loginSchema } from '@tech-scout/contracts'
-import { Loader2, LogIn } from 'lucide-react'
+import { LogIn } from 'lucide-react'
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 import { z } from 'zod'
+import { LoadingSpinner } from '@/components/loading-spinner'
 import { PasswordInput } from '@/components/password-input'
 import { Button } from '@/components/ui/button'
 import {
@@ -97,12 +98,8 @@ export function UserAuthForm({
             </FormItem>
           )}
         />
-        <Button className='mt-2' disabled={isLoading}>
-          {isLoading ? (
-            <Loader2 className='motion-safe:animate-spin' />
-          ) : (
-            <LogIn />
-          )}
+        <Button className='mt-2' disabled={isLoading} aria-busy={isLoading}>
+          {isLoading ? <LoadingSpinner /> : <LogIn />}
           登录
         </Button>
       </form>

@@ -8,18 +8,11 @@ import {
   type ResearchWorkspaceAction,
 } from '@tech-scout/contracts'
 import { createRequestId } from '@tech-scout/shared'
-import {
-  ArrowRight,
-  LoaderCircle,
-  Pause,
-  Play,
-  RefreshCw,
-  RotateCcw,
-  X,
-} from 'lucide-react'
+import { ArrowRight, Pause, Play, RefreshCw, RotateCcw, X } from 'lucide-react'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { ContentSkeleton, LoadingRegion } from '@/components/loading'
+import { LoadingSpinner } from '@/components/loading-spinner'
 import { Button } from '@/components/ui/button'
 import { resetApiErrors } from '@/lib/api-error-notifications'
 import { researchApi } from '@/lib/research-api'
@@ -175,6 +168,9 @@ function RunWorkspace({
                     }
                     title='暂停研究'
                     disabled={mutation.isPending}
+                    aria-busy={
+                      mutation.isPending && mutation.variables?.kind === 'pause'
+                    }
                     onClick={() =>
                       void submit({
                         action_id: createRequestId(),
@@ -184,10 +180,7 @@ function RunWorkspace({
                   >
                     {mutation.isPending &&
                     mutation.variables?.kind === 'pause' ? (
-                      <LoaderCircle
-                        className='motion-safe:animate-spin'
-                        aria-hidden='true'
-                      />
+                      <LoadingSpinner />
                     ) : (
                       <Pause aria-hidden='true' />
                     )}
@@ -207,6 +200,9 @@ function RunWorkspace({
                     }
                     title={canResume ? '继续研究' : '重试此步骤'}
                     disabled={mutation.isPending}
+                    aria-busy={
+                      mutation.isPending && mutation.variables?.kind === 'retry'
+                    }
                     onClick={() =>
                       void submit({
                         action_id: createRequestId(),
@@ -216,10 +212,7 @@ function RunWorkspace({
                   >
                     {mutation.isPending &&
                     mutation.variables?.kind === 'retry' ? (
-                      <LoaderCircle
-                        className='motion-safe:animate-spin'
-                        aria-hidden='true'
-                      />
+                      <LoadingSpinner />
                     ) : canResume ? (
                       <Play aria-hidden='true' />
                     ) : (
@@ -250,16 +243,18 @@ function RunWorkspace({
               aria-label='刷新状态'
               title='刷新状态'
               disabled={summary.isFetching}
+              aria-busy={summary.isFetching}
               onClick={() => {
                 resetApiErrors()
                 setRefreshing(true)
                 void summary.refetch().finally(() => setRefreshing(false))
               }}
             >
-              <RefreshCw
-                className={summary.isFetching ? 'motion-safe:animate-spin' : ''}
-                aria-hidden='true'
-              />
+              {summary.isFetching ? (
+                <LoadingSpinner />
+              ) : (
+                <RefreshCw aria-hidden='true' />
+              )}
               <span>刷新</span>
             </Button>
           </div>
@@ -368,6 +363,10 @@ function RunWorkspace({
                   <div className='flex items-center gap-2'>
                     <Button
                       disabled={mutation.isPending}
+                      aria-busy={
+                        mutation.isPending &&
+                        mutation.variables?.kind === 'start_companies'
+                      }
                       onClick={() =>
                         void submit({
                           action_id: createRequestId(),
@@ -378,10 +377,7 @@ function RunWorkspace({
                       {mutation.isPending &&
                       mutation.variables?.kind === 'start_companies' ? (
                         <>
-                          <LoaderCircle
-                            className='motion-safe:animate-spin'
-                            aria-hidden='true'
-                          />
+                          <LoadingSpinner />
                           正在启动…
                         </>
                       ) : (

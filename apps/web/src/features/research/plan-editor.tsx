@@ -5,6 +5,7 @@ import {
 import { createRequestId } from '@tech-scout/shared'
 import { Plus } from 'lucide-react'
 import { type ReactNode, useEffect, useRef, useState } from 'react'
+import { LoadingSpinner } from '@/components/loading-spinner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -40,7 +41,7 @@ export function SelectedPlanEditor({
     : (initialPlan ?? workspace.selectedPlan)
   const isEmpty = plan.directions.length === 0
   const [error, setError] = useState('')
-  const [submitting, setSubmitting] = useState(false)
+  const [submitting, setSubmitting] = useState<'save' | 'start' | null>(null)
   const [generating, setGenerating] = useState<string | null>(null)
   const [keywordError, setKeywordError] = useState<{
     id: string
@@ -79,7 +80,7 @@ export function SelectedPlanEditor({
     }
     setError('')
     sending.current = true
-    setSubmitting(true)
+    setSubmitting(start ? 'start' : 'save')
     try {
       if (start) await onStart(parsed.data)
       else await onSave(parsed.data)
@@ -87,7 +88,7 @@ export function SelectedPlanEditor({
       /* Parent displays the request error. */
     } finally {
       sending.current = false
-      setSubmitting(false)
+      setSubmitting(null)
     }
   }
   return (
@@ -101,7 +102,7 @@ export function SelectedPlanEditor({
         aria-label='已选研究计划'
       >
         <fieldset
-          disabled={locked || busy || submitting || !!generating}
+          disabled={locked || busy || !!submitting || !!generating}
           className='flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain p-4'
         >
           <p className='shrink-0 text-sm text-muted-foreground'>
@@ -231,6 +232,7 @@ export function SelectedPlanEditor({
                           variant='ghost'
                           size='sm'
                           disabled={!d.name.trim() || !d.explanation.trim()}
+                          aria-busy={generating === d.domain_id}
                           onClick={async () => {
                             if (sending.current || locked || busy) return
                             sending.current = true
@@ -258,6 +260,7 @@ export function SelectedPlanEditor({
                             }
                           }}
                         >
+                          {generating === d.domain_id && <LoadingSpinner />}
                           {generating === d.domain_id
                             ? '正在生成…'
                             : d.keywords.length
@@ -338,7 +341,7 @@ export function SelectedPlanEditor({
             </div>
           ) : (
             <fieldset
-              disabled={busy || submitting || !!generating}
+              disabled={busy || !!submitting || !!generating}
               className='space-y-2'
             >
               {error && (
@@ -365,14 +368,17 @@ export function SelectedPlanEditor({
                   <Button
                     type='button'
                     variant='outline'
+                    aria-busy={submitting === 'save'}
                     onClick={() => void save()}
                   >
-                    保存调整
+                    {submitting === 'save' && <LoadingSpinner />}
+                    {submitting === 'save' ? '正在保存…' : '保存调整'}
                   </Button>
                 )}
                 <Button
                   type='button'
                   className='ml-auto'
+                  aria-busy={submitting === 'start'}
                   disabled={
                     !plan.directions.length ||
                     plan.directions.some(
@@ -381,7 +387,8 @@ export function SelectedPlanEditor({
                   }
                   onClick={() => void save(true)}
                 >
-                  {submitting
+                  {submitting === 'start' && <LoadingSpinner />}
+                  {submitting === 'start'
                     ? '正在提交…'
                     : dirty
                       ? '保存并开始研究'

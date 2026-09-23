@@ -15,7 +15,6 @@ import {
   History,
   MessageSquare,
   MoreHorizontal,
-  LoaderCircle,
   Pause,
   Plus,
   SearchX,
@@ -26,6 +25,7 @@ import { useId, useState } from 'react'
 import { toast } from 'sonner'
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { ContentSkeleton } from '@/components/loading'
+import { LoadingSpinner } from '@/components/loading-spinner'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -60,10 +60,10 @@ const awaitingIcon = {
 }
 const taskIcons: Record<
   ResearchState['status'],
-  { icon: LucideIcon; className?: string }
+  { icon: LucideIcon | typeof LoadingSpinner; className?: string }
 > = {
   queued: { icon: Clock },
-  running: { icon: LoaderCircle, className: 'motion-safe:animate-spin' },
+  running: { icon: LoadingSpinner },
   awaiting_plan: awaitingIcon,
   awaiting_companies: awaitingIcon,
   completed: {
