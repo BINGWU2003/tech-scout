@@ -351,6 +351,7 @@ it('工作台从左侧切换项目，确认前追问保留上下文，并在手�
   await expect
     .element(screen.getByRole('heading', { name: '今天想探索什么技术？' }))
     .toBeVisible()
+  await page.screenshot({ path: '__screenshots__/research-start.png' })
   await screen
     .getByRole('link', { name: '固态电池技术研究', exact: true })
     .click()
@@ -422,6 +423,9 @@ it('工作台从左侧切换项目，确认前追问保留上下文，并在手�
   await page.viewport(390, 844)
   await expect
     .element(screen.getByRole('textbox', { name: '继续研究' }))
+    .toBeVisible()
+  await expect
+    .element(screen.getByRole('button', { name: '开始研究' }))
     .toBeVisible()
   const rect = screen
     .getByRole('textbox', { name: '继续研究' })

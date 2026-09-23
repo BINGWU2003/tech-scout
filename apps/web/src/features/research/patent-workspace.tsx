@@ -106,6 +106,15 @@ export function PatentWorkspace({
       <ResearchPlanLayout
         variant='patents'
         footerActions={actions}
+        footerHint={
+          run.hasCompanies
+            ? '企业查询已开始，可以查看企业结果。'
+            : run.status === 'awaiting_companies'
+              ? '专利检索已完成，接下来查询相关企业。'
+              : active
+                ? '正在检索专利，完成后可开始企业查询。'
+                : '查看专利结果和搜索记录，确认当前进度。'
+        }
         directions={
           <div className='h-full space-y-5 overflow-y-auto overscroll-contain p-4'>
             <dl className='grid grid-cols-2 gap-3'>

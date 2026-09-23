@@ -1,4 +1,5 @@
 import { ArrowUp, Brain, LoaderCircle } from 'lucide-react'
+import type { Ref } from 'react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 
@@ -13,6 +14,7 @@ export function ResearchComposer({
   thinking = true,
   onThinkingChange,
   autoSave = false,
+  inputRef,
 }: {
   value: string
   onChange: (value: string) => void
@@ -24,6 +26,7 @@ export function ResearchComposer({
   thinking?: boolean
   onThinkingChange?: (value: boolean) => void
   autoSave?: boolean
+  inputRef?: Ref<HTMLTextAreaElement>
 }) {
   return (
     <form
@@ -35,6 +38,7 @@ export function ResearchComposer({
     >
       <div className='rounded-3xl border bg-muted/30 p-3 shadow-sm focus-within:ring-2 focus-within:ring-ring/30'>
         <Textarea
+          ref={inputRef}
           aria-label={followUp ? '继续研究' : '研究需求'}
           value={value}
           onChange={(event) => onChange(event.target.value)}

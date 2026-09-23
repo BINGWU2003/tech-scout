@@ -7,7 +7,16 @@ import {
   Search,
   Shapes,
 } from 'lucide-react'
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type ReactNode,
+} from 'react'
+import { createPortal } from 'react-dom'
 import {
   Group,
   Panel,
@@ -15,26 +24,54 @@ import {
   useDefaultLayout,
 } from 'react-resizable-panels'
 import { Button } from '@/components/ui/button'
-import { useIsMobile } from '@/hooks/use-mobile'
+
+const COMPACT_QUERY = '(max-width: 1023px)'
+const ActionBarContext = createContext<HTMLElement | null | undefined>(
+  undefined
+)
+
+function subscribeCompact(callback: () => void) {
+  const media = window.matchMedia(COMPACT_QUERY)
+  media.addEventListener('change', callback)
+  return () => media.removeEventListener('change', callback)
+}
+
+function getCompactSnapshot() {
+  return window.matchMedia(COMPACT_QUERY).matches
+}
+
+function useCompactLayout() {
+  return useSyncExternalStore(subscribeCompact, getCompactSnapshot, () => false)
+}
+
+export function ResearchActionBar({ children }: { children: ReactNode }) {
+  const target = useContext(ActionBarContext)
+  if (target === undefined) return children
+  return target ? createPortal(children, target) : null
+}
 
 export function ResearchPlanLayout({
   directions,
   footerActions,
+  footerHint,
   conversation,
   composer,
   variant = 'plan',
   detailKey,
   autoFollow = true,
+  initialPane,
 }: {
   footerActions?: ReactNode
+  footerHint?: string
   directions: ReactNode
   conversation: ReactNode
   composer?: ReactNode
   variant?: 'plan' | 'patents' | 'companies' | 'report'
   detailKey?: string | null
   autoFollow?: boolean
+  initialPane?: 'conversation' | 'directions'
 }) {
-  const mobile = useIsMobile()
+  const mobile = useCompactLayout()
   const patents = variant === 'patents'
   const canScrollToBottom = patents || variant === 'plan'
   const companies = variant === 'companies'
@@ -57,7 +94,26 @@ export function ResearchPlanLayout({
   const LeftIcon = results ? ChartNoAxesCombined : Shapes
   const RightIcon = report ? FileText : results ? Search : MessageSquare
   const [mobilePane, setMobilePane] = useState<'conversation' | 'directions'>(
-    results ? 'directions' : 'conversation'
+    initialPane ?? (results ? 'directions' : 'conversation')
+  )
+  const previousMobile = useRef(mobile)
+  useEffect(() => {
+    if (mobile && !previousMobile.current && variant === 'plan')
+      setMobilePane('conversation')
+    previousMobile.current = mobile
+  }, [mobile, variant])
+  const previousInitialPane = useRef(initialPane)
+  useEffect(() => {
+    if (
+      mobile &&
+      previousInitialPane.current === 'conversation' &&
+      initialPane === 'directions'
+    )
+      setMobilePane('directions')
+    previousInitialPane.current = initialPane
+  }, [initialPane, mobile])
+  const [actionBarTarget, setActionBarTarget] = useState<HTMLDivElement | null>(
+    null
   )
   const [previousDetail, setPreviousDetail] = useState(detailKey)
   if (previousDetail !== detailKey) {
@@ -103,11 +159,6 @@ export function ResearchPlanLayout({
         <h2 className='text-sm font-semibold'>{leftTitle}</h2>
       </div>
       <div className='min-h-0 flex-1 overflow-hidden'>{directions}</div>
-      {footerActions && (
-        <div className='flex shrink-0 flex-wrap items-center justify-end gap-2 border-t bg-background p-4 empty:hidden'>
-          {footerActions}
-        </div>
-      )}
     </section>
   )
   const conversationPane = (
@@ -173,42 +224,38 @@ export function ResearchPlanLayout({
       )}
     </section>
   )
-  if (mobile)
-    return (
-      <div className='flex min-h-0 flex-1 flex-col gap-3 overflow-hidden'>
-        <div className='flex shrink-0 gap-2' aria-label='切换研究面板'>
-          <Button
-            size='sm'
-            variant={mobilePane === 'conversation' ? 'default' : 'outline'}
-            aria-pressed={mobilePane === 'conversation'}
-            onClick={() => setMobilePane('conversation')}
-          >
-            {report ? '依据' : patents ? '搜索记录' : rightTitle}
-          </Button>
-          <Button
-            size='sm'
-            variant={mobilePane === 'directions' ? 'default' : 'outline'}
-            aria-pressed={mobilePane === 'directions'}
-            onClick={() => setMobilePane('directions')}
-          >
-            {report ? '报告' : results ? leftTitle : '已选计划'}
-          </Button>
-        </div>
-        <div
-          className={mobilePane === 'directions' ? 'min-h-0 flex-1' : 'hidden'}
+  const panes = mobile ? (
+    <div className='flex min-h-0 flex-1 flex-col gap-2 overflow-hidden'>
+      <div className='flex shrink-0 gap-2' aria-label='切换研究面板'>
+        <Button
+          size='sm'
+          variant={mobilePane === 'conversation' ? 'default' : 'outline'}
+          aria-pressed={mobilePane === 'conversation'}
+          onClick={() => setMobilePane('conversation')}
         >
-          {directionPane}
-        </div>
-        <div
-          className={
-            mobilePane === 'conversation' ? 'min-h-0 flex-1' : 'hidden'
-          }
+          {report ? '依据' : patents ? '搜索记录' : rightTitle}
+        </Button>
+        <Button
+          size='sm'
+          variant={mobilePane === 'directions' ? 'default' : 'outline'}
+          aria-pressed={mobilePane === 'directions'}
+          onClick={() => setMobilePane('directions')}
         >
-          {conversationPane}
-        </div>
+          {report ? '报告' : results ? leftTitle : '已选计划'}
+        </Button>
       </div>
-    )
-  return (
+      <div
+        className={mobilePane === 'directions' ? 'min-h-0 flex-1' : 'hidden'}
+      >
+        {directionPane}
+      </div>
+      <div
+        className={mobilePane === 'conversation' ? 'min-h-0 flex-1' : 'hidden'}
+      >
+        {conversationPane}
+      </div>
+    </div>
+  ) : (
     <Group
       orientation='horizontal'
       defaultLayout={defaultLayout}
@@ -216,7 +263,7 @@ export function ResearchPlanLayout({
       id={`research-${variant}-layout`}
       className='min-h-0 flex-1'
     >
-      <Panel id='directions' defaultSize='55%' minSize='30%'>
+      <Panel id='directions' defaultSize='64%' minSize='40%'>
         {directionPane}
       </Panel>
       <Separator
@@ -235,9 +282,36 @@ export function ResearchPlanLayout({
           <GripVertical className='h-4 w-3' aria-hidden='true' />
         </span>
       </Separator>
-      <Panel id='conversation' defaultSize='45%' minSize='30%'>
+      <Panel id='conversation' defaultSize='36%' minSize='25%'>
         {conversationPane}
       </Panel>
     </Group>
+  )
+  return (
+    <ActionBarContext.Provider value={actionBarTarget}>
+      <div className='flex min-h-0 flex-1 flex-col gap-3 overflow-hidden'>
+        {panes}
+        {(variant === 'plan' || footerActions || footerHint) && (
+          <div className='flex shrink-0 flex-col items-stretch gap-2 rounded-xl border border-primary/20 bg-card px-4 py-3 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:gap-3'>
+            <div className='min-w-0'>
+              <p className='text-xs font-semibold text-primary'>
+                {report ? '阅读提示' : '下一步'}
+              </p>
+              {footerHint && (
+                <p className='mt-0.5 text-xs leading-5 text-muted-foreground'>
+                  {footerHint}
+                </p>
+              )}
+            </div>
+            <div
+              ref={setActionBarTarget}
+              className='flex min-w-0 flex-wrap items-center justify-end gap-2 sm:flex-1'
+            >
+              {footerActions}
+            </div>
+          </div>
+        )}
+      </div>
+    </ActionBarContext.Provider>
   )
 }

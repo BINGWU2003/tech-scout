@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
 import { KeywordTags } from './keyword-tags'
+import { ResearchActionBar } from './research-plan-layout'
 
 export function SelectedPlanEditor({
   workspace,
@@ -327,63 +328,69 @@ export function SelectedPlanEditor({
             )}
           </div>
         </fieldset>
-        {locked ? (
-          <div className='shrink-0 space-y-3 border-t bg-background p-4'>
-            <p role='status' className='text-sm text-muted-foreground'>
-              技术方向已确认，计划仅供回看。如需调整方向，请新建研究。
-            </p>
-            {lockedActions}
-          </div>
-        ) : (
-          <fieldset
-            disabled={busy || submitting || !!generating}
-            className='shrink-0 space-y-3 border-t bg-background p-4'
-          >
-            {error && (
-              <p role='alert' className='text-sm text-destructive'>
-                {error}
+        <ResearchActionBar>
+          {locked ? (
+            <div className='space-y-2'>
+              <p role='status' className='text-sm text-muted-foreground'>
+                技术方向已确认，计划仅供回看。如需调整方向，请新建研究。
               </p>
-            )}
-            {dirty && (
-              <p className='text-sm text-muted-foreground'>
-                有未保存调整，开始研究或发送消息时将自动保存。
-              </p>
-            )}
-            <div className='flex flex-wrap items-center gap-2'>
+              {lockedActions}
+            </div>
+          ) : (
+            <fieldset
+              disabled={busy || submitting || !!generating}
+              className='space-y-2'
+            >
+              {error && (
+                <p role='alert' className='text-sm text-destructive'>
+                  {error}
+                </p>
+              )}
               {dirty && (
+                <p className='text-sm text-muted-foreground'>
+                  有未保存调整，开始研究或发送消息时将自动保存。
+                </p>
+              )}
+              <div className='flex flex-wrap items-center gap-2'>
+                {dirty && (
+                  <Button
+                    type='button'
+                    variant='ghost'
+                    onClick={() => update(workspace.selectedPlan)}
+                  >
+                    撤销调整
+                  </Button>
+                )}
+                {dirty && (
+                  <Button
+                    type='button'
+                    variant='outline'
+                    onClick={() => void save()}
+                  >
+                    保存调整
+                  </Button>
+                )}
                 <Button
                   type='button'
-                  variant='ghost'
-                  onClick={() => update(workspace.selectedPlan)}
+                  className='ml-auto'
+                  disabled={
+                    !plan.directions.length ||
+                    plan.directions.some(
+                      (d) => !d.keywords.some((word) => word.trim())
+                    )
+                  }
+                  onClick={() => void save(true)}
                 >
-                  撤销调整
+                  {submitting
+                    ? '正在提交…'
+                    : dirty
+                      ? '保存并开始研究'
+                      : '开始研究'}
                 </Button>
-              )}
-              {dirty && (
-                <Button type='submit' variant='outline'>
-                  保存调整
-                </Button>
-              )}
-              <Button
-                type='button'
-                className='ml-auto'
-                disabled={
-                  !plan.directions.length ||
-                  plan.directions.some(
-                    (d) => !d.keywords.some((word) => word.trim())
-                  )
-                }
-                onClick={() => void save(true)}
-              >
-                {submitting
-                  ? '正在提交…'
-                  : dirty
-                    ? '保存并开始研究'
-                    : '开始研究'}
-              </Button>
-            </div>
-          </fieldset>
-        )}
+              </div>
+            </fieldset>
+          )}
+        </ResearchActionBar>
       </form>
     </div>
   )

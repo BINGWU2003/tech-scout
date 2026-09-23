@@ -7,6 +7,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from '@/components/ui/dialog'
+import { cn } from '@/lib/utils'
 
 export function CompanyDialog({
   title,
@@ -16,6 +17,7 @@ export function CompanyDialog({
   navigation,
   children,
   contentKey,
+  fullscreenMobile = false,
 }: {
   title: string
   description: string
@@ -24,6 +26,7 @@ export function CompanyDialog({
   navigation?: ReactNode
   children: ReactNode
   contentKey?: string
+  fullscreenMobile?: boolean
 }) {
   return (
     <Dialog
@@ -33,7 +36,11 @@ export function CompanyDialog({
       }}
     >
       <DialogContent
-        className='flex h-[88dvh] max-h-[900px] flex-col gap-0 overflow-hidden p-0 sm:max-w-[960px]'
+        className={cn(
+          'flex h-[88dvh] max-h-[900px] flex-col gap-0 overflow-hidden p-0 sm:max-w-[960px]',
+          fullscreenMobile &&
+            'h-dvh max-h-dvh max-w-none rounded-none border-0 sm:h-[88dvh] sm:max-h-[900px] sm:max-w-[960px] sm:rounded-lg sm:border'
+        )}
         onCloseAutoFocus={
           returnFocus
             ? (event) => {
@@ -43,7 +50,13 @@ export function CompanyDialog({
             : undefined
         }
       >
-        <DialogHeader className='shrink-0 border-b px-5 py-5 pr-12 text-left sm:px-7 sm:pr-12'>
+        <DialogHeader
+          className={cn(
+            'shrink-0 border-b px-5 py-5 pr-12 text-left sm:px-7 sm:pr-12',
+            fullscreenMobile &&
+              'pt-[max(1.25rem,env(safe-area-inset-top))] sm:pt-5'
+          )}
+        >
           <DialogTitle className='line-clamp-3 text-lg leading-7 break-words'>
             {title}
           </DialogTitle>
@@ -55,7 +68,7 @@ export function CompanyDialog({
         >
           {children}
         </div>
-        <div className='flex shrink-0 flex-wrap items-center justify-between gap-3 border-t px-5 py-4 sm:px-7'>
+        <div className='flex shrink-0 flex-wrap items-center justify-between gap-3 border-t px-5 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:px-7 sm:pb-4'>
           {navigation}
           <Button variant='outline' onClick={close}>
             关闭

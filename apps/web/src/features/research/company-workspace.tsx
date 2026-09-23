@@ -59,6 +59,13 @@ export function CompanyWorkspace({
       <ResearchPlanLayout
         variant='companies'
         footerActions={report}
+        footerHint={
+          run.hasResult
+            ? '报告已生成，可以查看结论与引用依据。'
+            : active
+              ? '正在查询企业并整理报告，进度会自动更新。'
+              : '查看企业查询结果与发现记录。'
+        }
         autoFollow
         directions={
           <Tabs defaultValue='overview' className='h-full min-h-0 gap-0'>

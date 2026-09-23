@@ -47,7 +47,7 @@ export function ResearchShell({
       </Header>
       <Main fixed fluid className='relative min-h-0 p-0'>
         {navigation && (
-          <div className='shrink-0 border-b px-4 py-3 sm:px-6'>
+          <div className='shrink-0 border-b bg-background px-3 py-2 sm:px-6'>
             {navigation}
           </div>
         )}
@@ -55,7 +55,7 @@ export function ResearchShell({
           ref={viewport}
           className={
             split
-              ? 'flex min-h-0 flex-1 flex-col overflow-y-auto md:overflow-hidden'
+              ? 'flex min-h-0 flex-1 flex-col overflow-y-auto lg:overflow-hidden'
               : 'min-h-0 flex-1 overflow-y-auto overscroll-contain'
           }
           onScroll={(event) => {
@@ -69,7 +69,7 @@ export function ResearchShell({
             ref={content}
             className={
               split
-                ? 'flex min-h-0 flex-1 flex-col gap-4 px-4 py-4 sm:px-6'
+                ? 'flex min-h-0 flex-1 flex-col gap-3 px-3 py-3 sm:px-6'
                 : 'mx-auto flex min-h-full w-full max-w-3xl flex-col gap-8 px-4 py-8 sm:px-6'
             }
           >

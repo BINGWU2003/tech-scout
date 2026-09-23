@@ -53,6 +53,7 @@ function RunWorkspace({
   directions,
   conversation,
   previousResultId,
+  planHasDirections = false,
 }: {
   id: string
   projectId: string
@@ -62,6 +63,7 @@ function RunWorkspace({
   directions?: ReactNode
   conversation?: (events: ResearchProgressView[]) => ReactNode
   previousResultId?: string | null
+  planHasDirections?: boolean
 }) {
   const navigate = useNavigate()
   const { summary, events, disconnected } = useResearchRun(id)
@@ -142,13 +144,16 @@ function RunWorkspace({
       </section>
     ) : null
   const header = (
-    <div className='mb-4 shrink-0 space-y-3'>
+    <div className='mb-1 shrink-0 space-y-2'>
       <div className='flex flex-wrap items-start justify-between gap-3'>
         <div className='min-w-0'>
-          <h1 className='text-2xl font-semibold tracking-tight'>
+          <p className='mb-1 text-xs font-medium text-primary'>
+            第 {Object.keys(researchStages).indexOf(stage) + 1} / 4 阶段
+          </p>
+          <h1 className='text-xl font-semibold tracking-tight sm:text-2xl'>
             {researchStages[stage].title}
           </h1>
-          <p className='mt-2 text-sm leading-6 text-muted-foreground'>
+          <p className='mt-1 text-sm leading-5 text-muted-foreground'>
             {researchStages[stage].description}
           </p>
         </div>
@@ -161,8 +166,8 @@ function RunWorkspace({
               <div className='flex flex-wrap items-center gap-2'>
                 {isExecuting(run.status) && (
                   <Button
-                    variant='ghost'
-                    size='icon'
+                    variant='outline'
+                    size='sm'
                     aria-label={
                       mutation.isPending && mutation.variables?.kind === 'pause'
                         ? '正在暂停…'
@@ -186,12 +191,13 @@ function RunWorkspace({
                     ) : (
                       <Pause aria-hidden='true' />
                     )}
+                    <span>暂停</span>
                   </Button>
                 )}
                 {['failed', 'recoverable'].includes(run.status) && (
                   <Button
-                    variant='ghost'
-                    size='icon'
+                    variant='outline'
+                    size='sm'
                     aria-label={
                       mutation.isPending && mutation.variables?.kind === 'retry'
                         ? '正在恢复…'
@@ -219,12 +225,13 @@ function RunWorkspace({
                     ) : (
                       <RotateCcw aria-hidden='true' />
                     )}
+                    <span>{canResume ? '继续' : '重试'}</span>
                   </Button>
                 )}
                 {!['completed', 'empty', 'cancelled'].includes(run.status) && (
                   <Button
                     variant='ghost'
-                    size='icon'
+                    size='sm'
                     aria-label='取消本次研究'
                     title='取消本次研究'
                     disabled={mutation.isPending || cancelConfirm}
@@ -232,13 +239,14 @@ function RunWorkspace({
                     className='text-destructive hover:text-destructive'
                   >
                     <X aria-hidden='true' />
+                    <span>取消</span>
                   </Button>
                 )}
               </div>
             )}
             <Button
               variant='ghost'
-              size='icon'
+              size='sm'
               aria-label='刷新状态'
               title='刷新状态'
               disabled={summary.isFetching}
@@ -252,6 +260,7 @@ function RunWorkspace({
                 className={summary.isFetching ? 'motion-safe:animate-spin' : ''}
                 aria-hidden='true'
               />
+              <span>刷新</span>
             </Button>
           </div>
         )}
@@ -318,6 +327,12 @@ function RunWorkspace({
           <ResearchPlanLayout
             directions={directions}
             conversation={conversation?.(events.data ?? [])}
+            initialPane={planHasDirections ? 'directions' : 'conversation'}
+            footerHint={
+              run && isExecuting(run.status)
+                ? '正在整理技术方向，结果会自动更新。'
+                : '检查已选方向、关键词和检索深度，然后开始研究。'
+            }
             composer={
               <>
                 {statusContent}
@@ -739,10 +754,10 @@ function ProjectWorkspace({
       title={project.data?.title ?? '研究工作台'}
       split
       navigation={
-        <div className='mx-auto w-full space-y-3'>
+        <div className='mx-auto w-full'>
           <nav
             aria-label='研究流程'
-            className='grid grid-cols-2 gap-2 sm:grid-cols-4'
+            className='grid grid-cols-4 gap-1.5 sm:gap-2'
           >
             {(
               Object.entries(researchStages) as [
@@ -756,10 +771,24 @@ function ProjectWorkspace({
                   type='button'
                   disabled
                   title='尚未进行到此步骤'
-                  className='cursor-not-allowed rounded-lg bg-muted/20 px-3 py-2.5 text-center text-xs text-muted-foreground/50 sm:text-sm'
+                  className='flex min-h-12 cursor-not-allowed flex-col justify-center rounded-lg border border-transparent bg-muted/20 px-1.5 py-1 text-center text-[11px] text-muted-foreground/60 sm:min-h-14 sm:px-3 sm:text-sm'
                 >
-                  {index + 1}. {item.title}
-                  <span className='mt-1 block text-[11px]'>未开始</span>
+                  <span className='sm:hidden' aria-hidden='true'>
+                    {index + 1}.{' '}
+                    {key === 'plan'
+                      ? '计划'
+                      : key === 'patents'
+                        ? '专利'
+                        : key === 'companies'
+                          ? '企业'
+                          : '报告'}
+                  </span>
+                  <span className='sr-only sm:not-sr-only'>
+                    {index + 1}. {item.title}
+                  </span>
+                  <span className='mt-0.5 hidden text-[11px] sm:block'>
+                    未开始
+                  </span>
                 </button>
               ) : (
                 <Link
@@ -773,15 +802,27 @@ function ProjectWorkspace({
                         : (workspace.data?.executionRunId ?? latest?.id),
                   }}
                   aria-current={stage === key ? 'page' : undefined}
-                  className={`rounded-lg px-3 py-2.5 text-center text-xs transition-colors sm:text-sm ${stage === key ? 'bg-primary text-primary-foreground' : 'bg-muted/40 text-muted-foreground hover:bg-muted'}`}
+                  className={`flex min-h-12 flex-col justify-center rounded-lg border px-1.5 py-1 text-center text-[11px] transition-colors focus-visible:outline-2 focus-visible:outline-ring sm:min-h-14 sm:px-3 sm:text-sm ${stage === key ? 'border-primary bg-primary/10 font-semibold text-primary' : 'border-transparent bg-muted/40 text-muted-foreground hover:border-border hover:bg-muted'}`}
                 >
-                  {index + 1}. {item.title}
-                  <span className='mt-1 block text-[11px]'>
+                  <span className='sm:hidden' aria-hidden='true'>
+                    {index + 1}.{' '}
+                    {key === 'plan'
+                      ? '计划'
+                      : key === 'patents'
+                        ? '专利'
+                        : key === 'companies'
+                          ? '企业'
+                          : '报告'}
+                  </span>
+                  <span className='sr-only sm:not-sr-only'>
+                    {index + 1}. {item.title}
+                  </span>
+                  <span className='mt-0.5 hidden text-[11px] font-normal sm:block'>
                     {workspace.data
                       ? researchStageLabel(key, workspace.data)
                       : '加载中'}
                     {workspace.data && index === reached && (
-                      <span className='ml-1.5 inline-block rounded border border-current/30 px-1'>
+                      <span className='ml-1.5 hidden rounded border border-current/30 px-1 lg:inline'>
                         当前步骤
                       </span>
                     )}
@@ -821,6 +862,9 @@ function ProjectWorkspace({
             stage={stage}
             readOnly={readOnly}
             previousResultId={workspace.data?.latestResultRunId}
+            planHasDirections={Boolean(
+              (draft?.plan ?? workspace.data?.selectedPlan)?.directions.length
+            )}
             directions={
               editorWorkspace && (
                 <SelectedPlanEditor
