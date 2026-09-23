@@ -26,21 +26,7 @@ const tooltipStyle = {
 export default function PatentCharts({ stats }: { stats: Stats }) {
   const mobile = useIsMobile()
   const [expanded, setExpanded] = useState(false)
-  const byYear = new Map<
-    number,
-    { year: number; publication: number; grant: number }
-  >()
-  for (const item of stats.years) {
-    const entry = byYear.get(item.year) ?? {
-      year: item.year,
-      publication: 0,
-      grant: 0,
-    }
-    entry[item.dateKind] += item.count
-    byYear.set(item.year, entry)
-  }
-  const years = [...byYear.values()].sort((a, b) => a.year - b.year)
-  const hasGrant = years.some((year) => year.grant > 0)
+  const years = [...stats.years].sort((a, b) => a.year - b.year)
   const classifications = [...stats.classifications].sort(
     (a, b) => b.count - a.count || a.code.localeCompare(b.code)
   )
@@ -64,15 +50,6 @@ export default function PatentCharts({ stats }: { stats: Stats }) {
                 />
                 公开年份
               </span>
-              {hasGrant && (
-                <span className='flex items-center gap-1.5'>
-                  <span
-                    className='size-2.5 rounded-sm bg-chart-1'
-                    aria-hidden='true'
-                  />
-                  授权年份（公开年份缺失）
-                </span>
-              )}
             </div>
             <div className='mt-3 h-56 min-w-0' aria-label='专利年份柱状图'>
               <ResponsiveContainer
@@ -114,23 +91,12 @@ export default function PatentCharts({ stats }: { stats: Stats }) {
                     isAnimationActive={false}
                   />
                   <Bar
-                    dataKey='publication'
+                    dataKey='count'
                     name='公开年份'
-                    stackId='year'
                     fill='var(--chart-2)'
                     maxBarSize={40}
                     isAnimationActive={false}
                   />
-                  {hasGrant && (
-                    <Bar
-                      dataKey='grant'
-                      name='授权年份（公开年份缺失）'
-                      stackId='year'
-                      fill='var(--chart-1)'
-                      maxBarSize={40}
-                      isAnimationActive={false}
-                    />
-                  )}
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -147,7 +113,6 @@ export default function PatentCharts({ stats }: { stats: Stats }) {
                   <tr>
                     <th scope='col'>年份</th>
                     <th scope='col'>公开</th>
-                    <th scope='col'>授权兜底</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -156,8 +121,7 @@ export default function PatentCharts({ stats }: { stats: Stats }) {
                       <th scope='row' className='py-1 font-normal'>
                         {year.year}
                       </th>
-                      <td>{year.publication} 篇</td>
-                      <td>{year.grant} 篇</td>
+                      <td>{year.count} 篇</td>
                     </tr>
                   ))}
                 </tbody>
@@ -170,8 +134,7 @@ export default function PatentCharts({ stats }: { stats: Stats }) {
           </p>
         )}
         <p className='mt-3 text-xs leading-5 text-muted-foreground'>
-          优先统计公开年份，缺失时使用授权年份；{stats.unknownYearCount}{' '}
-          篇年份未知。
+          按公开年份统计；{stats.unknownYearCount} 篇年份未知。
         </p>
       </section>
       <section

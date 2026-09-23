@@ -74,7 +74,9 @@ async def test_model_error_is_not_retried_or_exposed():
         )
     )
     store = AsyncMock()
-    store.get.return_value = SimpleNamespace(artifacts={})
+    store.get.return_value = SimpleNamespace(
+        artifacts={"execution_config": config().execution_policy()}
+    )
     with pytest.raises(ResearchError) as failure:
         await DeepSeek(config(), store).generate(uuid4(), uuid4(), "生成计划", {}, Plan)
     assert failure.value.code == "MODEL_REQUEST_FAILED"
@@ -113,7 +115,9 @@ async def test_empty_truncated_or_schema_invalid_output_fails(content, reason):
         )
     )
     store = AsyncMock()
-    store.get.return_value = SimpleNamespace(artifacts={})
+    store.get.return_value = SimpleNamespace(
+        artifacts={"execution_config": config().execution_policy()}
+    )
     with pytest.raises(ResearchError) as failure:
         await DeepSeek(config(), store).generate(uuid4(), uuid4(), "计划", {}, Plan)
     assert failure.value.code == "MODEL_OUTPUT_INVALID"

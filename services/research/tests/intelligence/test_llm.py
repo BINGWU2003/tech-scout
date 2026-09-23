@@ -73,6 +73,7 @@ def setup_model():
             "output_cny_per_million": 9,
         },
     )
+    state.artifacts["execution_config"] = config.execution_policy()
     return DeepSeek(config, store), state, snapshots
 
 

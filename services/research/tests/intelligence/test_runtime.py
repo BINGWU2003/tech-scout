@@ -34,6 +34,9 @@ async def setup_runtime():
         _env_file=None,  # pyright: ignore[reportCallIssue]
         intelligence_database_url=DSN,
         intelligence_internal_token="test-token-" * 4,
+        research_max_requests=6,
+        research_max_cny=1,
+        research_max_seconds=300,
     )
     async with AsyncConnectionPool[AsyncConnection[DictRow]](
         DSN,
@@ -82,7 +85,7 @@ async def test_postgres_restart_resume_budget_and_event_receipts(setup_runtime):
     await advance_to_report(resumed, store, run_id)
     state = await store.get(run_id)
     assert state.status == "completed", state.error
-    assert state.artifacts["result"]["companies"][0]["patent_count"] == 2
+    assert len(state.artifacts["result"]["companies"][0]["patent_ids"]) == 2
     assert llm.calls.count("Plan") == 1
     assert state.budget.elapsed_seconds > 0
     events, after = [], 0
@@ -116,13 +119,15 @@ async def test_failed_planner_allows_manual_directions_then_generates_conditions
     assert llm.calls == [
         "DirectionProposal",
         "Plan",
-        "SubjectResolutionBatch",
-        "Analysis",
+        "PatentAssessmentBatch",
+        "CompanyAssessmentBatch",
     ]
 
 
 @pytest.mark.asyncio
-async def test_failed_analysis_completes_with_mapping_and_warning(setup_runtime):
+async def test_failed_company_assessment_requires_retry_before_publishing(
+    setup_runtime,
+):
     runtime, store, _, llm, _ = setup_runtime
     run_id = uuid4()
     await store.create(run_id, "视觉")
@@ -131,19 +136,29 @@ async def test_failed_analysis_completes_with_mapping_and_warning(setup_runtime)
         run_id,
         Action(action_id=uuid4(), actor_id=uuid4(), kind="confirm_plan", plan=plan()),
     )
-    llm.fail = "Analysis"
     await runtime.execute(run_id)
-    await advance_to_report(runtime, store, run_id)
+    assert (await store.get(run_id)).status == "awaiting_companies"
+    llm.fail = "CompanyAssessmentBatch"
+    await store.action(
+        run_id, Action(action_id=uuid4(), actor_id=uuid4(), kind="start_companies")
+    )
+    await runtime.execute(run_id)
+    failed = await store.get(run_id)
+    assert failed.status == "failed"
+    assert failed.node == "analyze"
+    assert "result" not in failed.artifacts
+    assert len(failed.artifacts["patent_assessments"]) == 2
+    llm.fail = None
+    await store.action(
+        run_id, Action(action_id=uuid4(), actor_id=uuid4(), kind="retry")
+    )
+    await runtime.execute(run_id)
     finished = await store.get(run_id)
     assert finished.status == "completed"
-    assert (
-        finished.artifacts["result"]["release_id"]
-        == "00000000-0000-0000-0000-000000000001"
-    )
-    assert finished.artifacts["result"]["companies"][0]["inference"] is None
-    assert finished.artifacts["result"]["warnings"] == [
-        "企业技术解释生成失败，已保留映射、专利和统计结果。"
-    ]
+    assert len(finished.artifacts["result"]["patents"]) == 2
+    assert len(finished.artifacts["result"]["companies"]) == 2
+    assert llm.calls.count("PatentAssessmentBatch") == 1
+    assert llm.calls.count("CompanyAssessmentBatch") == 2
 
 
 @pytest.mark.asyncio

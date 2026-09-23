@@ -286,9 +286,7 @@ class Store:
             budget = row["budget"]
             budget["input_tokens"] += usage.prompt_tokens
             budget["output_tokens"] += usage.completion_tokens
-            policy = row["artifacts"].get(
-                "execution_config", self.config.execution_policy()
-            )
+            policy = row["artifacts"]["execution_config"]
             budget["estimated_cny"] += (
                 usage.prompt_tokens * policy["input_cny_per_million"]
                 + usage.completion_tokens * policy["output_cny_per_million"]

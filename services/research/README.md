@@ -11,9 +11,9 @@ pnpm dev:research
 uv run --project services/research pytest services/research/tests
 ```
 
-配置见 `.env.example`。本服务写入 `agent_runtime`、`ingestion` 和 `catalog_v2`，产品投影由 NestJS 写入 `app`。旧离线目录读取器已删除。详细结构见 [架构](../../docs/architecture.md)。
+配置见 `.env.example`。本服务写入 `agent_runtime`、`ingestion` 和 `catalog_v2`，产品投影由 NestJS 写入 `app`。详细结构见 [架构](../../docs/architecture.md)。
 
-`pnpm dev:research` 会先执行增量迁移再启动服务，避免更新代码后缺少数据库表。直接使用 `uv run --project services/research start` 启动或部署服务时，仍需先执行 `pnpm migrate:research`。
+`pnpm dev:research` 会先初始化当前数据库结构再启动服务；初始化可重复执行，不回填历史研究数据。直接使用 `uv run --project services/research start` 启动或部署服务时，仍需先执行 `pnpm migrate:research`。
 
 删除研究任务会停止运行、等待研究及采集写入退出，并清除该任务的运行状态、事件、检查点和采集快照。共享公司、专利和查询缓存保留；`agent_runtime.deleted_run` 只保留已删除运行的 UUID，防止延迟到达的启动请求重建任务。
 

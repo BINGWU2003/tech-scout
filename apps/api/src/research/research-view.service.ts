@@ -114,23 +114,17 @@ const pageOf = <T>(items: T[], q: ResearchViewQuery) => ({
 
 export function patentStatsView(value: unknown) {
   const patents = rows(value)
-  const years = new Map<
-    string,
-    { year: number; dateKind: 'publication' | 'grant'; count: number }
-  >()
+  const years = new Map<number, { year: number; count: number }>()
   const classifications = new Map<string, number>()
   let unknownYearCount = 0,
     unclassifiedCount = 0
   for (const patent of patents) {
-    const publication = num(patent.publication_year)
-    const year = publication ?? num(patent.grant_year)
-    const dateKind = publication != null ? 'publication' : 'grant'
+    const year = num(patent.publication_year)
     if (year == null) unknownYearCount++
     else {
-      const key = `${dateKind}:${year}`
-      const bucket = years.get(key) ?? { year, dateKind, count: 0 }
+      const bucket = years.get(year) ?? { year, count: 0 }
       bucket.count++
-      years.set(key, bucket)
+      years.set(year, bucket)
     }
     // Count each patent once per subclass, even when multiple groups match.
     const codes = new Set(
@@ -148,9 +142,7 @@ export function patentStatsView(value: unknown) {
   }
   return {
     total: patents.length,
-    years: [...years.values()].sort(
-      (a, b) => a.year - b.year || a.dateKind.localeCompare(b.dateKind)
-    ),
+    years: [...years.values()].sort((a, b) => a.year - b.year),
     unknownYearCount,
     classifications: [...classifications]
       .map(([code, count]) => ({ code, count }))
@@ -185,8 +177,7 @@ export class ResearchViewService {
     const r = found[0]
     if (!r) throw new NotFoundException('研究运行不存在')
     const s = object(r.state),
-      context = object(r.context),
-      release = object(context.release)
+      context = object(r.context)
     return researchSummaryViewSchema.parse({
       id: r.id,
       projectId: r.projectId,
@@ -199,11 +190,11 @@ export class ResearchViewService {
       node: str(s.node),
       error: s.error ?? null,
       budget: s.budget ?? null,
-      releaseId: str(r.snapshotReleaseId) ?? str(release.release_id),
+      releaseId: str(r.snapshotReleaseId),
       sourceMode: 'browser',
       acquisition: r.acquisition ?? null,
-      fromYear: num(context.period_from_year) ?? num(release.period_from_year),
-      toYear: num(context.period_to_year) ?? num(release.period_to_year),
+      fromYear: num(context.period_from_year),
+      toYear: num(context.period_to_year),
       domains: rows(context.domains).map((d) => ({
         id: String(d.domain_id),
         name: String(d.name),
@@ -313,11 +304,7 @@ export class ResearchViewService {
       patents.map((p) => ({
         id: String(p.patent_id),
         title: String(p.patent_title),
-        year: num(p.publication_year) ?? num(p.grant_year),
-        dateKind:
-          object(a.snapshot).source_mode === 'browser'
-            ? 'publication'
-            : 'grant',
+        year: num(p.publication_year),
         abstract: str(p.abstract),
         claims: q.patentId ? str(p.claims) : null,
         description: q.patentId ? str(p.description) : null,

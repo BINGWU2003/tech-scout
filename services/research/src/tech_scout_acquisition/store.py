@@ -32,14 +32,6 @@ class Store:
                 Path(__file__).with_name("schema.sql").read_text(encoding="utf-8"),
                 prepare=False,
             )
-            jobs = await (
-                await conn.execute(
-                    "SELECT run_id FROM ingestion.job WHERE run_id NOT IN "
-                    "(SELECT run_id FROM catalog_v2.run_projection)"
-                )
-            ).fetchall()
-            for job in jobs:
-                await self.refresh_projection(conn, job["run_id"])
 
     async def create(self, run_id, plan):
         async with self.pool.connection() as conn:

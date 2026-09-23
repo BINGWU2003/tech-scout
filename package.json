@@ -14,8 +14,6 @@
     "test": "turbo run test",
     "test:e2e": "turbo run test:e2e --filter=@tech-scout/api",
     "test:browser:install": "pnpm --filter @tech-scout/web run test:browser:install",
-    "reset:research:v2": "uv run --project services/research python services/research/scripts/reset_local_research.py --confirm-reset-local-research",
-    "cleanup:research:legacy": "uv run --project services/research python services/research/scripts/cleanup_legacy_research.py --confirm-cleanup-legacy-research",
     "knip": "turbo run knip --filter=@tech-scout/web",
     "validate": "pnpm format:check && pnpm lint && pnpm test && pnpm test:e2e && pnpm build",
     "test:research": "uv run --project services/research pytest services/research/tests"

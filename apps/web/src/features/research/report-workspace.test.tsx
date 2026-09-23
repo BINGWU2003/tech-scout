@@ -125,7 +125,7 @@ it('单栏报告通过企业弹窗切换主体，并从引用专利返回原位�
           id: 'CN1',
           title: '引用专利一',
           year: 2025,
-          dateKind: 'publication',
+
           abstract: '专利摘要',
           claims: null,
           description: null,

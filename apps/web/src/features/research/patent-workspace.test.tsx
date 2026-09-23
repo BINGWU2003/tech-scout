@@ -324,8 +324,8 @@ it('完成后统计使用全量结果，并保留列表和详情', async () => {
   const stats = vi.spyOn(researchApi, 'patentStats').mockResolvedValue({
     total: 63,
     years: [
-      { year: 2024, dateKind: 'publication', count: 40 },
-      { year: 2025, dateKind: 'publication', count: 23 },
+      { year: 2024, count: 40 },
+      { year: 2025, count: 23 },
     ],
     unknownYearCount: 0,
     classifications: [
@@ -338,7 +338,7 @@ it('完成后统计使用全量结果，并保留列表和详情', async () => {
     id: 'CN123A',
     title: '固态电解质材料及其制备方法',
     year: 2025,
-    dateKind: 'publication' as const,
+
     cpcs: ['H01M'],
     domains: ['battery'],
     parties: [],

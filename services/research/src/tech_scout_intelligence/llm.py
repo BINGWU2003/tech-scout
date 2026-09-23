@@ -45,7 +45,7 @@ class DeepSeek:
                 "MODEL_NOT_CONFIGURED", "请在服务端配置 DEEPSEEK_API_KEY"
             )
         state = await self.store.get(run_id)
-        policy = state.artifacts.get("execution_config", self.config.execution_policy())
+        policy = state.artifacts["execution_config"]
         visible = schema in (ConversationReply, DirectionProposal)
         messages = [
             {

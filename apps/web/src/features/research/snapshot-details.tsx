@@ -136,9 +136,7 @@ export function PatentSnapshot({
                   <dl className='grid gap-4 rounded-lg bg-muted/40 p-4 sm:grid-cols-2'>
                     <div>
                       <dt className='text-xs text-muted-foreground'>
-                        {patent.dateKind === 'publication'
-                          ? '公开年份'
-                          : '授权年份'}
+                        公开年份
                       </dt>
                       <dd className='mt-1'>{patent.year ?? '未提供'}</dd>
                     </div>
@@ -404,8 +402,8 @@ export function PatentList({
                 )}
               </div>
               <p className='text-xs leading-5 break-words text-muted-foreground'>
-                {p.id} · {p.dateKind === 'publication' ? '公开' : '授权'}{' '}
-                {p.year ?? '年份未提供'} · IPC：{p.cpcs.join('、') || '未提供'}
+                {p.id} · 公开 {p.year ?? '年份未提供'} · IPC：
+                {p.cpcs.join('、') || '未提供'}
               </p>
               <p className='line-clamp-2 text-xs leading-5 break-words text-muted-foreground'>
                 {p.abstract || '该快照未提供摘要'}

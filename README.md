@@ -32,6 +32,8 @@ pnpm --filter @tech-scout/api prisma:migrate
 pnpm migrate:research
 ```
 
+上述命令保留 Prisma 迁移历史，并初始化当前研究表与检查点结构；研究初始化可重复执行，不回填旧格式数据。
+
 分别启动：
 
 ```powershell
@@ -51,5 +53,3 @@ uv run --project services/research python services/research/scripts/verify_archi
 ```
 
 第二条命令创建独立测试数据库，验证采集持久化、研究确认/恢复、清理保护和 API。测试数据库名称记录在被 Git 忽略的 `.local/architecture-test.json`，不会导入正式库。真实网页验收另见 [采集说明](docs/browser-acquisition.md)。
-
-`browser-v2` 不兼容旧研究。本地升级先执行 `pnpm migrate:research`，再运行 `pnpm reset:research:v2`；后者要求显式确认参数并永久清空研究、采集、专利、企业、快照和检查点数据，但保留账号与登录会话。

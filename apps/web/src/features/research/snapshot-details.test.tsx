@@ -12,7 +12,7 @@ const patents = Array.from({ length: 21 }, (_, index) => ({
   id: `CN${index + 1}`,
   title: `储能装置及其控制方法 ${index + 1}`,
   year: 2025,
-  dateKind: 'publication' as const,
+
   abstract: '用于储能系统的控制方法，提升充放电效率。'.repeat(20),
   claims: index === 20 ? null : '权利要求正文。'.repeat(200),
   description: '说明书正文。'.repeat(200),

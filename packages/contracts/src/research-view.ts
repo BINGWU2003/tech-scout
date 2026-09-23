@@ -127,8 +127,8 @@ export const researchResultViewSchema = z.object({
 export const researchPatentViewSchema = z.object({
   id: z.string(),
   title: z.string(),
+  // Publication year; null when the source does not provide it.
   year: z.number().nullable(),
-  dateKind: z.enum(['publication', 'grant']).default('grant'),
   abstract: z.string().nullable().optional(),
   claims: z.string().nullable().optional(),
   description: z.string().nullable().optional(),
@@ -167,7 +167,6 @@ export const researchPatentStatsSchema = z.object({
   years: z.array(
     z.object({
       year: z.number().int(),
-      dateKind: z.enum(['publication', 'grant']),
       count: z.number().int().nonnegative(),
     })
   ),

@@ -7,12 +7,11 @@ import '@/styles/index.css'
 const stats = {
   total: 80,
   years: [
-    { year: 2022, dateKind: 'publication' as const, count: 12 },
-    { year: 2023, dateKind: 'publication' as const, count: 24 },
-    { year: 2024, dateKind: 'publication' as const, count: 30 },
-    { year: 2024, dateKind: 'grant' as const, count: 8 },
+    { year: 2022, count: 12 },
+    { year: 2023, count: 24 },
+    { year: 2024, count: 30 },
   ],
-  unknownYearCount: 6,
+  unknownYearCount: 14,
   classifications: [
     'H01M',
     'C01B',
@@ -28,7 +27,7 @@ const stats = {
   unclassifiedCount: 3,
 }
 
-it('年份公开和授权分色统计，悬停显示准确数量，分类前八项可展开和收起', async () => {
+it('按公开年份统计，悬停显示准确数量，分类前八项可展开和收起', async () => {
   await page.viewport(1280, 1000)
   const screen = await render(
     <div className='mx-auto max-w-xl p-4'>
@@ -36,7 +35,7 @@ it('年份公开和授权分色统计，悬停显示准确数量，分类前八�
     </div>
   )
   await expect
-    .element(screen.getByText('授权年份（公开年份缺失）', { exact: true }))
+    .element(screen.getByText('按公开年份统计；14 篇年份未知。'))
     .toBeVisible()
   const yearRegion = screen.getByRole('region', {
     name: '年份分布',
@@ -72,7 +71,7 @@ it('年份公开和授权分色统计，悬停显示准确数量，分类前八�
     .toHaveTextContent('12 篇')
   await screen.getByText('查看年份数据', { exact: true }).click()
   await expect
-    .element(screen.getByRole('row', { name: '2024 30 篇 8 篇' }))
+    .element(screen.getByRole('row', { name: '2024 30 篇' }))
     .toBeVisible()
   const categoryRegion = screen.getByRole('region', {
     name: '技术分类分布',

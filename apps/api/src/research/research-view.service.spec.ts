@@ -9,7 +9,7 @@ import {
 } from './research-view.service.js'
 
 describe('全部专利统计', () => {
-  it('跨越分页汇总，同一篇的重复分类仅计一次，区分公开与授权年份', () => {
+  it('跨越分页汇总，同一篇的重复分类仅计一次，仅按公开年份统计', () => {
     const patents = Array.from({ length: 61 }, (_, i) => ({
       patent_id: `p${i}`,
       publication_year: 2025,
@@ -18,16 +18,13 @@ describe('全部专利统计', () => {
     }))
     const stats = patentStatsView([
       ...patents,
-      { patent_id: 'legacy', grant_year: 2025, cpcs: ['G06V'] },
+      { patent_id: 'grant-only', grant_year: 2025, cpcs: ['G06V'] },
       { patent_id: 'unknown', cpcs: [] },
     ])
     expect(stats).toEqual({
       total: 63,
-      years: [
-        { year: 2025, dateKind: 'grant', count: 1 },
-        { year: 2025, dateKind: 'publication', count: 61 },
-      ],
-      unknownYearCount: 1,
+      years: [{ year: 2025, count: 61 }],
+      unknownYearCount: 2,
       classifications: [
         { code: 'G06V', count: 62 },
         { code: 'H04N', count: 61 },
@@ -43,6 +40,37 @@ describe('全部专利统计', () => {
       classifications: [],
       unclassifiedCount: 0,
     })
+  })
+  it('列表与详情仅返回公开年份，授权年份不能补齐缺失值', async () => {
+    const findFirst = vi.fn().mockResolvedValue({
+      state: {
+        artifacts: {
+          patents: [
+            {
+              patent_id: 'published',
+              publication_year: 2024,
+              grant_year: 2025,
+            },
+            { patent_id: 'grant-only', grant_year: 2025 },
+          ],
+        },
+      },
+    })
+    const service = new ResearchViewService({
+      researchRun: { findFirst },
+    } as unknown as PrismaService)
+    const list = await service.patents('owner', 'run', {
+      page: 1,
+      pageSize: 20,
+    })
+    expect(list.items.map((item) => item.year)).toEqual([2024, null])
+    for (const item of list.items) expect(item).not.toHaveProperty('dateKind')
+    const detail = await service.patents('owner', 'run', {
+      page: 1,
+      pageSize: 20,
+      patentId: 'grant-only',
+    })
+    expect(detail.items[0].year).toBeNull()
   })
 })
 

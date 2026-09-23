@@ -11,6 +11,7 @@ import { IntelligenceClient } from '../src/research/intelligence.client.js'
 
 const enabled = Boolean(process.env.TEST_DATABASE_URL)
 const plan = {
+  pages_per_keyword: 5,
   from_year: 2019,
   to_year: 2025,
   risks: ['只有标题'],
@@ -33,7 +34,8 @@ const source = {
 const patent = {
   patent_id: 'p1',
   patent_title: 'Vision inspection',
-  grant_year: 2025,
+  publication_year: 2025,
+  grant_year: 2026,
   cpcs: ['G06V'],
   matches: [{ domain_id: 'vision' }],
   ...source,
@@ -155,11 +157,8 @@ describe.skipIf(!enabled)(
           plan,
           confirmed_plan: plan,
           context: {
-            release: {
-              release_id: 'saved-v2',
-              period_from_year: 2019,
-              period_to_year: 2025,
-            },
+            period_from_year: 2019,
+            period_to_year: 2025,
             domains: [{ domain_id: 'vision', name: '视觉' }],
           },
           execution_config: { workflow_version: 'browser-v3' },
