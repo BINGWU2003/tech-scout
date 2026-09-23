@@ -14,6 +14,7 @@ import {
 import { PrismaService } from '../database/prisma.service.js'
 import { Prisma } from '../generated/prisma/client.js'
 import { object, rows } from './research-view.service.js'
+import * as queries from './research.repository.js'
 import { ResearchService } from './research.service.js'
 import {
   assertResearchPlanEditable,
@@ -66,23 +67,7 @@ export class ResearchWorkspaceService {
     })
     if (!project) throw new NotFoundException('研究项目不存在')
     // Project history needs only messages/plans, never patent snapshots or model payloads.
-    const runs = await this.prisma.$queryRaw<
-      Record<string, unknown>[]
-    >(Prisma.sql`
-      SELECT id, question, status, created_at AS "createdAt", context,
-        state ->> 'node' AS node,
-        state #>> '{error,node}' AS "errorNode",
-        state #> '{artifacts,plan}' AS plan,
-        state #> '{artifacts,candidate_plan}' AS candidates,
-        state #> '{artifacts,confirmed_plan}' AS confirmed,
-        state #> '{artifacts,reply}' AS reply,
-        state #> '{artifacts,reasoning}' AS reasoning,
-        state #> '{artifacts,answer}' AS answer,
-        state #>> '{artifacts,reply_intent}' AS intent,
-        state #> '{artifacts,proposal_plan}' AS proposal,
-        state #> '{artifacts,result}' IS NOT NULL AS "hasResult"
-      FROM app.research_run WHERE project_id = ${projectId}::uuid
-      ORDER BY created_at, id`)
+    const runs = await queries.workspaceRuns(this.prisma, projectId)
     const ws = object(project.workspace)
     const selected = selectedPlan(
       ws,
@@ -273,7 +258,7 @@ export class ResearchWorkspaceService {
       return this.get(userId, projectId)
     }
     await this.prisma.$transaction(async (tx) => {
-      await tx.$queryRaw`SELECT id FROM app.research_project WHERE id = ${projectId}::uuid FOR UPDATE`
+      await queries.lockProject(tx, projectId)
       const project = await tx.researchProject.findUniqueOrThrow({
         where: { id: projectId },
       })

@@ -1,9 +1,24 @@
 """Durable runtime ownership, command receipts, budgets and replayable events."""
 
 import json
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
-from psycopg.types.json import Jsonb
+from sqlalchemy import delete, func, null, select, update
+from sqlalchemy.dialects.postgresql import insert
+
+from tech_scout_storage.database import (
+    Database,
+    advisory_lock,
+    delete_checkpoints,
+    deletion_lock,
+    transaction_lock,
+)
+from tech_scout_storage.models import (
+    DeletedRun,
+    ResearchAction,
+    ResearchEvent,
+    ResearchRun,
+)
 
 from .models import Budget, ResearchError, RunView
 
@@ -45,9 +60,13 @@ CREATE TABLE IF NOT EXISTS agent_runtime.research_action (
 
 
 class Store:
-    def __init__(self, pool, config):
+    def __init__(self, pool, config, database: Database):
         self.pool = pool
         self.config = config
+        self.database = database
+
+    def run_lock(self, run_id):
+        return advisory_lock(self.pool, run_id, 0)
 
     async def create(self, run_id, question, conversation=None):
         budget = Budget(
@@ -55,33 +74,27 @@ class Store:
             max_seconds=self.config.research_max_seconds,
             max_cny=self.config.research_max_cny,
         ).model_dump()
-        async with self.pool.connection() as conn, conn.transaction():
-            await conn.execute(
-                "SELECT pg_advisory_xact_lock(hashtextextended(%s, 2))",
-                (str(run_id),),
-            )
+        async with self.database.transaction() as conn:
+            await transaction_lock(conn, run_id, 2)
             deleted = await conn.execute(
-                "SELECT 1 FROM agent_runtime.deleted_run WHERE run_id=%s", (run_id,)
+                select(DeletedRun.run_id).where(DeletedRun.run_id == run_id)
             )
-            if await deleted.fetchone():
+            if deleted.first():
                 raise ResearchError("RUN_NOT_FOUND", "研究运行已删除")
             await conn.execute(
-                "INSERT INTO agent_runtime.research_run"
-                "(run_id, question, budget, artifacts) "
-                "VALUES (%s,%s,%s,%s) ON CONFLICT DO NOTHING",
-                (
-                    run_id,
-                    question,
-                    Jsonb(budget),
-                    Jsonb(
-                        {
-                            "execution_config": self.config.execution_policy(),
-                            "conversation": conversation or {},
-                            "reasoning": None,
-                            "answer": None,
-                        }
-                    ),
-                ),
+                insert(ResearchRun)
+                .values(
+                    run_id=run_id,
+                    question=question,
+                    budget=budget,
+                    artifacts={
+                        "execution_config": self.config.execution_policy(),
+                        "conversation": conversation or {},
+                        "reasoning": None,
+                        "answer": None,
+                    },
+                )
+                .on_conflict_do_nothing()
             )
             row = await self.row(conn, run_id, lock=True)
             if row["question"] != question or row["artifacts"].get(
@@ -92,12 +105,12 @@ class Store:
 
     @staticmethod
     async def row(conn, run_id, lock=False):
-        cursor = await conn.execute(
-            "SELECT * FROM agent_runtime.research_run WHERE run_id=%s"
-            + (" FOR UPDATE" if lock else ""),
-            (run_id,),
-        )
-        row = await cursor.fetchone()
+        statement = select(ResearchRun.__table__).where(ResearchRun.run_id == run_id)
+        if lock:
+            statement = statement.with_for_update()
+        cursor = await conn.execute(statement)
+        found = cursor.mappings().first()
+        row = dict(found) if found is not None else None
         if not row:
             raise ResearchError("RUN_NOT_FOUND", "研究运行不存在")
         return row
@@ -107,47 +120,32 @@ class Store:
         return RunView(**{key: row[key] for key in RunView.model_fields})
 
     async def get(self, run_id):
-        async with self.pool.connection() as conn:
+        async with self.database.transaction() as conn:
             return self.view(await self.row(conn, run_id))
 
     async def begin_delete(self, run_id):
-        async with self.pool.connection() as conn, conn.transaction():
+        async with self.database.transaction() as conn:
+            await transaction_lock(conn, run_id, 2)
             await conn.execute(
-                "SELECT pg_advisory_xact_lock(hashtextextended(%s, 2))",
-                (str(run_id),),
+                insert(DeletedRun).values(run_id=run_id).on_conflict_do_nothing()
             )
             await conn.execute(
-                "INSERT INTO agent_runtime.deleted_run VALUES (%s) "
-                "ON CONFLICT DO NOTHING",
-                (run_id,),
-            )
-            await conn.execute(
-                "UPDATE agent_runtime.research_run SET status='cancelled',lease=NULL,"
-                "command=NULL WHERE run_id=%s",
-                (run_id,),
+                update(ResearchRun)
+                .where(ResearchRun.run_id == run_id)
+                .values(status="cancelled", lease=None, command=null())
             )
 
     async def delete(self, run_id, acquisition_store):
         # Wait for checkpoint writers, including workers in another process, to exit.
-        async with self.pool.connection() as conn, conn.transaction():
-            await conn.execute("SET LOCAL lock_timeout = '10s'")
-            await conn.execute(
-                "SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))",
-                (str(run_id),),
-            )
+        async with self.database.transaction() as conn:
+            await deletion_lock(conn, run_id, 0)
             await acquisition_store.delete(run_id)
-            for table in ("checkpoint_writes", "checkpoint_blobs", "checkpoints"):
-                await conn.execute(
-                    f"DELETE FROM agent_runtime.{table} WHERE thread_id=%s",
-                    (str(run_id),),
-                )
-            for table in ("research_event", "research_action", "research_run"):
-                await conn.execute(
-                    f"DELETE FROM agent_runtime.{table} WHERE run_id=%s", (run_id,)
-                )
+            await delete_checkpoints(conn, run_id)
+            for model in (ResearchEvent, ResearchAction, ResearchRun):
+                await conn.execute(delete(model).where(model.run_id == run_id))
 
     async def publish(self, run_id, *, lease=None, kind="state", **changes):
-        async with self.pool.connection() as conn, conn.transaction():
+        async with self.database.transaction() as conn:
             row = await self.row(conn, run_id, lock=True)
             if lease is not None and row["lease"] != lease:
                 raise ResearchError("LEASE_LOST", "执行租约已失效")
@@ -158,30 +156,36 @@ class Store:
         row["sequence"] += 1
         view = self.view(row)
         await conn.execute(
-            "UPDATE agent_runtime.research_run SET status=%s, sequence=%s, "
-            "node=%s,error=%s,artifacts=%s,budget=%s,lease=%s,command=%s "
-            "WHERE run_id=%s",
-            (
-                row["status"],
-                row["sequence"],
-                row["node"],
-                Jsonb(row["error"]),
-                Jsonb(row["artifacts"]),
-                Jsonb(row["budget"]),
-                row["lease"],
-                Jsonb(row["command"]),
-                row["run_id"],
-            ),
+            update(ResearchRun)
+            .where(ResearchRun.run_id == row["run_id"])
+            .values(
+                **{
+                    key: row[key]
+                    for key in (
+                        "status",
+                        "sequence",
+                        "node",
+                        "error",
+                        "artifacts",
+                        "budget",
+                        "lease",
+                        "command",
+                    )
+                }
+            )
         )
         await conn.execute(
-            "INSERT INTO agent_runtime.research_event(run_id,sequence,kind,data) "
-            "VALUES (%s,%s,%s,%s)",
-            (row["run_id"], row["sequence"], kind, Jsonb(view.model_dump(mode="json"))),
+            insert(ResearchEvent).values(
+                run_id=row["run_id"],
+                sequence=row["sequence"],
+                kind=kind,
+                data=view.model_dump(mode="json"),
+            )
         )
         return view
 
     async def claim(self, run_id, lease):
-        async with self.pool.connection() as conn, conn.transaction():
+        async with self.database.transaction() as conn:
             try:
                 row = await self.row(conn, run_id, lock=True)
             except ResearchError as error:
@@ -191,8 +195,9 @@ class Store:
             if row["status"] != "queued":
                 return None
             await conn.execute(
-                "UPDATE agent_runtime.research_run SET heartbeat=now() WHERE run_id=%s",
-                (run_id,),
+                update(ResearchRun)
+                .where(ResearchRun.run_id == run_id)
+                .values(heartbeat=func.now())
             )
             await self.update(
                 conn, row, "started", {"status": "running", "lease": lease}
@@ -201,14 +206,15 @@ class Store:
 
     async def action(self, run_id, action):
         payload = action.model_dump(mode="json")
-        async with self.pool.connection() as conn, conn.transaction():
+        async with self.database.transaction() as conn:
             row = await self.row(conn, run_id, lock=True)
             previous = await conn.execute(
-                "SELECT payload FROM agent_runtime.research_action "
-                "WHERE run_id=%s AND action_id=%s",
-                (run_id, action.action_id),
+                select(ResearchAction.payload).where(
+                    ResearchAction.run_id == run_id,
+                    ResearchAction.action_id == action.action_id,
+                )
             )
-            receipt = await previous.fetchone()
+            receipt = previous.mappings().first()
             if receipt:
                 if receipt["payload"] != payload:
                     raise ResearchError("IDEMPOTENCY_CONFLICT", "动作 ID 内容不一致")
@@ -234,8 +240,9 @@ class Store:
                     raise ResearchError("INVALID_STATE", "只能替换规划失败的计划")
                 validate_plan(action.plan, row["artifacts"]["context"])
             await conn.execute(
-                "INSERT INTO agent_runtime.research_action VALUES (%s,%s,%s)",
-                (run_id, action.action_id, Jsonb(payload)),
+                insert(ResearchAction).values(
+                    run_id=run_id, action_id=action.action_id, payload=payload
+                )
             )
             changes = {
                 "status": (
@@ -251,8 +258,12 @@ class Store:
             }
             if action.kind == "retry":
                 budget = row["budget"]
-                budget["max_requests"] = max(budget["max_requests"], self.config.research_max_requests)
-                budget["max_seconds"] = max(budget["max_seconds"], self.config.research_max_seconds)
+                budget["max_requests"] = max(
+                    budget["max_requests"], self.config.research_max_requests
+                )
+                budget["max_seconds"] = max(
+                    budget["max_seconds"], self.config.research_max_seconds
+                )
                 budget["max_cny"] = max(budget["max_cny"], self.config.research_max_cny)
                 changes["budget"] = budget
             if action.kind in {"confirm_plan", "start_companies"}:
@@ -264,7 +275,7 @@ class Store:
             return await self.update(conn, row, action.kind, changes)
 
     async def reserve(self, run_id, lease, cost):
-        async with self.pool.connection() as conn, conn.transaction():
+        async with self.database.transaction() as conn:
             row = await self.row(conn, run_id, lock=True)
             if row["lease"] != lease:
                 raise ResearchError("LEASE_LOST", "执行租约已失效")
@@ -279,7 +290,7 @@ class Store:
             await self.update(conn, row, "model_reserved", {"budget": budget})
 
     async def usage(self, run_id, lease, usage, model):
-        async with self.pool.connection() as conn, conn.transaction():
+        async with self.database.transaction() as conn:
             row = await self.row(conn, run_id, lock=True)
             if row["lease"] != lease:
                 return
@@ -305,24 +316,28 @@ class Store:
             )
 
     async def heartbeat(self, run_id, lease, seconds):
-        async with self.pool.connection() as conn, conn.transaction():
+        async with self.database.transaction() as conn:
             row = await self.row(conn, run_id, lock=True)
             if row["lease"] != lease:
                 raise ResearchError("LEASE_LOST", "执行租约已失效")
             row["budget"]["elapsed_seconds"] += seconds
             await conn.execute(
-                "UPDATE agent_runtime.research_run SET heartbeat=now(),budget=%s "
-                "WHERE run_id=%s",
-                (Jsonb(row["budget"]), run_id),
+                update(ResearchRun)
+                .where(ResearchRun.run_id == run_id)
+                .values(heartbeat=func.now(), budget=row["budget"])
             )
 
     async def pending(self):
-        async with self.pool.connection() as conn, conn.transaction():
+        async with self.database.transaction() as conn:
             cursor = await conn.execute(
-                "SELECT * FROM agent_runtime.research_run WHERE status='running' "
-                "AND heartbeat < now() - interval '20 seconds' FOR UPDATE"
+                select(ResearchRun.__table__)
+                .where(
+                    ResearchRun.status == "running",
+                    ResearchRun.heartbeat < func.now() - timedelta(seconds=20),
+                )
+                .with_for_update()
             )
-            for row in await cursor.fetchall():
+            for row in [dict(r) for r in cursor.mappings()]:
                 # Charge time since heartbeat on crash; never reset a run's budget.
                 elapsed = (datetime.now(UTC) - row["heartbeat"]).total_seconds()
                 collecting = (
@@ -346,21 +361,30 @@ class Store:
                     },
                 )
             cursor = await conn.execute(
-                "SELECT run_id FROM agent_runtime.research_run WHERE status='queued' "
-                "ORDER BY created_at LIMIT 20"
+                select(ResearchRun.run_id)
+                .where(ResearchRun.status == "queued")
+                .order_by(ResearchRun.created_at)
+                .limit(20)
             )
-            return [r["run_id"] for r in await cursor.fetchall()]
+            return list(cursor.scalars())
 
     async def events(self, run_id, after):
-        async with self.pool.connection() as conn:
+        async with self.database.transaction() as conn:
             await self.row(conn, run_id)
             cursor = await conn.execute(
-                "SELECT sequence,kind,created_at,data "
-                "FROM agent_runtime.research_event "
-                "WHERE run_id=%s AND sequence>%s ORDER BY sequence LIMIT 20",
-                (run_id, after),
+                select(
+                    ResearchEvent.sequence,
+                    ResearchEvent.kind,
+                    ResearchEvent.created_at,
+                    ResearchEvent.data,
+                )
+                .where(ResearchEvent.run_id == run_id, ResearchEvent.sequence > after)
+                .order_by(ResearchEvent.sequence)
+                .limit(20)
             )
-            return json.loads(json.dumps(await cursor.fetchall(), default=str))
+            return json.loads(
+                json.dumps([dict(r) for r in cursor.mappings()], default=str)
+            )
 
 
 def validate_plan(plan, context):

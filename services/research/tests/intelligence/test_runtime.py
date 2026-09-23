@@ -19,6 +19,7 @@ from tech_scout_intelligence.models import Action, ResearchError
 from tech_scout_intelligence.runtime import Runtime
 from tech_scout_intelligence.store import DDL, Store
 from tech_scout_intelligence.workflow import build_graph
+from tech_scout_storage.database import Database
 
 DSN = os.environ.get("TEST_INTELLIGENCE_DATABASE_URL")
 pytestmark = pytest.mark.skipif(
@@ -38,22 +39,25 @@ async def setup_runtime():
         research_max_cny=1,
         research_max_seconds=300,
     )
-    async with AsyncConnectionPool[AsyncConnection[DictRow]](
-        DSN,
-        open=False,
-        kwargs={
-            "autocommit": True,
-            "prepare_threshold": 0,
-            "row_factory": dict_row,
-            "options": "-c search_path=agent_runtime",
-        },
-    ) as pool:
+    async with (
+        AsyncConnectionPool[AsyncConnection[DictRow]](
+            DSN,
+            open=False,
+            kwargs={
+                "autocommit": True,
+                "prepare_threshold": 0,
+                "row_factory": dict_row,
+                "options": "-c search_path=agent_runtime",
+            },
+        ) as pool,
+        Database(DSN) as database,
+    ):
         await pool.wait()
         async with pool.connection() as conn:
             await conn.execute(DDL, prepare=False)
         saver = AsyncPostgresSaver(pool)
         await saver.setup()
-        store = Store(pool, config)
+        store = Store(pool, config, database)
         catalog, llm = FakeAcquisition(), FakeLLM()
         graph = build_graph(llm, store, saver, catalog)
         runtime = Runtime(graph, store, config)
@@ -171,7 +175,7 @@ async def test_claim_budget_cancel_and_expired_lease(setup_runtime):
     )
     assert sum(row is not None for row in claimed) == 1
     # Inspect the winning lease rather than assuming concurrent scheduling order.
-    async with store.pool.connection() as conn:
+    async with store.database.transaction() as conn:
         row = await store.row(conn, run_id)
     lease = row["lease"]
     for _ in range(6):
@@ -298,7 +302,7 @@ async def test_cancel_running_model_never_continues(setup_runtime, monkeypatch):
 @pytest.mark.asyncio
 async def test_delete_removes_private_data_and_fences_delayed_starts(setup_runtime):
     runtime, store, _, _, saver = setup_runtime
-    acquisition = AcquisitionStore(store.pool)
+    acquisition = AcquisitionStore(store.pool, store.database)
     await acquisition.migrate()
     run_id, other_id = uuid4(), uuid4()
     await store.create(run_id, "删除研究")
@@ -340,7 +344,7 @@ async def test_delete_removes_private_data_and_fences_delayed_starts(setup_runti
 @pytest.mark.asyncio
 async def test_delete_waits_for_remote_checkpoint_writer(setup_runtime):
     _, store, _, _, _ = setup_runtime
-    acquisition = AcquisitionStore(store.pool)
+    acquisition = AcquisitionStore(store.pool, store.database)
     await acquisition.migrate()
     run_id = uuid4()
     await store.create(run_id, "正在研究")
@@ -366,7 +370,7 @@ async def test_delete_endpoint_waits_for_running_model_and_acquisition(
     setup_runtime, monkeypatch
 ):
     runtime, store, _, llm, _ = setup_runtime
-    acquisition = AcquisitionStore(store.pool)
+    acquisition = AcquisitionStore(store.pool, store.database)
     await acquisition.migrate()
     run_id = uuid4()
     entered = asyncio.Event()
@@ -454,3 +458,123 @@ async def test_search_planner_failure_restart_and_explicit_retry(setup_runtime):
     assert (await store.get(run_id)).status == "awaiting_companies"
     assert llm.calls == ["DirectionProposal", "Plan", "Plan"]
     assert catalog.reads == 1
+
+
+@pytest.mark.asyncio
+async def test_state_event_failure_rolls_back_and_preserves_json_null(setup_runtime):
+    from sqlalchemy.exc import IntegrityError
+
+    _, store, _, _, _ = setup_runtime
+    run_id = uuid4()
+    await store.create(run_id, "事务回滚")
+    original = await store.get(run_id)
+    with pytest.raises(IntegrityError):
+        await store.publish(run_id, kind=None, status="completed")
+    assert await store.get(run_id) == original
+    assert await store.events(run_id, 0) == []
+    await store.publish(run_id, error=None, command=None)
+    async with store.pool.connection() as conn:
+        row = await (
+            await conn.execute(
+                "SELECT error = 'null'::jsonb AS error_json_null, "
+                "command = 'null'::jsonb AS command_json_null "
+                "FROM agent_runtime.research_run WHERE run_id=%s",
+                (run_id,),
+            )
+        ).fetchone()
+        assert row == {"error_json_null": True, "command_json_null": True}
+    await store.begin_delete(run_id)
+    async with store.pool.connection() as conn:
+        row = await (
+            await conn.execute(
+                "SELECT command IS NULL AS command_sql_null "
+                "FROM agent_runtime.research_run WHERE run_id=%s",
+                (run_id,),
+            )
+        ).fetchone()
+        assert row["command_sql_null"]
+    assert store.database.engine.pool.checkedout() == 0
+
+
+@pytest.mark.asyncio
+async def test_acquisition_failure_rolls_back_item_fact_and_source(
+    setup_runtime, monkeypatch
+):
+    _, store, _, _, _ = setup_runtime
+    acquisition = AcquisitionStore(store.pool, store.database)
+    await acquisition.migrate()
+    run_id, key = uuid4(), "CN-ROLLBACK-" + uuid4().hex
+    await acquisition.create(run_id, {})
+
+    async def fail_projection(*args):
+        raise RuntimeError("投影写入失败")
+
+    monkeypatch.setattr(acquisition, "refresh_projection", fail_projection)
+    with pytest.raises(RuntimeError, match="投影"):
+        await acquisition.save(run_id, "patent", key, {"title": "原子写入"})
+    assert await acquisition.items(run_id, "patent") == {}
+    async with store.pool.connection() as conn:
+        assert (
+            await (
+                await conn.execute(
+                    "SELECT 1 FROM catalog_v2.patent WHERE publication_number=%s",
+                    (key,),
+                )
+            ).fetchone()
+            is None
+        )
+        assert (
+            await (
+                await conn.execute(
+                    "SELECT 1 FROM catalog_v2.record_source WHERE run_id=%s", (run_id,)
+                )
+            ).fetchone()
+            is None
+        )
+    assert store.database.engine.pool.checkedout() == 0
+
+
+@pytest.mark.asyncio
+async def test_session_lock_contention_cancellation_and_exception_release(
+    setup_runtime,
+):
+    _, store, _, _, _ = setup_runtime
+    run_id = uuid4()
+    entered = asyncio.Event()
+
+    async def hold():
+        async with store.run_lock(run_id) as acquired:
+            assert acquired
+            entered.set()
+            await asyncio.Event().wait()
+
+    task = asyncio.create_task(hold())
+    await asyncio.wait_for(entered.wait(), 5)
+    async with store.run_lock(run_id) as acquired:
+        assert not acquired
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    with pytest.raises(ValueError, match="异常退出"):
+        async with store.run_lock(run_id) as acquired:
+            assert acquired
+            raise ValueError("异常退出")
+    async with store.run_lock(run_id) as acquired:
+        assert acquired
+
+
+@pytest.mark.asyncio
+async def test_acquisition_queue_is_persisted_without_worker_sql(setup_runtime):
+    _, store, _, _, _ = setup_runtime
+    acquisition = AcquisitionStore(store.pool, store.database)
+    await acquisition.migrate()
+    run_id = uuid4()
+    await acquisition.create(run_id, {})
+    await acquisition.checkpoint(run_id, {"stage": "patents"})
+    await acquisition.requeue_interrupted()
+    job = await acquisition.get(run_id)
+    assert job is not None and job["status"] == "queued"
+    pending = await acquisition.next_pending()
+    assert pending is not None
+    job = await acquisition.get(pending)
+    assert job is not None and job["status"] == "queued"

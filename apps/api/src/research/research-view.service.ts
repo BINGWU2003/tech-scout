@@ -8,7 +8,7 @@ import {
   type ResearchViewQuery,
 } from '@tech-scout/contracts'
 import { PrismaService } from '../database/prisma.service.js'
-import { Prisma } from '../generated/prisma/client.js'
+import * as queries from './research.repository.js'
 
 // These projections deliberately allowlist fields: never return the full artifacts
 // or spread Catalog records into the browser protocol.
@@ -156,24 +156,7 @@ export class ResearchViewService {
   constructor(private readonly prisma: PrismaService) {}
 
   async summary(userId: string, id: string) {
-    const found = await this.prisma.$queryRaw<
-      Record<string, unknown>[]
-    >(Prisma.sql`
-      SELECT r.id, r.project_id AS "projectId", r.question, r.status, r.sequence,
-        r.created_at AS "createdAt", r.updated_at AS "updatedAt", r.state - 'artifacts' AS state,
-        r.state #> '{artifacts,context}' AS context,
-        r.state #> '{artifacts,acquisition}' AS acquisition,
-        r.state #>> '{artifacts,snapshot,release,release_id}' AS "snapshotReleaseId",
-        r.state #> '{artifacts,plan}' AS plan, r.state #> '{artifacts,confirmed_plan}' AS confirmed,
-        COALESCE(jsonb_array_length(r.state #> '{artifacts,assignees}'), 0) AS "queriedAssigneeCount",
-        COALESCE(jsonb_array_length(r.state #> '{artifacts,snapshot,companies}'), 0) AS "discoveredCompanyCount",
-        COALESCE(r.state #>> '{artifacts,result,workflow_version}',
-          r.state #>> '{artifacts,execution_config,workflow_version}') AS "workflowVersion",
-        r.state #> '{artifacts,result}' IS NOT NULL AS "hasResult",
-        r.state #> '{artifacts,patents}' IS NOT NULL AS "hasPatents",
-        r.state #> '{artifacts,company_leads}' IS NOT NULL AS "hasCompanies"
-      FROM app.research_run r JOIN app.research_project p ON p.id = r.project_id
-      WHERE r.id = ${id}::uuid AND p.user_id = ${userId}::uuid`)
+    const found = await queries.runSummary(this.prisma, userId, id)
     const r = found[0]
     if (!r) throw new NotFoundException('研究运行不存在')
     const s = object(r.state),
@@ -218,32 +201,7 @@ export class ResearchViewService {
       select: { id: true },
     })
     if (!owned) throw new NotFoundException('研究运行不存在')
-    const events = await this.prisma.$queryRaw<
-      Array<{
-        sequence: number
-        kind: string
-        createdAt: string
-        status: string
-        node: string | null
-        error: unknown
-        process: unknown
-        reasoning: unknown
-        answer: unknown
-        acquisition: unknown
-      }>
-    >(Prisma.sql`
-      SELECT e.sequence, e.kind, to_char(e.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS "createdAt",
-        e.data->>'status' AS status, e.data->>'node' AS node, e.data->'error' AS error,
-        CASE WHEN e.kind IN ('planner_progress', 'search_progress')
-          THEN e.data #> '{artifacts,process}' END AS process,
-        CASE WHEN e.kind = 'acquisition_progress'
-          THEN e.data #> '{artifacts,acquisition}' END AS acquisition,
-        CASE WHEN e.kind = 'reasoning_progress' OR e.data->>'status' NOT IN ('queued', 'running')
-          THEN e.data #> '{artifacts,reasoning}' END AS reasoning,
-        CASE WHEN e.kind = 'answer_progress' OR e.data->>'status' NOT IN ('queued', 'running')
-          THEN e.data #> '{artifacts,answer}' END AS answer
-      FROM app.research_event e WHERE e.run_id = ${id}::uuid AND e.sequence > ${after}
-      ORDER BY e.sequence ASC LIMIT 100`)
+    const events = await queries.runEvents(this.prisma, id, after)
     return events.map((event) => {
       const answer = researchAnswerSchema.nullable().parse(event.answer)
       if (

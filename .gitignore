@@ -20,6 +20,7 @@ dist-ssr
 !.env.example
 db.txt
 /apps/api/src/generated/prisma/
+/apps/api/src/generated/catalog/
 
 # Editor directories and files
 .vscode/*

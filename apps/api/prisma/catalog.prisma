@@ -1,0 +1,58 @@
+// Read mappings only. Python owns ingestion/catalog_v2 DDL; never migrate this schema.
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/catalog"
+}
+
+datasource db {
+  provider = "postgresql"
+  schemas  = ["ingestion", "catalog_v2"]
+}
+
+model IngestionJob {
+  runId          String         @id @map("run_id") @db.Uuid
+  plan           Json
+  target         String         @default("patents")
+  companyTargets Json           @default("[]") @map("company_targets")
+  status         String         @default("queued")
+  progress       Json           @default("{}")
+  error          Json?
+  createdAt      DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime       @default(now()) @map("updated_at") @db.Timestamptz(6)
+  sources        RecordSource[]
+
+  @@map("job")
+  @@schema("ingestion")
+}
+
+model Patent {
+  publicationNumber String   @id @map("publication_number")
+  data              Json
+  updatedAt         DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@map("patent")
+  @@schema("catalog_v2")
+}
+
+model Company {
+  companyId  String   @id @map("company_id") @db.Uuid
+  creditCode String   @unique @map("credit_code")
+  data       Json
+  updatedAt  DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@map("company")
+  @@schema("catalog_v2")
+}
+
+model RecordSource {
+  kind     String
+  recordId String       @map("record_id")
+  runId    String       @map("run_id") @db.Uuid
+  data     Json
+  job      IngestionJob @relation(fields: [runId], references: [runId], onDelete: NoAction, onUpdate: NoAction)
+
+  @@id([kind, recordId, runId])
+  @@index([runId], map: "record_source_run_idx")
+  @@map("record_source")
+  @@schema("catalog_v2")
+}

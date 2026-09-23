@@ -70,8 +70,6 @@ catalog:
   date-fns: ^4.1.0
   knip: ^6.4.1
   ky: ^2.1.0
-  kysely: ^0.29.5
-  kysely-codegen: ^0.20.0
   lucide-react: ^1.8.0
   msw: ^2.15.0
   nestjs-pino: ^5.1.0

@@ -15,6 +15,7 @@ from tech_scout_acquisition.config import settings
 from tech_scout_acquisition.store import Store
 from tech_scout_acquisition.worker import Worker
 from tech_scout_intelligence.__main__ import loop_factory
+from tech_scout_storage.database import Database
 
 MARKER = Path(__file__).resolve().parents[1] / ".local" / "acceptance.json"
 
@@ -28,13 +29,16 @@ async def run(marker):
             dbname=marker["database"],
         )
     )
-    async with AsyncConnectionPool(
-        config.acquisition_database_url.get_secret_value(),
-        open=False,
-        kwargs={"autocommit": True, "row_factory": dict_row},
-    ) as pool:
+    async with (
+        AsyncConnectionPool(
+            config.acquisition_database_url.get_secret_value(),
+            open=False,
+            kwargs={"autocommit": True, "row_factory": dict_row},
+        ) as pool,
+        Database(config.acquisition_dsn()) as database,
+    ):
         await pool.wait()
-        store = Store(pool)
+        store = Store(pool, database)
         await store.migrate()
         plan = {
             "from_year": 2016,
@@ -106,9 +110,7 @@ if __name__ == "__main__":
             "database": "tech_scout_browser_acceptance_" + uuid4().hex[:10],
             "run_id": str(uuid4()),
         }
-        with psycopg.connect(
-            settings().acquisition_dsn(), autocommit=True
-        ) as conn:
+        with psycopg.connect(settings().acquisition_dsn(), autocommit=True) as conn:
             conn.execute(
                 sql.SQL("CREATE DATABASE {}").format(sql.Identifier(marker["database"]))
             )

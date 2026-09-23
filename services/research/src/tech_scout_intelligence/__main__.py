@@ -7,6 +7,7 @@ from psycopg.rows import dict_row
 from psycopg_pool import AsyncConnectionPool
 
 from tech_scout_acquisition.store import Store as AcquisitionStore
+from tech_scout_storage.database import Database
 
 from .config import settings
 from .migrate import migrate as migrate_intelligence
@@ -32,13 +33,16 @@ def main() -> None:
 async def migrate_all():
     await migrate_intelligence()
     config = settings()
-    async with AsyncConnectionPool(
-        config.acquisition_dsn(),
-        open=False,
-        kwargs={"autocommit": True, "row_factory": dict_row},
-    ) as pool:
+    async with (
+        AsyncConnectionPool(
+            config.acquisition_dsn(),
+            open=False,
+            kwargs={"autocommit": True, "row_factory": dict_row},
+        ) as pool,
+        Database(config.acquisition_dsn()) as database,
+    ):
         await pool.wait()
-        await AcquisitionStore(pool).migrate()
+        await AcquisitionStore(pool, database).migrate()
 
 
 def cli():

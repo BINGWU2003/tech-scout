@@ -3,11 +3,12 @@ from uuid import uuid4
 
 import pytest
 from psycopg.rows import dict_row
-from psycopg_pool import AsyncConnectionPool
 from psycopg.types.json import Jsonb
+from psycopg_pool import AsyncConnectionPool
 
 from tech_scout_acquisition.models import AcquisitionBlocked
 from tech_scout_acquisition.store import Store
+from tech_scout_storage.database import Database
 
 
 @pytest.mark.asyncio
@@ -17,11 +18,14 @@ async def test_initialization_is_repeatable_without_backfilling_existing_data():
     dsn = os.environ.get("TEST_ACQUISITION_DATABASE_URL")
     if not dsn:
         pytest.skip("需要独立采集测试数据库")
-    async with AsyncConnectionPool(
-        dsn, open=False, kwargs={"autocommit": True, "row_factory": dict_row}
-    ) as pool:
+    async with (
+        AsyncConnectionPool(
+            dsn, open=False, kwargs={"autocommit": True, "row_factory": dict_row}
+        ) as pool,
+        Database(dsn) as database,
+    ):
         await pool.wait()
-        store = Store(pool)
+        store = Store(pool, database)
         await store.migrate()
         old_run, current_run = uuid4(), uuid4()
         old_job = await store.create(old_run, plan())
@@ -66,7 +70,8 @@ async def test_initialization_is_repeatable_without_backfilling_existing_data():
             assert after == before
             sources = await (
                 await conn.execute(
-                    "SELECT run_id FROM catalog_v2.record_source WHERE run_id = ANY(%s)",
+                    "SELECT run_id FROM catalog_v2.record_source "
+                    "WHERE run_id = ANY(%s)",
                     ([old_run, current_run],),
                 )
             ).fetchall()
@@ -78,16 +83,19 @@ async def test_database_idempotency_pause_and_immutable_release():
     dsn = os.environ.get("TEST_ACQUISITION_DATABASE_URL")
     if not dsn:
         pytest.skip("需要独立采集测试数据库")
-    async with AsyncConnectionPool(
-        dsn,
-        open=False,
-        kwargs={
-            "autocommit": True,
-            "row_factory": dict_row,
-        },
-    ) as pool:
+    async with (
+        AsyncConnectionPool(
+            dsn,
+            open=False,
+            kwargs={
+                "autocommit": True,
+                "row_factory": dict_row,
+            },
+        ) as pool,
+        Database(dsn) as database,
+    ):
         await pool.wait()
-        store = Store(pool)
+        store = Store(pool, database)
         await store.migrate()
         run = uuid4()
         await store.create(run, {"directions": []})
@@ -126,11 +134,14 @@ async def test_stage_gate_and_search_log_survive_store_recreation():
     dsn = os.environ.get("TEST_ACQUISITION_DATABASE_URL")
     if not dsn:
         pytest.skip("需要独立采集测试数据库")
-    async with AsyncConnectionPool(
-        dsn, open=False, kwargs={"autocommit": True, "row_factory": dict_row}
-    ) as pool:
+    async with (
+        AsyncConnectionPool(
+            dsn, open=False, kwargs={"autocommit": True, "row_factory": dict_row}
+        ) as pool,
+        Database(dsn) as database,
+    ):
         await pool.wait()
-        store = Store(pool)
+        store = Store(pool, database)
         await store.migrate()
         run, other = uuid4(), uuid4()
         assert (await store.create(run, plan()))["target"] == "patents"
@@ -140,7 +151,7 @@ async def test_stage_gate_and_search_log_survive_store_recreation():
         await store.record(other, {"message": "其他项目"})
         await store.checkpoint(run, {"stage": "patents", "completed": 0})
         await store.complete_patents(run)
-        restored = Store(pool)
+        restored = Store(pool, database)
         assert (await restored.get(run))["status"] == "awaiting_companies"
         assert await restored.snapshot(run) is None
         assert (await restored.patent_snapshot(run))["patents"] == []

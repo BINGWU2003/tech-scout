@@ -10,7 +10,6 @@ import {
 import {
   researchPlanSchema,
   researchActivityLabel,
-  type ResearchSummaryView,
   type ResearchAction,
   type ResearchCreate,
   type ResearchEvent,
@@ -21,6 +20,7 @@ import { type Action } from '../generated/intelligence/types.gen.js'
 import { Prisma, type ResearchRun } from '../generated/prisma/client.js'
 import { IntelligenceClient } from './intelligence.client.js'
 import { object } from './research-view.service.js'
+import * as queries from './research.repository.js'
 import {
   assertResearchNotCompleted,
   assertResearchPlanEditable,
@@ -104,34 +104,7 @@ export class ResearchService implements OnModuleInit, OnModuleDestroy {
   }
 
   async list(userId: string) {
-    const projects = await this.prisma.$queryRaw<
-      {
-        id: string
-        title: string
-        question: string
-        createdAt: Date
-        runId: string | null
-        sequence: number | null
-        status: string | null
-        node: string | null
-        reasoning: string | null
-        error: unknown
-        acquisition: ResearchSummaryView['acquisition']
-      }[]
-    >(Prisma.sql`
-      SELECT p.id, p.title, p.question, p.created_at AS "createdAt",
-        r.id AS "runId", r.status, r.sequence, r.state ->> 'node' AS node,
-        r.state #>> '{artifacts,reasoning,status}' AS reasoning,
-        r.state -> 'error' AS error,
-        r.state #> '{artifacts,acquisition}' AS acquisition
-      FROM app.research_project p
-      LEFT JOIN LATERAL (
-        SELECT id, status, sequence, state FROM app.research_run
-        WHERE project_id = p.id
-        ORDER BY (status IN ('queued', 'running')) DESC, created_at DESC, id DESC LIMIT 1
-      ) r ON true
-      WHERE p.user_id = ${userId}::uuid
-      ORDER BY p.created_at DESC, p.id ASC LIMIT 100`)
+    const projects = await queries.listProjects(this.prisma, userId)
     return projects.map(
       ({
         runId,
@@ -189,7 +162,7 @@ export class ResearchService implements OnModuleInit, OnModuleDestroy {
     const runIds = await this.prisma.$transaction(
       async (tx) => {
         // Use the same lock as new rounds/actions so deletion includes every run.
-        await tx.$queryRaw`SELECT id FROM app.research_project WHERE id = ${projectId}::uuid AND user_id = ${userId}::uuid FOR UPDATE`
+        await queries.lockProject(tx, projectId, userId)
         const project = await tx.researchProject.findFirst({
           where: { id: projectId, userId },
           include: { runs: { select: { id: true } } },
@@ -216,7 +189,7 @@ export class ResearchService implements OnModuleInit, OnModuleDestroy {
     const project = await this.project(userId, projectId)
     const run = await this.prisma.$transaction(async (tx) => {
       // Serialize new rounds across tabs so a project has a single active branch.
-      await tx.$queryRaw`SELECT id FROM app.research_project WHERE id = ${projectId}::uuid FOR UPDATE`
+      await queries.lockProject(tx, projectId)
       const existing = await tx.researchRun.findUnique({
         where: {
           projectId_requestKey: { projectId, requestKey: input.requestKey },
@@ -286,12 +259,7 @@ export class ResearchService implements OnModuleInit, OnModuleDestroy {
         selected.directions.some((d) => !d.keywords.length)
       )
         throw new ConflictException('每个方向至少需要一个检索关键词')
-      const messages = await tx.$queryRaw<Record<string, unknown>[]>(Prisma.sql`
-        SELECT question, state #>> '{artifacts,reply}' AS reply
-        FROM app.research_run
-        WHERE project_id = ${projectId}::uuid
-          AND COALESCE(context ->> 'startSearch', 'false') = 'false'
-        ORDER BY created_at DESC, id DESC LIMIT 20`)
+      const messages = await queries.conversationHistory(tx, projectId)
       const messageHistory = messages.reverse()
       return tx.researchRun.create({
         data: {
@@ -360,7 +328,7 @@ export class ResearchService implements OnModuleInit, OnModuleDestroy {
     const owned = await this.ownedRun(userId, runId)
     const payload: Action = { ...input, actor_id: userId }
     const command = await this.prisma.$transaction(async (tx) => {
-      await tx.$queryRaw`SELECT id FROM app.research_project WHERE id = ${owned.projectId}::uuid FOR UPDATE`
+      await queries.lockProject(tx, owned.projectId)
       const existing = await tx.researchCommand.findUnique({
         where: { id: input.action_id },
       })
@@ -460,9 +428,7 @@ export class ResearchService implements OnModuleInit, OnModuleDestroy {
       throw new Error('Event sequence mismatch')
     await this.prisma.$transaction(async (tx) => {
       // Fence late stream events against the cascading project deletion.
-      const runs = await tx.$queryRaw<
-        { id: string }[]
-      >`SELECT id FROM app.research_run WHERE id = ${state.run_id}::uuid FOR KEY SHARE`
+      const runs = await queries.lockRun(tx, state.run_id)
       if (!runs.length) return
       await tx.researchEvent.upsert({
         where: {

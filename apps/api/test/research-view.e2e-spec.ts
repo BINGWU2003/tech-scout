@@ -8,6 +8,7 @@ import { configureApp } from '../src/app.setup.js'
 import { PrismaService } from '../src/database/prisma.service.js'
 import { Prisma } from '../src/generated/prisma/client.js'
 import { IntelligenceClient } from '../src/research/intelligence.client.js'
+import * as queries from '../src/research/research.repository.js'
 
 const enabled = Boolean(process.env.TEST_DATABASE_URL)
 const plan = {
@@ -308,6 +309,28 @@ describe.skipIf(!enabled)(
         plan: null,
         status: 'queued',
       })
+    })
+
+    it('研究投影在数据库返回前裁剪材料，保留权限和活跃运行优先级', async () => {
+      const run = await prisma.researchRun.findUniqueOrThrow({
+        where: { id },
+        select: { projectId: true },
+      })
+      const results = await Promise.all([
+        queries.listProjects(prisma, users[0]),
+        queries.runSummary(prisma, users[0], id),
+        queries.workspaceRuns(prisma, run.projectId),
+        queries.conversationHistory(prisma, run.projectId),
+        queries.runEvents(prisma, id, 0),
+      ])
+      for (const result of results) {
+        expect(JSON.stringify(result)).not.toContain('NEVER_SEND')
+        expect(JSON.stringify(result).length).toBeLessThan(10000)
+      }
+      expect(
+        results[0].find((project) => project.id === run.projectId)?.runId
+      ).toBe(queuedId)
+      expect(await queries.runSummary(prisma, users[1], id)).toEqual([])
     })
 
     it('结果、专利分页和身份材料只读取本轮快照，支持依据匹配且不泄漏原始记录', async () => {

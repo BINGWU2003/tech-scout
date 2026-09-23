@@ -18,33 +18,19 @@ class Worker:
 
     async def sweep(self):
         # One browser owner across service processes, not merely one asyncio task.
-        async with self.store.pool.connection() as guard:
-            cur = await guard.execute(
-                "SELECT pg_try_advisory_lock(720260907) AS acquired"
-            )
-            if not (await cur.fetchone())["acquired"]:
+        async with self.store.browser_lock() as acquired:
+            if not acquired:
                 raise RuntimeError("已有采集服务占用专用浏览器")
-            try:
-                await guard.execute(
-                    "UPDATE ingestion.job SET status='queued' WHERE status='running'"
-                )
-                while not self.closed:
-                    cur = await guard.execute(
-                        "SELECT run_id FROM ingestion.job WHERE status='queued' "
-                        "ORDER BY created_at LIMIT 1"
-                    )
-                    row = await cur.fetchone()
-                    if row:
-                        self.active_run = row["run_id"]
-                        self.active = asyncio.create_task(
-                            self.guarded_execute(row["run_id"])
-                        )
-                        await asyncio.gather(self.active, return_exceptions=True)
-                        self.active = None
-                        self.active_run = None
-                    await asyncio.sleep(1)
-            finally:
-                await guard.execute("SELECT pg_advisory_unlock(720260907)")
+            await self.store.requeue_interrupted()
+            while not self.closed:
+                run_id = await self.store.next_pending()
+                if run_id:
+                    self.active_run = run_id
+                    self.active = asyncio.create_task(self.guarded_execute(run_id))
+                    await asyncio.gather(self.active, return_exceptions=True)
+                    self.active = None
+                    self.active_run = None
+                await asyncio.sleep(1)
 
     async def checkpoint(self, run_id, stage, count, total, **summary):
         await self.store.checkpoint(
@@ -52,18 +38,10 @@ class Worker:
         )
 
     async def guarded_execute(self, run_id):
-        async with self.store.pool.connection() as guard:
-            await guard.execute(
-                "SELECT pg_advisory_lock(hashtextextended(%s, 1))", (str(run_id),)
-            )
-            try:
-                job = await self.store.get(run_id)
-                if job and job["status"] in {"queued", "running"}:
-                    await self.execute(run_id)
-            finally:
-                await guard.execute(
-                    "SELECT pg_advisory_unlock(hashtextextended(%s, 1))", (str(run_id),)
-                )
+        async with self.store.run_lock(run_id):
+            job = await self.store.get(run_id)
+            if job and job["status"] in {"queued", "running"}:
+                await self.execute(run_id)
 
     async def execute(self, run_id):
         job = await self.store.get(run_id)

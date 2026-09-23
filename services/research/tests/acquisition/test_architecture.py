@@ -7,6 +7,7 @@ from psycopg_pool import AsyncConnectionPool
 from test_acquisition import company, patent, plan
 
 from tech_scout_acquisition.store import Store
+from tech_scout_storage.database import Database
 
 
 @pytest.mark.asyncio
@@ -14,11 +15,14 @@ async def test_cumulative_sources_partial_progress_and_frozen_snapshot():
     dsn = os.environ.get("TEST_ACQUISITION_DATABASE_URL")
     if not dsn:
         pytest.skip("独立测试数据库未配置")
-    async with AsyncConnectionPool(
-        dsn, open=False, kwargs={"autocommit": True, "row_factory": dict_row}
-    ) as pool:
+    async with (
+        AsyncConnectionPool(
+            dsn, open=False, kwargs={"autocommit": True, "row_factory": dict_row}
+        ) as pool,
+        Database(dsn) as database,
+    ):
         await pool.wait()
-        store = Store(pool)
+        store = Store(pool, database)
         await store.migrate()
         first, second = uuid4(), uuid4()
         await store.create(first, plan())

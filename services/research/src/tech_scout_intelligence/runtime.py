@@ -51,20 +51,9 @@ class Runtime:
 
     async def execute(self, run_id):
         # A session lock fences checkpoint writers even during lease handover.
-        async with self.store.pool.connection() as guard:
-            cursor = await guard.execute(
-                "SELECT pg_try_advisory_lock(hashtextextended(%s, 0)) AS acquired",
-                (str(run_id),),
-            )
-            if not (await cursor.fetchone())["acquired"]:
-                return
-            try:
+        async with self.store.run_lock(run_id) as acquired:
+            if acquired:
                 await self._execute(run_id)
-            finally:
-                await guard.execute(
-                    "SELECT pg_advisory_unlock(hashtextextended(%s, 0))",
-                    (str(run_id),),
-                )
 
     async def _execute(self, run_id):
         lease = uuid4()

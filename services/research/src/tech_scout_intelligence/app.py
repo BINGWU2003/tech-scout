@@ -13,6 +13,7 @@ from psycopg_pool import AsyncConnectionPool
 
 from tech_scout_acquisition.store import Store as AcquisitionStore
 from tech_scout_acquisition.worker import Worker
+from tech_scout_storage.database import Database
 
 from .acquisition import Acquisition
 from .config import settings
@@ -27,6 +28,8 @@ from .workflow import build_graph
 async def lifespan(app):
     config = settings()
     async with (
+        Database(config.intelligence_database_url.get_secret_value()) as database,
+        Database(config.acquisition_dsn()) as acquisition_database,
         AsyncConnectionPool[AsyncConnection[DictRow]](
             config.intelligence_database_url.get_secret_value(),
             open=False,
@@ -45,11 +48,11 @@ async def lifespan(app):
     ):
         await pool.wait()
         await acquisition_pool.wait()
-        acquisition_store = AcquisitionStore(acquisition_pool)
+        acquisition_store = AcquisitionStore(acquisition_pool, acquisition_database)
         await acquisition_store.migrate()
         acquisition_worker = Worker(acquisition_store, config)
         acquisition_sweeper = asyncio.create_task(acquisition_worker.sweep())
-        store = Store(pool, config)
+        store = Store(pool, config, database)
         saver = AsyncPostgresSaver(pool)
         graph = build_graph(
             DeepSeek(config, store),
