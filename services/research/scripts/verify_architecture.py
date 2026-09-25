@@ -8,29 +8,27 @@ from pathlib import Path
 from uuid import uuid4
 
 import psycopg
+from database_test_config import require_test_database_url, with_database
 from psycopg import sql
-from psycopg.conninfo import make_conninfo
-
-from tech_scout_acquisition.config import settings
 
 ROOT = Path(__file__).resolve().parents[3]
 
 
 def main():
     database = "tech_scout_architecture_" + uuid4().hex[:12] + "_test"
-    base = settings().acquisition_dsn()
+    base = require_test_database_url()
     with psycopg.connect(base, autocommit=True) as conn:
         conn.execute(sql.SQL("CREATE DATABASE {}").format(sql.Identifier(database)))
-    dsn = make_conninfo(base, dbname=database)
+    dsn = with_database(base, database)
     with psycopg.connect(dsn) as conn:
         for migration in sorted(
             (ROOT / "apps/api/prisma/migrations").glob("*/migration.sql")
         ):
             conn.execute(migration.read_text(encoding="utf-8"))
         tree = ast.parse(
-            (
-                ROOT / "services/research/src/tech_scout_intelligence/store.py"
-            ).read_text(encoding="utf-8")
+            (ROOT / "services/research/src/tech_scout_intelligence/store.py").read_text(
+                encoding="utf-8"
+            )
         )
         for node in tree.body:
             if isinstance(node, ast.Assign) and any(
@@ -48,8 +46,7 @@ def main():
     env = {
         **os.environ,
         "PYTHONUTF8": "1",
-        "TEST_ACQUISITION_DATABASE_URL": dsn,
-        "TEST_INTELLIGENCE_DATABASE_URL": dsn,
+        "TEST_DATABASE_URL": dsn,
     }
     subprocess.run(
         [
@@ -64,20 +61,6 @@ def main():
         cwd=ROOT,
         env=env,
         check=True,
-    )
-    # pg (Node) requires a URL; construct it without displaying credentials.
-    from urllib.parse import quote
-
-    from psycopg.conninfo import conninfo_to_dict
-
-    parts = conninfo_to_dict(dsn)
-    user = quote(parts.get("user", ""), safe="")
-    password = quote(parts.get("password", ""), safe="")
-    host = parts.get("host", "localhost")
-    port = parts.get("port", "5432")
-    url = f"postgresql://{user}:{password}@{host}:{port}/{database}"
-    env.update(
-        TEST_DATABASE_URL=url, TEST_CATALOG_DATABASE_URL=url, CATALOG_DATABASE_URL=url
     )
     subprocess.run(
         [

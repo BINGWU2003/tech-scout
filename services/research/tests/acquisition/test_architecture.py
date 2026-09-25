@@ -12,7 +12,7 @@ from tech_scout_storage.database import Database
 
 @pytest.mark.asyncio
 async def test_cumulative_sources_partial_progress_and_frozen_snapshot():
-    dsn = os.environ.get("TEST_ACQUISITION_DATABASE_URL")
+    dsn = os.environ.get("TEST_DATABASE_URL")
     if not dsn:
         pytest.skip("独立测试数据库未配置")
     async with (

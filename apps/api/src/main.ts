@@ -1,12 +1,13 @@
-import { existsSync } from 'node:fs'
-import { loadEnvFile } from 'node:process'
 import { NestFactory } from '@nestjs/core'
 import { AppModule } from './app.module.js'
 import { configureApp } from './app.setup.js'
+import {
+  loadDatabaseEnvironment,
+  loadServiceEnvironment,
+} from './environment.js'
 
-if (existsSync(new URL('../.env', import.meta.url))) {
-  loadEnvFile(new URL('../.env', import.meta.url))
-}
+loadDatabaseEnvironment()
+loadServiceEnvironment()
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule)

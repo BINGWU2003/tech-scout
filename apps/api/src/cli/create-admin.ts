@@ -1,13 +1,14 @@
-import { existsSync } from 'node:fs'
-import { loadEnvFile } from 'node:process'
 import { registerSchema } from '@tech-scout/contracts'
 import { argon2id, hash } from 'argon2'
 import { assertUsernameAllowed } from '../auth/auth.service.js'
 import { PrismaService } from '../database/prisma.service.js'
+import {
+  loadDatabaseEnvironment,
+  loadServiceEnvironment,
+} from '../environment.js'
 
-if (existsSync(new URL('../../.env', import.meta.url))) {
-  loadEnvFile(new URL('../../.env', import.meta.url))
-}
+loadDatabaseEnvironment()
+loadServiceEnvironment()
 
 const parsed = registerSchema.safeParse({
   username: process.env.ADMIN_BOOTSTRAP_USERNAME,

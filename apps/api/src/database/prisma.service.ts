@@ -1,14 +1,7 @@
 import { Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common'
 import { PrismaPg } from '@prisma/adapter-pg'
+import { databaseUrl } from '../environment.js'
 import { PrismaClient } from '../generated/prisma/client.js'
-
-function databaseUrl(): string {
-  const value = process.env.DATABASE_URL
-  if (!value) {
-    throw new Error('DATABASE_URL is required')
-  }
-  return value
-}
 
 @Injectable()
 export class PrismaService

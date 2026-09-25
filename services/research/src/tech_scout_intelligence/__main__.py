@@ -35,11 +35,11 @@ async def migrate_all():
     config = settings()
     async with (
         AsyncConnectionPool(
-            config.acquisition_dsn(),
+            config.database_url.get_secret_value(),
             open=False,
             kwargs={"autocommit": True, "row_factory": dict_row},
         ) as pool,
-        Database(config.acquisition_dsn()) as database,
+        Database(config.database_url.get_secret_value()) as database,
     ):
         await pool.wait()
         await AcquisitionStore(pool, database).migrate()

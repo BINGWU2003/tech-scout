@@ -4,15 +4,17 @@ from pathlib import Path
 from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+SERVICE_ENV = Path(__file__).resolve().parents[2] / ".env"
+DATABASE_ENV = Path(__file__).resolve().parents[4] / ".env"
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=Path(__file__).resolve().parents[2] / ".env",
+        env_file=(SERVICE_ENV, DATABASE_ENV),
         extra="ignore",
     )
-    intelligence_database_url: SecretStr
+    database_url: SecretStr
     intelligence_internal_token: SecretStr = Field(min_length=32)
-    acquisition_database_url: SecretStr | None = None
     acquisition_profile_dir: Path = Path.home() / ".tech-scout" / "browser-profile"
     acquisition_interval_seconds: float = Field(default=5, ge=5)
     acquisition_company_cache_days: int = Field(default=30, ge=1)
@@ -28,11 +30,6 @@ class Settings(BaseSettings):
     research_output_cny_per_million: float = Field(default=9, gt=0)
     research_model_timeout_seconds: int = Field(default=60, ge=1, le=300)
     research_max_parallel: int = Field(default=2, ge=1, le=10)
-
-    def acquisition_dsn(self):
-        return (
-            self.acquisition_database_url or self.intelligence_database_url
-        ).get_secret_value()
 
     def execution_policy(self):
         return {

@@ -6,12 +6,13 @@ from pathlib import Path
 from uuid import uuid4
 
 import psycopg
+from database_test_config import require_test_database_url, with_database
 from psycopg import sql
-from psycopg.conninfo import make_conninfo
 from psycopg.rows import dict_row
 from psycopg_pool import AsyncConnectionPool
+from pydantic import SecretStr
 
-from tech_scout_acquisition.config import settings
+from tech_scout_acquisition.config import Settings
 from tech_scout_acquisition.store import Store
 from tech_scout_acquisition.worker import Worker
 from tech_scout_intelligence.__main__ import loop_factory
@@ -21,21 +22,18 @@ MARKER = Path(__file__).resolve().parents[1] / ".local" / "acceptance.json"
 
 
 async def run(marker):
-    config = settings()
-    secret_type = type(config.intelligence_database_url)
-    config.acquisition_database_url = secret_type(
-        make_conninfo(
-            config.acquisition_dsn(),
-            dbname=marker["database"],
+    config = Settings(
+        database_url=SecretStr(
+            with_database(require_test_database_url(), marker["database"])
         )
     )
     async with (
         AsyncConnectionPool(
-            config.acquisition_database_url.get_secret_value(),
+            config.database_url.get_secret_value(),
             open=False,
             kwargs={"autocommit": True, "row_factory": dict_row},
         ) as pool,
-        Database(config.acquisition_dsn()) as database,
+        Database(config.database_url.get_secret_value()) as database,
     ):
         await pool.wait()
         store = Store(pool, database)
@@ -102,15 +100,16 @@ async def run(marker):
 
 
 if __name__ == "__main__":
+    base = require_test_database_url()
     MARKER.parent.mkdir(parents=True, exist_ok=True)
     if MARKER.exists():
         marker = json.loads(MARKER.read_text(encoding="utf-8"))
     else:
         marker = {
-            "database": "tech_scout_browser_acceptance_" + uuid4().hex[:10],
+            "database": "tech_scout_browser_acceptance_" + uuid4().hex[:10] + "_test",
             "run_id": str(uuid4()),
         }
-        with psycopg.connect(settings().acquisition_dsn(), autocommit=True) as conn:
+        with psycopg.connect(base, autocommit=True) as conn:
             conn.execute(
                 sql.SQL("CREATE DATABASE {}").format(sql.Identifier(marker["database"]))
             )

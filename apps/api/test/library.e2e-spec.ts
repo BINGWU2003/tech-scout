@@ -9,10 +9,7 @@ import { configureApp } from '../src/app.setup.js'
 import { CatalogPrismaService } from '../src/database/catalog-prisma.service.js'
 import { LibraryRepository } from '../src/library/library.repository.js'
 
-const suite =
-  process.env.TEST_DATABASE_URL && process.env.TEST_CATALOG_DATABASE_URL
-    ? describe
-    : describe.skip
+const suite = process.env.TEST_DATABASE_URL ? describe : describe.skip
 suite('累计数据库（端到端）', () => {
   let app: INestApplication, pool: Pool
   const first = randomUUID(),
@@ -21,10 +18,9 @@ suite('累计数据库（端到端）', () => {
     other = patent + 'B'
   beforeAll(async () => {
     process.env.DATABASE_URL = process.env.TEST_DATABASE_URL
-    process.env.CATALOG_DATABASE_URL = process.env.TEST_CATALOG_DATABASE_URL
     process.env.WEB_ORIGIN = 'http://localhost:5173'
     process.env.SESSION_COOKIE_SECURE = 'false'
-    pool = new Pool({ connectionString: process.env.TEST_CATALOG_DATABASE_URL })
+    pool = new Pool({ connectionString: process.env.TEST_DATABASE_URL })
     for (const [id, status] of [
       [first, 'completed'],
       [second, 'paused'],

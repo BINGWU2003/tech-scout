@@ -12,7 +12,7 @@ from .store import DDL
 
 async def migrate():
     async with await AsyncConnection[DictRow].connect(
-        settings().intelligence_database_url.get_secret_value(),
+        settings().database_url.get_secret_value(),
         autocommit=True,
         prepare_threshold=0,
         row_factory=dict_row,

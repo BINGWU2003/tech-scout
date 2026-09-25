@@ -85,7 +85,6 @@ describe.skipIf(!enabled)(
       const url = new URL(process.env.TEST_DATABASE_URL!)
       if (!url.pathname.endsWith('_test')) throw new Error('必须使用独立测试库')
       process.env.DATABASE_URL = process.env.TEST_DATABASE_URL
-      process.env.CATALOG_DATABASE_URL = process.env.TEST_DATABASE_URL
       process.env.WEB_ORIGIN = 'http://localhost:5173'
       process.env.SESSION_COOKIE_SECURE = 'false'
       const module = await Test.createTestingModule({ imports: [AppModule] })

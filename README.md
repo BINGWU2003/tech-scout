@@ -21,9 +21,9 @@
 
 ## 本地启动
 
-需要 Node.js 24、pnpm 10、Python 3.13、uv、PostgreSQL 和 Chrome。按各服务的 `.env.example` 配置数据库、内部服务令牌及模型服务。
+需要 Node.js 24、pnpm 10、Python 3.13、uv 和 Chrome。数据库使用 Supabase 的 `tech-scout` 项目（PostgreSQL），按各服务的 `.env.example` 配置数据库、内部服务令牌及模型服务。数据库连接、权限与回退说明见 [Supabase 数据库](docs/supabase.md)。本地数据库集成测试仍需独立 PostgreSQL 测试库。
 
-环境配置按服务统一管理：`apps/api` 和 `services/research` 各只使用 `.env`（本地实际配置，不提交）与 `.env.example`（可提交的配置模板）。研究与浏览器采集共用 `services/research/.env`，进程环境变量优先于文件。可选的 `TEST_*` 变量也放在对应服务的 `.env`；数据库测试只读取测试变量，不会回退到日常使用的数据库连接。示例中的测试配置默认注释，启用时必须指向独立测试库。
+数据库只在仓库根目录 `.env` 配置一个 `DATABASE_URL`，参考根目录 `.env.example`；API、Python 及迁移命令共用该连接，`app`、`agent_runtime`、`ingestion`、`catalog_v2` 的选择写在代码中。API 其他配置放在 `apps/api/.env`，研究、模型和浏览器采集配置放在 `services/research/.env`。各目录均提供 `.env.example`，实际 `.env` 不提交，进程环境变量优先于文件。
 
 ```powershell
 pnpm install
@@ -43,13 +43,13 @@ pnpm dev:research
 
 前端默认端口 8848，API 3000，统一研究服务 8001。前端使用同源 `/api` 代理；访问地址需与 API 的 `WEB_ORIGIN` 一致。
 
-API 的 `CATALOG_DATABASE_URL` 现在仅表示累计数据库的只读连接，需要 `ingestion`、`catalog_v2` 的 USAGE/SELECT 权限。保留变量名便于现有本机配置使用，不再支持旧 Catalog 数据源模式。
+API 的资料库查询也使用共用连接，但通过独立连接池设置默认只读事务和 10 秒语句超时；Prisma 的模型映射明确指定 `ingestion`、`catalog_v2`。
 
 ## 验证
 
 ```powershell
 pnpm validate
-uv run --project services/research python services/research/scripts/verify_architecture.py
+pnpm test:research
 ```
 
-第二条命令创建独立测试数据库，验证采集持久化、研究确认/恢复、清理保护和 API。测试数据库名称记录在被 Git 忽略的 `.local/architecture-test.json`，不会导入正式库。真实网页验收另见 [采集说明](docs/browser-acquisition.md)。
+当前没有测试数据库，不需要配置测试连接。单元测试照常运行，依赖数据库的用例自动跳过；不会使用业务 `DATABASE_URL` 执行这些测试。将来启用数据库集成测试时，需显式提供指向独立 `_test` 数据库的 `TEST_DATABASE_URL`。架构回归及真实网页验收脚本也要求该独立连接，缺失时直接退出。真实网页验收另见 [采集说明](docs/browser-acquisition.md)。

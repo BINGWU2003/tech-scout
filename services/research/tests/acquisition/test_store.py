@@ -15,7 +15,7 @@ from tech_scout_storage.database import Database
 async def test_initialization_is_repeatable_without_backfilling_existing_data():
     from test_acquisition import company, patent, plan
 
-    dsn = os.environ.get("TEST_ACQUISITION_DATABASE_URL")
+    dsn = os.environ.get("TEST_DATABASE_URL")
     if not dsn:
         pytest.skip("需要独立采集测试数据库")
     async with (
@@ -80,7 +80,7 @@ async def test_initialization_is_repeatable_without_backfilling_existing_data():
 
 @pytest.mark.asyncio
 async def test_database_idempotency_pause_and_immutable_release():
-    dsn = os.environ.get("TEST_ACQUISITION_DATABASE_URL")
+    dsn = os.environ.get("TEST_DATABASE_URL")
     if not dsn:
         pytest.skip("需要独立采集测试数据库")
     async with (
@@ -131,7 +131,7 @@ async def test_database_idempotency_pause_and_immutable_release():
 async def test_stage_gate_and_search_log_survive_store_recreation():
     from test_acquisition import plan
 
-    dsn = os.environ.get("TEST_ACQUISITION_DATABASE_URL")
+    dsn = os.environ.get("TEST_DATABASE_URL")
     if not dsn:
         pytest.skip("需要独立采集测试数据库")
     async with (

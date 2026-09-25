@@ -28,10 +28,10 @@ from .workflow import build_graph
 async def lifespan(app):
     config = settings()
     async with (
-        Database(config.intelligence_database_url.get_secret_value()) as database,
-        Database(config.acquisition_dsn()) as acquisition_database,
+        Database(config.database_url.get_secret_value()) as database,
+        Database(config.database_url.get_secret_value()) as acquisition_database,
         AsyncConnectionPool[AsyncConnection[DictRow]](
-            config.intelligence_database_url.get_secret_value(),
+            config.database_url.get_secret_value(),
             open=False,
             kwargs={
                 "autocommit": True,
@@ -41,7 +41,7 @@ async def lifespan(app):
             },
         ) as pool,
         AsyncConnectionPool(
-            config.acquisition_dsn(),
+            config.database_url.get_secret_value(),
             open=False,
             kwargs={"autocommit": True, "row_factory": dict_row},
         ) as acquisition_pool,

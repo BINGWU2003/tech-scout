@@ -74,8 +74,6 @@ describeDb('阶段 2 产品 API：所有权、幂等与持久化', () => {
   }
   beforeAll(async () => {
     process.env.DATABASE_URL = process.env.TEST_DATABASE_URL
-    process.env.CATALOG_DATABASE_URL =
-      process.env.TEST_CATALOG_DATABASE_URL ?? process.env.TEST_DATABASE_URL
     process.env.WEB_ORIGIN = 'http://localhost:5173'
     const module = await Test.createTestingModule({ imports: [AppModule] })
       .overrideProvider(IntelligenceClient)
@@ -152,14 +150,12 @@ describeDb('阶段 2 产品 API：所有权、幂等与持久化', () => {
     expect(deleted.body).toEqual({ deleted: true, runIds: [runId] })
     await owner.agent.get(url).expect(404)
     await owner.agent.get(`/api/v1/research/runs/${runId}`).expect(404)
-    await app
-      .get(ResearchService)
-      .receive({
-        sequence: state.sequence,
-        kind: 'state',
-        created_at: new Date().toISOString(),
-        data: state,
-      })
+    await app.get(ResearchService).receive({
+      sequence: state.sequence,
+      kind: 'state',
+      created_at: new Date().toISOString(),
+      data: state,
+    })
     expect(await prisma.researchEvent.count({ where: { runId } })).toBe(0)
     await owner.agent
       .delete(url)

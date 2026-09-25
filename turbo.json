@@ -1,6 +1,7 @@
 {
   "$schema": "https://turborepo.dev/schema.json",
-  "globalDependencies": [".node-version"],
+  "globalDependencies": [".node-version", ".env", "apps/api/.env"],
+  "globalPassThroughEnv": ["DATABASE_URL"],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
@@ -9,16 +10,15 @@
     "test": {
       "dependsOn": ["^build"],
       "outputs": [],
-      "env": ["CI", "VITEST_BROWSER_CHANNEL", "CATALOG_DATABASE_URL"]
+      "env": ["CI", "VITEST_BROWSER_CHANNEL"]
     },
     "test:e2e": {
       "dependsOn": ["^build"],
       "outputs": [],
       "env": [
-        "DATABASE_URL",
-        "CATALOG_DATABASE_URL",
         "TEST_DATABASE_URL",
-        "TEST_CATALOG_DATABASE_URL",
+        "TEST_INTELLIGENCE_URL",
+        "TEST_INTELLIGENCE_INTERNAL_TOKEN",
         "WEB_ORIGIN",
         "SESSION_COOKIE_SECURE"
       ]

@@ -18,7 +18,7 @@
 - 复制 `services/research/.env.example` 为 `.env`，配置研究与采集数据库连接、内部令牌及模型服务。
 - 网页采集是唯一数据来源，不需要来源模式开关。
 - `pnpm migrate:research` 初始化 `agent_runtime`、`ingestion` 和 `catalog_v2` schema。
-- 给 `CATALOG_DATABASE_URL` 中的只读角色授予新 schema 的 USAGE 和表 SELECT 权限。连接必须指向同一数据库。
+- API 与 Python 共用根目录 `DATABASE_URL`；业务角色需具备新 schema 的权限，API 资料库查询连接保持默认只读事务。
 - Google Patents 的检索结果由页面脚本加载，因此专利采集使用专用 Chrome；无需登录，也不访问 PDF 下载入口。天眼查企业查询通过同一浏览器上下文调用公开 JSON 接口。
 - 分别启动 `pnpm dev:research`、`pnpm dev`。
 
@@ -43,7 +43,7 @@ Google Patents 列表与详情中的中国企业申请人分别保留。统一�
 ## 验证
 
 - `pnpm test:research`：Google Patents 网页结构、中国专利/企业过滤、Top 20 权利人、Top 5 候选、Agent 映射校验、100 条中断恢复及研究工作流。
-- 在 `services/research/.env` 或进程环境中配置指向**独立测试库**的 `TEST_ACQUISITION_DATABASE_URL` 后运行上述测试，可验证真实数据库唯一性、暂停以及快照不可变性。进程环境优先，不配置时跳过数据库测试。
+- 当前不配置测试库，数据库用例自动跳过。将来显式提供指向**独立测试库**的 `TEST_DATABASE_URL` 后，可验证真实数据库唯一性、暂停以及快照不可变性；数据库名必须以 `_test` 结尾，不能使用业务连接。验收脚本只接受进程环境中的该测试连接，并要求它有创建隔离验收库的权限。
 - `uv run --project services/research pytest services/research/tests/intelligence` 包含空库计划确认门禁测试。
 - `pnpm validate` 检查 TypeScript 契约、页面、API 和构建。未配置相应独立数据库的端到端测试会跳过，不能视为已通过。
 

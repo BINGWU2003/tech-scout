@@ -1,10 +1,7 @@
-import { existsSync } from 'node:fs'
-import { loadEnvFile } from 'node:process'
 import { defineConfig } from 'prisma/config'
+import { loadDatabaseEnvironment } from './src/environment.js'
 
-if (existsSync(new URL('.env', import.meta.url))) {
-  loadEnvFile(new URL('.env', import.meta.url))
-}
+loadDatabaseEnvironment()
 
 // Prisma CLI also uses the connection's default schema for migration history.
 // Keep this aligned with the runtime adapter and @@schema("app"), while .env

@@ -15,7 +15,7 @@ from tech_scout_intelligence.models import Plan, ResearchError
 def config(**overrides):
     return Settings(
         _env_file=None,  # pyright: ignore[reportCallIssue]
-        intelligence_database_url="postgresql://unused",
+        database_url="postgresql://unused",
         intelligence_internal_token="test-token-" * 4,
         deepseek_api_key="test-key",
         **overrides,

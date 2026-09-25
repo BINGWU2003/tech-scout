@@ -21,19 +21,19 @@ from tech_scout_intelligence.store import DDL, Store
 from tech_scout_intelligence.workflow import build_graph
 from tech_scout_storage.database import Database
 
-DSN = os.environ.get("TEST_INTELLIGENCE_DATABASE_URL")
+DSN = os.environ.get("TEST_DATABASE_URL")
 pytestmark = pytest.mark.skipif(
-    not DSN, reason="独立 TEST_INTELLIGENCE_DATABASE_URL 未配置"
+    not DSN, reason="独立 TEST_DATABASE_URL 未配置"
 )
 
 
 @pytest_asyncio.fixture
 async def setup_runtime():
     if DSN is None:
-        pytest.skip("独立 TEST_INTELLIGENCE_DATABASE_URL 未配置")
+        pytest.skip("独立 TEST_DATABASE_URL 未配置")
     config = Settings(
         _env_file=None,  # pyright: ignore[reportCallIssue]
-        intelligence_database_url=DSN,
+        database_url=DSN,
         intelligence_internal_token="test-token-" * 4,
         research_max_requests=6,
         research_max_cny=1,

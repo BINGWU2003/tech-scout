@@ -6,9 +6,7 @@ import { AppModule } from '../src/app.module.js'
 import { configureApp } from '../src/app.setup.js'
 
 const enabled = Boolean(
-  process.env.TEST_INTELLIGENCE_URL &&
-  process.env.TEST_DATABASE_URL &&
-  process.env.TEST_CATALOG_DATABASE_URL
+  process.env.TEST_INTELLIGENCE_URL && process.env.TEST_DATABASE_URL
 )
 const describeChain = enabled ? describe : describe.skip
 describeChain(
@@ -17,7 +15,6 @@ describeChain(
     let app: INestApplication
     beforeAll(async () => {
       process.env.DATABASE_URL = process.env.TEST_DATABASE_URL
-      process.env.CATALOG_DATABASE_URL = process.env.TEST_CATALOG_DATABASE_URL
       process.env.INTELLIGENCE_URL = process.env.TEST_INTELLIGENCE_URL
       process.env.INTELLIGENCE_INTERNAL_TOKEN =
         process.env.TEST_INTELLIGENCE_INTERNAL_TOKEN

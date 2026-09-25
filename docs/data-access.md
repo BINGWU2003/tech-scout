@@ -23,9 +23,9 @@
 
 ## Node API
 
-- `PrismaService` 管理 `app` schema，继续使用 `DATABASE_URL` 与原有迁移历史。
-- `CatalogPrismaService` 只读访问 Python 管理的资料库，使用 `CATALOG_DATABASE_URL`、最多 5 个连接、默认只读事务和 10 秒语句超时。
-- 资料库使用独立 `catalog.prisma`、客户端输出目录及 `prisma.catalog.config.ts`。该配置仅用于生成/校验；**不得对它执行 migrate 或 db push**。生产连接继续使用数据库只读角色。
+- API 与 Python 共用仓库根目录 `.env` 的唯一 `DATABASE_URL`。`PrismaService` 在代码中选择 `app` schema，保留原有迁移历史；Prisma CLI 在配置代码中附加 `schema=app`，不要求在环境变量中指定 schema。
+- `CatalogPrismaService` 使用同一个 URL，只读访问 Python 管理的资料库，最多 5 个连接、默认只读事务和 10 秒语句超时。
+- 资料库使用独立 `catalog.prisma`、客户端输出目录及 `prisma.catalog.config.ts`。该配置仅用于生成/校验；**不得对它执行 migrate 或 db push**。共用业务账号具备跨 schema 权限，查询连接通过只读事务限制写入，不再以不同登录账号隔离服务。
 - `prisma:generate`、`prisma:validate`、构建与测试覆盖两个客户端；`prisma:migrate` 仍只操作 `app`。
 - 普通访问使用模型 API；JSONB 字段投影、正文裁剪、聚合、活跃运行优先排序与行锁保留参数化 `$queryRaw`。
 - 研究原生查询集中在 `research.repository.ts`，资料库查询集中在 `LibraryRepository`。行锁必须传入当前事务客户端，不能改用根客户端。
@@ -34,11 +34,11 @@
 
 ## 迁移与验证
 
-本次没有表结构或数据迁移。Python 初始化继续使用原有 DDL 与 `pnpm migrate:research`；LangGraph 自行管理 checkpoint 表。
+数据库托管与账号迁移说明见 [Supabase 数据库](supabase.md)。Python 初始化继续使用原有 DDL 与 `pnpm migrate:research`；LangGraph 自行管理 checkpoint 表。
 不使用 `create_all()`，不把 Python 管理的 schema 纳入 app 迁移。
-回退只需恢复旧代码及依赖，无需回滚表结构。
+数据库切换回退需停止服务并恢复原连接配置，切换后新增的数据需单独处理。
 
-测试必须使用独立 PostgreSQL 数据库：Python 配置 `TEST_INTELLIGENCE_DATABASE_URL`、`TEST_ACQUISITION_DATABASE_URL`；API 配置 `TEST_DATABASE_URL`、`TEST_CATALOG_DATABASE_URL`。
+当前没有测试数据库。数据库用例只读取可选的 `TEST_DATABASE_URL`，未配置时跳过，不回退到业务连接。启用时 URL 必须指向名称以 `_test` 结尾的独立 PostgreSQL 数据库。
 资料库夹具用测试写入连接准备，运行时 Prisma 连接仍启用只读配置。
 现有部分采集夹具使用固定业务键，完整回归应从新建测试库开始。
 
