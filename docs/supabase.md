@@ -1,4 +1,6 @@
-# Supabase 数据库
+# Supabase 数据库（历史记录）
+
+> 2026-09-26 已迁移至 Neon；下文是旧部署记录，不再代表当前配置。当前连接与运行限制见 [Neon 数据库](neon.md)。
 
 业务数据库使用 Supabase 的 `tech-scout` 项目（`kuztkaiftsgkzhweamdn`，东京区域）。NestJS 继续负责登录和权限，Python 继续执行研究与采集，前端通过现有后端接口访问数据。
 

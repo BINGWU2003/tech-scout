@@ -13,6 +13,8 @@ uv run --project services/research pytest services/research/tests
 
 数据库连接使用仓库根目录 `.env` 中唯一的 `DATABASE_URL`，其余配置见本目录 `.env.example`。本服务在代码中明确写入 `agent_runtime`、`ingestion` 和 `catalog_v2`，产品投影由 NestJS 写入 `app`。详细结构见 [架构](../../docs/architecture.md)。
 
+Neon 连接池模式下，研究服务必须单进程、单副本运行；重启时先停旧进程，避免实例重叠。会话锁已移除，事务锁仍保留。先运行 `pnpm migrate:research` 初始化角色默认 schema，再启动服务，详见 [数据库说明](../../docs/neon.md)。
+
 `pnpm dev:research` 会先初始化当前数据库结构再启动服务；初始化可重复执行，不回填历史研究数据。直接使用 `uv run --project services/research start` 启动或部署服务时，仍需先执行 `pnpm migrate:research`。
 
 删除研究任务会停止运行、等待研究及采集写入退出，并清除该任务的运行状态、事件、检查点和采集快照。共享公司、专利和查询缓存保留；`agent_runtime.deleted_run` 只保留已删除运行的 UUID，防止延迟到达的启动请求重建任务。

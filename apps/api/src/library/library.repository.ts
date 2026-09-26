@@ -21,10 +21,12 @@ export class LibraryRepository {
   constructor(private readonly catalog: CatalogPrismaService) {}
 
   async runs() {
-    const jobs = await this.catalog.ingestionJob.findMany({
-      select: { runId: true, status: true, plan: true },
-      orderBy: [{ createdAt: 'desc' }, { runId: 'desc' }],
-    })
+    const jobs = await this.catalog.read((db) =>
+      db.ingestionJob.findMany({
+        select: { runId: true, status: true, plan: true },
+        orderBy: [{ createdAt: 'desc' }, { runId: 'desc' }],
+      })
+    )
     return libraryRunsSchema.parse(
       jobs.map(({ runId, status, plan }) => ({
         runId,
@@ -80,13 +82,17 @@ export class LibraryRepository {
     const where = Prisma.sql`WHERE (strpos(lower(f.data->>${name}::text),lower(${q.query}::text))>0 OR strpos(lower(${key}::text),lower(${q.query}::text))>0)
       AND (${q.runId ?? null}::uuid IS NULL OR EXISTS(SELECT 1 FROM catalog_v2.record_source s WHERE s.kind=${kind} AND s.record_id=${key}::text AND s.run_id=${q.runId ?? null}::uuid))`
     const [count, result] = await Promise.all([
-      this.catalog.$queryRaw<{ n: number }[]>(
-        Prisma.sql`SELECT count(*)::int AS n FROM ${table} f ${where}`
+      this.catalog.read((db) =>
+        db.$queryRaw<{ n: number }[]>(
+          Prisma.sql`SELECT count(*)::int AS n FROM ${table} f ${where}`
+        )
       ),
-      this.catalog.$queryRaw<LibraryRow[]>(Prisma.sql`
+      this.catalog.read((db) =>
+        db.$queryRaw<LibraryRow[]>(Prisma.sql`
         SELECT ${key}::text AS id, f.data - 'abstract' - 'claims' - 'description' - 'html' - 'raw_html' AS data, f.updated_at,
         ${this.sources(kind, key)} FROM ${table} f ${where}
-        ORDER BY f.updated_at DESC,${key} LIMIT ${q.pageSize} OFFSET ${(q.page - 1) * q.pageSize}`),
+        ORDER BY f.updated_at DESC,${key} LIMIT ${q.pageSize} OFFSET ${(q.page - 1) * q.pageSize}`)
+      ),
     ])
     return libraryListSchema.parse({
       items: result.map((r) => this.record(r)),
@@ -98,9 +104,11 @@ export class LibraryRepository {
 
   async detail(kind: Kind, id: string) {
     const { table, key } = this.config(kind)
-    const rows = await this.catalog.$queryRaw<LibraryRow[]>(Prisma.sql`
+    const rows = await this.catalog.read((db) =>
+      db.$queryRaw<LibraryRow[]>(Prisma.sql`
       SELECT ${key}::text AS id,f.data,f.updated_at,${this.sources(kind, key)}
       FROM ${table} f WHERE ${key}::text=${id}`)
+    )
     const row = rows[0]
     if (!row) throw new NotFoundException('记录不存在')
     return libraryDetailSchema.parse({

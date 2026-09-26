@@ -9,6 +9,10 @@ loadDatabaseEnvironment()
 const databaseUrl = process.env.DATABASE_URL
 const migrationUrl = databaseUrl ? new URL(databaseUrl) : undefined
 migrationUrl?.searchParams.set('schema', 'app')
+// Prisma migration locks need a persistent backend session.
+if (migrationUrl?.hostname.endsWith('.neon.tech')) {
+  migrationUrl.hostname = migrationUrl.hostname.replace('-pooler.', '.')
+}
 
 export default defineConfig({
   schema: 'prisma/schema.prisma',

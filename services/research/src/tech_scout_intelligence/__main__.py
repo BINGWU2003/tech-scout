@@ -7,7 +7,7 @@ from psycopg.rows import dict_row
 from psycopg_pool import AsyncConnectionPool
 
 from tech_scout_acquisition.store import Store as AcquisitionStore
-from tech_scout_storage.database import Database
+from tech_scout_storage.database import Database, migration_dsn
 
 from .config import settings
 from .migrate import migrate as migrate_intelligence
@@ -35,7 +35,7 @@ async def migrate_all():
     config = settings()
     async with (
         AsyncConnectionPool(
-            config.database_url.get_secret_value(),
+            migration_dsn(config.database_url.get_secret_value()),
             open=False,
             kwargs={"autocommit": True, "row_factory": dict_row},
         ) as pool,

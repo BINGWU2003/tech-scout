@@ -140,9 +140,11 @@ suite('累计数据库（端到端）', () => {
     const catalog = app.get(CatalogPrismaService)
     const runId = randomUUID()
     await expect(
-      catalog.ingestionJob.create({
-        data: { runId, plan: {} },
-      })
+      catalog.read((db) =>
+        db.ingestionJob.create({
+          data: { runId, plan: {} },
+        })
+      )
     ).rejects.toThrow()
     expect(
       (
@@ -151,18 +153,18 @@ suite('累计数据库（端到端）', () => {
         ])
       ).rowCount
     ).toBe(0)
-    expect(await catalog.$queryRaw`SHOW default_transaction_read_only`).toEqual(
-      [{ default_transaction_read_only: 'on' }]
-    )
-    expect(await catalog.$queryRaw`SHOW statement_timeout`).toEqual([
-      { statement_timeout: '10s' },
-    ])
+    expect(
+      await catalog.read((db) => db.$queryRaw`SHOW transaction_read_only`)
+    ).toEqual([{ transaction_read_only: 'on' }])
+    expect(
+      await catalog.read((db) => db.$queryRaw`SHOW statement_timeout`)
+    ).toEqual([{ statement_timeout: '10s' }])
   })
 
   it('数据库返回阶段已裁剪正文，列表查询次数不随记录数增长', async () => {
     const catalog = app.get(CatalogPrismaService)
     const repository = app.get(LibraryRepository)
-    const spy = vi.spyOn(catalog, '$queryRaw')
+    const spy = vi.spyOn(catalog, 'read')
     try {
       for (const pageSize of [1, 10]) {
         spy.mockClear()

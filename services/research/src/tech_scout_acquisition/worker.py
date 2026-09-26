@@ -17,20 +17,17 @@ class Worker:
         self.active_run = None
 
     async def sweep(self):
-        # One browser owner across service processes, not merely one asyncio task.
-        async with self.store.browser_lock() as acquired:
-            if not acquired:
-                raise RuntimeError("已有采集服务占用专用浏览器")
-            await self.store.requeue_interrupted()
-            while not self.closed:
-                run_id = await self.store.next_pending()
-                if run_id:
-                    self.active_run = run_id
-                    self.active = asyncio.create_task(self.guarded_execute(run_id))
-                    await asyncio.gather(self.active, return_exceptions=True)
-                    self.active = None
-                    self.active_run = None
-                await asyncio.sleep(1)
+        # The deployment owns one browser worker in one service process.
+        await self.store.requeue_interrupted()
+        while not self.closed:
+            run_id = await self.store.next_pending()
+            if run_id:
+                self.active_run = run_id
+                self.active = asyncio.create_task(self.guarded_execute(run_id))
+                await asyncio.gather(self.active, return_exceptions=True)
+                self.active = None
+                self.active_run = None
+            await asyncio.sleep(1)
 
     async def checkpoint(self, run_id, stage, count, total, **summary):
         await self.store.checkpoint(
@@ -38,10 +35,9 @@ class Worker:
         )
 
     async def guarded_execute(self, run_id):
-        async with self.store.run_lock(run_id):
-            job = await self.store.get(run_id)
-            if job and job["status"] in {"queued", "running"}:
-                await self.execute(run_id)
+        job = await self.store.get(run_id)
+        if job and job["status"] in {"queued", "running"}:
+            await self.execute(run_id)
 
     async def execute(self, run_id):
         job = await self.store.get(run_id)

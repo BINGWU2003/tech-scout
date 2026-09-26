@@ -1,8 +1,7 @@
-"""Short ORM transactions and separately owned PostgreSQL session locks."""
-
-from contextlib import asynccontextmanager
+"""Short ORM transactions with transaction-scoped PostgreSQL locks."""
 
 from psycopg import AsyncConnection
+from psycopg.conninfo import conninfo_to_dict, make_conninfo
 from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
@@ -54,33 +53,11 @@ async def delete_checkpoints(session, run_id):
         )
 
 
-@asynccontextmanager
-async def advisory_lock(pool, run_id=None, namespace=0, *, wait=False):
-    """Pin a connection; an uncertain acquisition/release discards the session."""
-    async with pool.connection() as connection:
-        expression = "hashtextextended(%s, %s)" if run_id is not None else "%s"
-        params = (str(run_id), namespace) if run_id is not None else (720260907,)
-        function = "pg_advisory_lock" if wait else "pg_try_advisory_lock"
-        try:
-            cursor = await connection.execute(
-                f"SELECT {function}({expression}) AS acquired", params
-            )
-            row = await cursor.fetchone()
-            acquired = wait or bool(row["acquired"])
-        except BaseException:
-            await connection.close()
-            raise
-        try:
-            yield acquired
-        finally:
-            if acquired:
-                try:
-                    cursor = await connection.execute(
-                        f"SELECT pg_advisory_unlock({expression}) AS released", params
-                    )
-                    row = await cursor.fetchone()
-                    if not row["released"]:
-                        raise RuntimeError("数据库会话锁未持有")
-                except BaseException:
-                    await connection.close()
-                    raise
+def migration_dsn(dsn: str) -> str:
+    """Neon schema migrations use a direct connection, runtime uses the pooler."""
+    params = conninfo_to_dict(dsn)
+    host = params.get("host", "")
+    if host.endswith(".neon.tech") and "-pooler." in host:
+        params["host"] = host.replace("-pooler.", ".", 1)
+        return make_conninfo(**params)
+    return dsn

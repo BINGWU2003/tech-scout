@@ -37,7 +37,6 @@ async def lifespan(app):
                 "autocommit": True,
                 "row_factory": dict_row,
                 "prepare_threshold": 0,
-                "options": "-c search_path=agent_runtime",
             },
         ) as pool,
         AsyncConnectionPool(

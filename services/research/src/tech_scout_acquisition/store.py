@@ -4,7 +4,7 @@ from pathlib import Path
 from sqlalchemy import delete, func, null, select, update
 from sqlalchemy.dialects.postgresql import insert
 
-from tech_scout_storage.database import Database, advisory_lock, deletion_lock
+from tech_scout_storage.database import Database, deletion_lock
 from tech_scout_storage.models import (
     Company,
     CompanyCache,
@@ -25,12 +25,6 @@ class Store:
     def __init__(self, pool, database: Database):
         self.pool = pool
         self.database = database
-
-    def browser_lock(self):
-        return advisory_lock(self.pool)
-
-    def run_lock(self, run_id):
-        return advisory_lock(self.pool, run_id, 1, wait=True)
 
     async def requeue_interrupted(self):
         async with self.database.transaction() as conn:

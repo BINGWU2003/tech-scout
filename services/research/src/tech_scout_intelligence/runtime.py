@@ -50,12 +50,7 @@ class Runtime:
             await asyncio.gather(task, return_exceptions=True)
 
     async def execute(self, run_id):
-        # A session lock fences checkpoint writers even during lease handover.
-        async with self.store.run_lock(run_id) as acquired:
-            if acquired:
-                await self._execute(run_id)
-
-    async def _execute(self, run_id):
+        # Run one service process; claim/heartbeat still fence ordinary writes.
         lease = uuid4()
         row = await self.store.claim(run_id, lease)
         if not row:

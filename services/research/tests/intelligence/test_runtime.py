@@ -15,20 +15,25 @@ from test_workflow import FakeAcquisition, FakeLLM, plan
 from tech_scout_acquisition.store import Store as AcquisitionStore
 from tech_scout_intelligence.app import delete_run
 from tech_scout_intelligence.config import Settings
+from tech_scout_intelligence.migrate import migrate
 from tech_scout_intelligence.models import Action, ResearchError
 from tech_scout_intelligence.runtime import Runtime
-from tech_scout_intelligence.store import DDL, Store
+from tech_scout_intelligence.store import Store
 from tech_scout_intelligence.workflow import build_graph
 from tech_scout_storage.database import Database
 
 DSN = os.environ.get("TEST_DATABASE_URL")
-pytestmark = pytest.mark.skipif(
-    not DSN, reason="独立 TEST_DATABASE_URL 未配置"
-)
+pytestmark = pytest.mark.skipif(not DSN, reason="独立 TEST_DATABASE_URL 未配置")
+
+
+@pytest_asyncio.fixture(scope="session")
+async def initialized_runtime_database():
+    if DSN:
+        await migrate(DSN)
 
 
 @pytest_asyncio.fixture
-async def setup_runtime():
+async def setup_runtime(initialized_runtime_database):
     if DSN is None:
         pytest.skip("独立 TEST_DATABASE_URL 未配置")
     config = Settings(
@@ -47,16 +52,12 @@ async def setup_runtime():
                 "autocommit": True,
                 "prepare_threshold": 0,
                 "row_factory": dict_row,
-                "options": "-c search_path=agent_runtime",
             },
         ) as pool,
         Database(DSN) as database,
     ):
         await pool.wait()
-        async with pool.connection() as conn:
-            await conn.execute(DDL, prepare=False)
         saver = AsyncPostgresSaver(pool)
-        await saver.setup()
         store = Store(pool, config, database)
         catalog, llm = FakeAcquisition(), FakeLLM()
         graph = build_graph(llm, store, saver, catalog)
@@ -342,15 +343,16 @@ async def test_delete_removes_private_data_and_fences_delayed_starts(setup_runti
 
 
 @pytest.mark.asyncio
-async def test_delete_waits_for_remote_checkpoint_writer(setup_runtime):
+async def test_delete_waits_for_conflicting_transaction(setup_runtime):
     _, store, _, _, _ = setup_runtime
     acquisition = AcquisitionStore(store.pool, store.database)
     await acquisition.migrate()
     run_id = uuid4()
     await store.create(run_id, "正在研究")
     async with store.pool.connection() as guard:
+        await guard.execute("BEGIN")
         await guard.execute(
-            "SELECT pg_advisory_lock(hashtextextended(%s, 0))", (str(run_id),)
+            "SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))", (str(run_id),)
         )
         await store.begin_delete(run_id)
         deletion = asyncio.create_task(store.delete(run_id, acquisition))
@@ -359,9 +361,7 @@ async def test_delete_waits_for_remote_checkpoint_writer(setup_runtime):
             assert not deletion.done()
             assert await store.claim(run_id, uuid4()) is None
         finally:
-            await guard.execute(
-                "SELECT pg_advisory_unlock(hashtextextended(%s, 0))", (str(run_id),)
-            )
+            await guard.execute("ROLLBACK")
         await asyncio.wait_for(deletion, 5)
 
 
@@ -532,35 +532,6 @@ async def test_acquisition_failure_rolls_back_item_fact_and_source(
             is None
         )
     assert store.database.engine.pool.checkedout() == 0
-
-
-@pytest.mark.asyncio
-async def test_session_lock_contention_cancellation_and_exception_release(
-    setup_runtime,
-):
-    _, store, _, _, _ = setup_runtime
-    run_id = uuid4()
-    entered = asyncio.Event()
-
-    async def hold():
-        async with store.run_lock(run_id) as acquired:
-            assert acquired
-            entered.set()
-            await asyncio.Event().wait()
-
-    task = asyncio.create_task(hold())
-    await asyncio.wait_for(entered.wait(), 5)
-    async with store.run_lock(run_id) as acquired:
-        assert not acquired
-    task.cancel()
-    with pytest.raises(asyncio.CancelledError):
-        await task
-    with pytest.raises(ValueError, match="异常退出"):
-        async with store.run_lock(run_id) as acquired:
-            assert acquired
-            raise ValueError("异常退出")
-    async with store.run_lock(run_id) as acquired:
-        assert acquired
 
 
 @pytest.mark.asyncio

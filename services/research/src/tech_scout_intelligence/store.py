@@ -8,7 +8,6 @@ from sqlalchemy.dialects.postgresql import insert
 
 from tech_scout_storage.database import (
     Database,
-    advisory_lock,
     delete_checkpoints,
     deletion_lock,
     transaction_lock,
@@ -64,9 +63,6 @@ class Store:
         self.pool = pool
         self.config = config
         self.database = database
-
-    def run_lock(self, run_id):
-        return advisory_lock(self.pool, run_id, 0)
 
     async def create(self, run_id, question, conversation=None):
         budget = Budget(
@@ -136,7 +132,7 @@ class Store:
             )
 
     async def delete(self, run_id, acquisition_store):
-        # Wait for checkpoint writers, including workers in another process, to exit.
+        # The single-process caller has stopped local writers before cleanup.
         async with self.database.transaction() as conn:
             await deletion_lock(conn, run_id, 0)
             await acquisition_store.delete(run_id)

@@ -21,7 +21,7 @@
 
 ## 本地启动
 
-需要 Node.js 24、pnpm 10、Python 3.13、uv 和 Chrome。数据库使用 Supabase 的 `tech-scout` 项目（PostgreSQL），按各服务的 `.env.example` 配置数据库、内部服务令牌及模型服务。数据库连接、权限与回退说明见 [Supabase 数据库](docs/supabase.md)。本地数据库集成测试仍需独立 PostgreSQL 测试库。
+需要 Node.js 24、pnpm 10、Python 3.13、uv 和 Chrome。数据库使用 Neon PostgreSQL，按各服务的 `.env.example` 配置数据库、内部服务令牌及模型服务。数据库连接、权限与回退说明见 [Neon 数据库](docs/neon.md)。本地数据库集成测试仍需独立 PostgreSQL 测试库。
 
 数据库只在仓库根目录 `.env` 配置一个 `DATABASE_URL`，参考根目录 `.env.example`；API、Python 及迁移命令共用该连接，`app`、`agent_runtime`、`ingestion`、`catalog_v2` 的选择写在代码中。API 其他配置放在 `apps/api/.env`，研究、模型和浏览器采集配置放在 `services/research/.env`。各目录均提供 `.env.example`，实际 `.env` 不提交，进程环境变量优先于文件。
 
