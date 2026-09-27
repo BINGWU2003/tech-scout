@@ -57,7 +57,10 @@ def migration_dsn(dsn: str) -> str:
     """Neon schema migrations use a direct connection, runtime uses the pooler."""
     params = conninfo_to_dict(dsn)
     host = params.get("host", "")
-    if host.endswith(".neon.tech") and "-pooler." in host:
-        params["host"] = host.replace("-pooler.", ".", 1)
-        return make_conninfo(**params)
+    if (
+        isinstance(host, str)
+        and host.endswith(".neon.tech")
+        and "-pooler." in host
+    ):
+        return make_conninfo(dsn, host=host.replace("-pooler.", ".", 1))
     return dsn
