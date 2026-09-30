@@ -3,10 +3,11 @@ import json
 import time
 from contextlib import suppress
 from datetime import UTC, datetime
-from typing import Any, TypedDict
+from typing import Any, TypedDict, cast
 from uuid import uuid4
 
 from openai import AsyncOpenAI
+from openai.resources.chat import AsyncChat
 from pydantic import ValidationError
 from pydantic_core import from_json
 
@@ -115,6 +116,7 @@ class DeepSeek:
                 max_retries=0,
                 timeout=policy["timeout_seconds"],
             ) as client:
+                chat = cast(AsyncChat, client.chat)
                 options: dict[str, Any] = dict(
                     model=policy["model"],
                     messages=messages,
@@ -129,7 +131,7 @@ class DeepSeek:
                     finish_reason = None
                     last_publish = time.monotonic()
                     last_answer_publish = time.monotonic()
-                    stream = await client.chat.completions.create(
+                    stream = await chat.completions.create(
                         **options,
                         stream=True,
                         stream_options={"include_usage": True},
@@ -176,7 +178,7 @@ class DeepSeek:
                             if choice.finish_reason:
                                 finish_reason = choice.finish_reason
                 else:
-                    response = await client.chat.completions.create(**options)
+                    response = await chat.completions.create(**options)
                     if response.usage:
                         await self.store.usage(
                             run_id, lease, response.usage, response.model

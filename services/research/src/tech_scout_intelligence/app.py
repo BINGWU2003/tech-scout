@@ -2,6 +2,7 @@ import asyncio
 import hmac
 import json
 from contextlib import asynccontextmanager, suppress
+from typing import cast
 from uuid import UUID
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
@@ -25,7 +26,7 @@ from .workflow import build_graph
 
 
 @asynccontextmanager
-async def lifespan(app):
+async def lifespan(app: FastAPI):
     config = settings()
     async with (
         Database(config.database_url.get_secret_value()) as database,
@@ -109,33 +110,35 @@ async def health(request: Request) -> dict[str, str]:
 
 @app.post("/runs", response_model=RunView, operation_id="start_run")
 async def start_run(body: Start, request: Request):
-    return await request.app.state.store.create(
-        body.run_id, body.question.strip(), body.conversation
-    )
+    store = cast(Store, request.app.state.store)
+    return await store.create(body.run_id, body.question.strip(), body.conversation)
 
 
 @app.get("/runs/{run_id}", response_model=RunView, operation_id="get_run")
 async def get_run(run_id: UUID, request: Request):
-    return await request.app.state.store.get(run_id)
+    store = cast(Store, request.app.state.store)
+    return await store.get(run_id)
 
 
 @app.delete("/runs/{run_id}", operation_id="delete_run")
 async def delete_run(run_id: UUID, request: Request) -> dict[str, bool]:
     state = request.app.state
-    await state.store.begin_delete(run_id)
+    store = cast(Store, state.store)
+    await store.begin_delete(run_id)
     await state.runtime.cancel(run_id)
     await state.acquisition_store.update(run_id, "paused")
     worker = state.acquisition_worker
     if worker.active_run == run_id and worker.active:
         worker.active.cancel()
         await asyncio.gather(worker.active, return_exceptions=True)
-    await state.store.delete(run_id, state.acquisition_store)
+    await store.delete(run_id, state.acquisition_store)
     return {"deleted": True}
 
 
 @app.post("/runs/{run_id}/actions", response_model=RunView, operation_id="act_on_run")
 async def act_on_run(run_id: UUID, body: Action, request: Request):
-    view = await request.app.state.store.action(run_id, body)
+    store = cast(Store, request.app.state.store)
+    view = await store.action(run_id, body)
     if body.kind in {"cancel", "pause"}:
         await request.app.state.runtime.cancel(run_id)
     return view
@@ -147,20 +150,22 @@ async def act_on_run(run_id: UUID, body: Action, request: Request):
 async def list_events(
     run_id: UUID, request: Request, after: int = Query(default=0, ge=0)
 ):
-    return await request.app.state.store.events(run_id, after)
+    store = cast(Store, request.app.state.store)
+    return await store.events(run_id, after)
 
 
 @app.get("/runs/{run_id}/stream", operation_id="stream_events")
 async def stream_events(
     run_id: UUID, request: Request, after: int = Query(default=0, ge=0)
 ):
-    await request.app.state.store.get(run_id)
+    store = cast(Store, request.app.state.store)
+    await store.get(run_id)
 
     async def generate():
         cursor = after
         while not await request.is_disconnected():
             try:
-                events = await request.app.state.store.events(run_id, cursor)
+                events = await store.events(run_id, cursor)
             except ResearchError as error:
                 if error.code == "RUN_NOT_FOUND":
                     return

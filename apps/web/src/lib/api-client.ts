@@ -27,6 +27,7 @@ const client = ky.create({
       },
     ],
   },
+  timeout: 30000,
 })
 
 function fallbackError(response: Response): ApiError {

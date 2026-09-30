@@ -197,7 +197,7 @@ class Runtime:
                         kind="failed",
                         error={"code": code, "message": message, "node": current.node},
                     )
-            log.warning("research_failed", run_id=str(run_id), code=code)
+            log.exception("research_failed", run_id=str(run_id), code=code)
         finally:
             heartbeat.cancel()
             with suppress(asyncio.CancelledError, Exception):
