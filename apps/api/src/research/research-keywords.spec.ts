@@ -66,7 +66,7 @@ describe('关键词生成与启动保护', () => {
       research.newRun(
         randomUUID(),
         projectId,
-        { requestKey: randomUUID(), question: '开始研究', thinking: false },
+        { requestKey: randomUUID(), question: '开始研究' },
         1
       )
     ).rejects.toThrow('至少需要一个检索关键词')

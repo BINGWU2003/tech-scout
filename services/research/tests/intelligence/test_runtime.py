@@ -40,9 +40,6 @@ async def setup_runtime(initialized_runtime_database):
         _env_file=None,  # pyright: ignore[reportCallIssue]
         database_url=DSN,
         intelligence_internal_token="test-token-" * 4,
-        research_max_requests=6,
-        research_max_cny=1,
-        research_max_seconds=300,
     )
     async with (
         AsyncConnectionPool[AsyncConnection[DictRow]](
@@ -67,7 +64,7 @@ async def setup_runtime(initialized_runtime_database):
 
 
 @pytest.mark.asyncio
-async def test_postgres_restart_resume_budget_and_event_receipts(setup_runtime):
+async def test_postgres_restart_resume_and_event_receipts(setup_runtime):
     runtime, store, catalog, llm, saver = setup_runtime
     run_id = uuid4()
     await store.create(run_id, "工业视觉")
@@ -92,7 +89,6 @@ async def test_postgres_restart_resume_budget_and_event_receipts(setup_runtime):
     assert state.status == "completed", state.error
     assert len(state.artifacts["result"]["companies"][0]["patent_ids"]) == 2
     assert llm.calls.count("Plan") == 1
-    assert state.budget.elapsed_seconds > 0
     events, after = [], 0
     while batch := await store.events(run_id, after):
         events.extend(batch)
@@ -167,7 +163,7 @@ async def test_failed_company_assessment_requires_retry_before_publishing(
 
 
 @pytest.mark.asyncio
-async def test_claim_budget_cancel_and_expired_lease(setup_runtime):
+async def test_claim_cancel_and_expired_lease(setup_runtime):
     _, store, _, _, _ = setup_runtime
     run_id, lease = uuid4(), uuid4()
     await store.create(run_id, "视觉")
@@ -179,10 +175,7 @@ async def test_claim_budget_cancel_and_expired_lease(setup_runtime):
     async with store.database.transaction() as conn:
         row = await store.row(conn, run_id)
     lease = row["lease"]
-    for _ in range(6):
-        await store.reserve(run_id, lease, 0.01)
-    with pytest.raises(ResearchError, match="预算不足"):
-        await store.reserve(run_id, lease, 0.01)
+    await store.heartbeat(run_id, lease)
     async with store.pool.connection() as conn:
         await conn.execute(
             "UPDATE agent_runtime.research_run SET heartbeat=%s WHERE run_id=%s",
@@ -191,7 +184,6 @@ async def test_claim_budget_cancel_and_expired_lease(setup_runtime):
     await store.pending()
     recovered = await store.get(run_id)
     assert recovered.status == "recoverable"
-    assert recovered.budget.requests == 6
     with pytest.raises(ResearchError, match="租约"):
         await store.publish(run_id, lease=lease, status="completed")
     await store.action(
@@ -201,17 +193,16 @@ async def test_claim_budget_cancel_and_expired_lease(setup_runtime):
 
 
 @pytest.mark.asyncio
-async def test_idempotency_and_financial_reservation(setup_runtime):
+async def test_idempotency_and_heartbeat_lease(setup_runtime):
     _, store, _, _, _ = setup_runtime
     run_id, lease = uuid4(), uuid4()
     await store.create(run_id, "原问题")
     with pytest.raises(ResearchError, match="不同问题"):
         await store.create(run_id, "不同问题")
     await store.claim(run_id, lease)
-    await store.reserve(run_id, lease, 0.9)
-    with pytest.raises(ResearchError, match="预算不足"):
-        await store.reserve(run_id, lease, 0.2)
-    assert (await store.get(run_id)).budget.requests == 1
+    await store.heartbeat(run_id, lease)
+    with pytest.raises(ResearchError, match="租约"):
+        await store.heartbeat(run_id, uuid4())
 
 
 @pytest.mark.asyncio
@@ -232,10 +223,10 @@ async def test_heartbeat_failure_stops_node_before_checkpoint(
             cancelled.set()
             raise
 
-    async def failing_heartbeat(rid, lease, seconds):
-        if entered.is_set() and seconds > 0:
+    async def failing_heartbeat(rid, lease):
+        if entered.is_set():
             raise ConnectionError("simulated heartbeat failure")
-        return await original_heartbeat(rid, lease, seconds)
+        return await original_heartbeat(rid, lease)
 
     monkeypatch.setattr(llm, "generate", blocked_model)
     monkeypatch.setattr(store, "heartbeat", failing_heartbeat)
@@ -247,30 +238,6 @@ async def test_heartbeat_failure_stops_node_before_checkpoint(
     state = await runtime.graph.aget_state({"configurable": {"thread_id": str(run_id)}})
     assert "plan" not in state.values
     assert state.next == ("planner",)
-
-
-@pytest.mark.asyncio
-async def test_time_limit_stops_and_cannot_reset_by_retry(setup_runtime):
-    runtime, store, _, llm, _ = setup_runtime
-    run_id = uuid4()
-    await store.create(run_id, "视觉")
-    async with store.pool.connection() as conn:
-        await conn.execute(
-            "UPDATE agent_runtime.research_run SET budget="
-            "jsonb_set(budget,'{elapsed_seconds}','301') WHERE run_id=%s",
-            (run_id,),
-        )
-    await runtime.execute(run_id)
-    first = await store.get(run_id)
-    assert first.status == "failed"
-    assert first.error.code == "TIME_BUDGET_EXCEEDED"
-    await store.action(
-        run_id, Action(action_id=uuid4(), actor_id=uuid4(), kind="retry")
-    )
-    await runtime.execute(run_id)
-    second = await store.get(run_id)
-    assert second.error.code == "TIME_BUDGET_EXCEEDED"
-    assert not llm.calls
 
 
 @pytest.mark.asyncio

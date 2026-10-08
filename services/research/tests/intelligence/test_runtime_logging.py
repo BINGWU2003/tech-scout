@@ -18,20 +18,17 @@ from tech_scout_intelligence.runtime import Runtime
             ResearchError("MODEL_OUTPUT_INVALID", "invalid output"),
             "MODEL_OUTPUT_INVALID",
         ),
-        (TimeoutError("execution timed out"), "TIME_BUDGET_EXCEEDED"),
+        (TimeoutError("execution timed out"), "NODE_FAILED"),
     ],
 )
 async def test_failure_logs_traceback_without_changing_public_error(error, code):
     run_id = uuid4()
-    budget = {"max_seconds": 60, "elapsed_seconds": 0}
     current = SimpleNamespace(
         node=None,
-        budget=SimpleNamespace(model_dump=lambda: budget),
     )
     store = SimpleNamespace(
         claim=AsyncMock(
             return_value={
-                "budget": budget,
                 "command": None,
                 "question": "test question",
                 "artifacts": {},

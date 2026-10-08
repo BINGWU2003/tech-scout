@@ -3,7 +3,6 @@ import type {
   ResearchWorkspace,
 } from '@tech-scout/contracts'
 import { Button } from '@/components/ui/button'
-import { ReasoningPanel } from './reasoning-panel'
 import { StreamingText } from './streaming-text'
 
 export function ProjectConversation({
@@ -25,23 +24,10 @@ export function ProjectConversation({
   dirty?: boolean
   events?: ResearchProgressView[]
 }) {
-  const live = [...events].reverse().find((event) => event.reasoning)?.reasoning
   const liveAnswer = [...events].reverse().find((event) => event.answer)?.answer
   const messages = workspace.messages.map((message) => {
     if (message.role !== 'assistant' || message.runId !== workspace.activeRunId)
       return message
-    let reasoning = live ?? message.reasoning
-    const previous = message.reasoning
-    if (
-      live &&
-      previous &&
-      (previous.startedAt > live.startedAt ||
-        (previous.id === live.id &&
-          (previous.durationMs > live.durationMs ||
-            (['completed', 'interrupted'].includes(previous.status) &&
-              ['thinking', 'answering'].includes(live.status)))))
-    )
-      reasoning = previous
     let answer = liveAnswer ?? message.answer
     const savedAnswer = message.answer
     if (
@@ -53,18 +39,14 @@ export function ProjectConversation({
           liveAnswer.status === 'streaming'))
     )
       answer = savedAnswer
-    return { ...message, reasoning, answer }
+    return { ...message, answer }
   })
   return (
     <div aria-label='研究对话记录' className='space-y-5'>
       {messages
         .filter(
           (message) =>
-            !message.pending ||
-            message.text ||
-            message.plan ||
-            message.reasoning ||
-            message.answer
+            !message.pending || message.text || message.plan || message.answer
         )
         .map((message) => (
           <article
@@ -84,9 +66,6 @@ export function ProjectConversation({
                 <span>{message.proposal ? '建议已过期' : '已更新'}</span>
               )}
             </div>
-            {message.reasoning && (
-              <ReasoningPanel reasoning={message.reasoning} />
-            )}
             {(message.text || message.answer?.text) && (
               <p
                 role={message.failed ? 'alert' : undefined}

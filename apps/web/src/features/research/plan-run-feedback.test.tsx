@@ -14,7 +14,6 @@ const run = researchSummaryViewSchema.parse({
   ready: true,
   node: 'planner',
   error: null,
-  budget: null,
   releaseId: null,
   fromYear: 2020,
   toYear: 2026,

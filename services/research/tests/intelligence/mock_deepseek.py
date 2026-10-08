@@ -97,8 +97,6 @@ async def completions(request: Request):
                 + "\n\n"
             )
 
-        if body.get("thinking", {}).get("type") == "enabled":
-            yield chunk({"reasoning_content": "测试夹具：正在选择研究方向。"})
         content = json.dumps(data, ensure_ascii=False)
         for offset in range(0, len(content), 40):
             yield chunk({"content": content[offset : offset + 40]})

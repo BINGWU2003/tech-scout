@@ -17,14 +17,12 @@ export function listProjects(db: DatabaseClient, userId: string) {
       sequence: number | null
       status: string | null
       node: string | null
-      reasoning: string | null
       error: unknown
       acquisition: ResearchSummaryView['acquisition']
     }[]
   >(Prisma.sql`
       SELECT p.id, p.title, p.question, p.created_at AS "createdAt",
         r.id AS "runId", r.status, r.sequence, r.state ->> 'node' AS node,
-        r.state #>> '{artifacts,reasoning,status}' AS reasoning,
         r.state -> 'error' AS error,
         r.state #> '{artifacts,acquisition}' AS acquisition
       FROM app.research_project p
@@ -55,7 +53,6 @@ export function workspaceRuns(db: DatabaseClient, projectId: string) {
         state #> '{artifacts,candidate_plan}' AS candidates,
         state #> '{artifacts,confirmed_plan}' AS confirmed,
         state #> '{artifacts,reply}' AS reply,
-        state #> '{artifacts,reasoning}' AS reasoning,
         state #> '{artifacts,answer}' AS answer,
         state #>> '{artifacts,reply_intent}' AS intent,
         state #> '{artifacts,proposal_plan}' AS proposal,
@@ -93,7 +90,6 @@ export function runEvents(db: DatabaseClient, id: string, after: number) {
       node: string | null
       error: unknown
       process: unknown
-      reasoning: unknown
       answer: unknown
       acquisition: unknown
     }>
@@ -104,8 +100,6 @@ export function runEvents(db: DatabaseClient, id: string, after: number) {
           THEN e.data #> '{artifacts,process}' END AS process,
         CASE WHEN e.kind = 'acquisition_progress'
           THEN e.data #> '{artifacts,acquisition}' END AS acquisition,
-        CASE WHEN e.kind = 'reasoning_progress' OR e.data->>'status' NOT IN ('queued', 'running')
-          THEN e.data #> '{artifacts,reasoning}' END AS reasoning,
         CASE WHEN e.kind = 'answer_progress' OR e.data->>'status' NOT IN ('queued', 'running')
           THEN e.data #> '{artifacts,answer}' END AS answer
       FROM app.research_event e WHERE e.run_id = ${id}::uuid AND e.sequence > ${after}

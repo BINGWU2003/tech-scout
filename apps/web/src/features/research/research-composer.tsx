@@ -1,4 +1,4 @@
-import { ArrowUp, Brain } from 'lucide-react'
+import { ArrowUp } from 'lucide-react'
 import type { Ref } from 'react'
 import { LoadingSpinner } from '@/components/loading-spinner'
 import { Button } from '@/components/ui/button'
@@ -12,8 +12,6 @@ export function ResearchComposer({
   blocked,
   blockedReason,
   followUp = false,
-  thinking = true,
-  onThinkingChange,
   autoSave = false,
   inputRef,
 }: {
@@ -24,8 +22,6 @@ export function ResearchComposer({
   blocked?: boolean
   blockedReason?: string
   followUp?: boolean
-  thinking?: boolean
-  onThinkingChange?: (value: boolean) => void
   autoSave?: boolean
   inputRef?: Ref<HTMLTextAreaElement>
 }) {
@@ -65,20 +61,6 @@ export function ResearchComposer({
           }}
         />
         <div className='flex items-center justify-between gap-3 px-1'>
-          {onThinkingChange && (
-            <Button
-              type='button'
-              size='sm'
-              variant={thinking ? 'secondary' : 'ghost'}
-              className='rounded-full'
-              aria-pressed={thinking}
-              disabled={busy}
-              onClick={() => onThinkingChange(!thinking)}
-            >
-              <Brain className='size-4' aria-hidden='true' />
-              深度思考
-            </Button>
-          )}
           <span className='hidden flex-1 text-xs text-muted-foreground sm:inline'>
             {blocked
               ? (blockedReason ?? '研究执行中，可先编辑；结束或停止后发送')

@@ -5,7 +5,6 @@ import {
 } from '@nestjs/common'
 import {
   researchWorkspaceSchema,
-  researchReasoningSchema,
   researchAnswerSchema,
   researchSelectedPlanSchema,
   type ResearchWorkspaceAction,
@@ -87,7 +86,6 @@ export class ResearchWorkspaceService {
         id: `${id}:question`,
         runId: id,
         role: 'user',
-        reasoning: null,
         answer: null,
         pending: false,
         text: String(r.question),
@@ -109,40 +107,32 @@ export class ResearchWorkspaceService {
         (!ctx.workspace ||
           ['refresh_candidates', 'update_candidate'].includes(String(r.intent)))
       )
+      const answer = researchAnswerSchema.nullable().parse(r.answer)
       const pending =
         !ctx.startSearch &&
         !r.reply &&
         !r.plan &&
         ['queued', 'running'].includes(String(r.status))
-      const reasoning = researchReasoningSchema.nullable().parse(r.reasoning)
-      const answer = researchAnswerSchema.nullable().parse(r.answer)
       if (
         answer?.status === 'streaming' &&
         !['queued', 'running'].includes(String(r.status))
       )
         answer.status = 'interrupted'
-      if (
-        reasoning &&
-        !['queued', 'running'].includes(String(r.status)) &&
-        ['thinking', 'answering'].includes(reasoning.status)
-      )
-        reasoning.status = 'interrupted'
+      const failed =
+        typeof r.reply !== 'string' && !r.confirmed && !pending && !answer
       if (
         r.reply ||
         r.plan ||
         r.confirmed ||
         r.hasResult ||
         pending ||
-        reasoning ||
-        answer
+        answer ||
+        failed
       ) {
-        const failed =
-          typeof r.reply !== 'string' && !r.confirmed && !pending && !answer
         messages.push({
           id: `${id}:reply`,
           runId: id,
           role: 'assistant',
-          reasoning,
           answer,
           pending,
           failed,
@@ -250,7 +240,6 @@ export class ResearchWorkspaceService {
         projectId,
         {
           question: '确认已选研究计划并开始检索',
-          thinking: false,
           requestKey: input.requestKey,
         },
         input.revision

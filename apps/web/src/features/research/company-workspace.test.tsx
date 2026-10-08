@@ -23,7 +23,6 @@ const run = researchSummaryViewSchema.parse({
   ready: true,
   node: 'finish',
   error: null,
-  budget: null,
   releaseId: 'release-v2',
   fromYear: 2020,
   toYear: 2026,
@@ -65,7 +64,6 @@ it('企业记录区分查询结果与执行状态，保留失败原因和来源'
     status: 'running',
     node: 'company_snapshot',
     error: null,
-    reasoning: null,
     answer: null,
     acquisition: null,
     process: {

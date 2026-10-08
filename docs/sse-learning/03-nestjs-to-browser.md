@@ -44,7 +44,7 @@ sequenceDiagram
 历史加载成功后，前端从缓存中取最大 `sequence` 初始化游标：
 
 ```typescript
-cursor.current = Math.max(cursor.current, ...existing.map(e => e.sequence))
+cursor.current = Math.max(cursor.current, ...existing.map((e) => e.sequence))
 const stream = new EventSource(
   `/api/v1/research/ui/runs/${encodeURIComponent(id)}/stream?after=${cursor.current}`,
   { withCredentials: true }
@@ -90,7 +90,7 @@ ResearchViewController.stream()
 
 相关源码：[Controller](../../apps/api/src/research/research-view.controller.ts)、[Service](../../apps/api/src/research/research-view.service.ts)、[Repository](../../apps/api/src/research/research.repository.ts)。
 
-Service 会将非执行状态下仍标为 streaming 的回答，或 thinking/answering 的思考内容，整理为 interrupted 展示状态；这是读取结果的处理，不是这里重新写入事件。
+Service 会将非执行状态下仍标为 streaming 的回答，整理为 interrupted 展示状态；这是读取结果的处理，不是这里重新写入事件。
 
 每条发送格式为：
 

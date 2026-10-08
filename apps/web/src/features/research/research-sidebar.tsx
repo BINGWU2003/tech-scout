@@ -91,14 +91,6 @@ export function ResearchTaskLabel({
     },
     client
   )
-  const events = useQuery(
-    {
-      queryKey: ['research', id, 'events'],
-      queryFn: () => researchApi.events(id!),
-      enabled: false,
-    },
-    client
-  )
   const connection = useQuery(
     {
       queryKey: ['research', id, 'disconnected'],
@@ -116,14 +108,11 @@ export function ResearchTaskLabel({
   const { icon: Icon, className: iconClassName } = status
     ? taskIcons[status]
     : { icon: MessageSquare, className: undefined }
-  const reasoning = [...(events.data ?? [])]
-    .reverse()
-    .find((event) => event.reasoning)?.reasoning
   const label =
     active && connection.data
       ? '连接恢复中…'
       : run
-        ? researchActivityLabel(run, reasoning?.status)
+        ? researchActivityLabel(run)
         : project.activity?.label
   return (
     <>

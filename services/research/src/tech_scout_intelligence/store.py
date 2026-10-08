@@ -1,4 +1,4 @@
-"""Durable runtime ownership, command receipts, budgets and replayable events."""
+"""Durable runtime ownership, command receipts and replayable events."""
 
 import json
 from datetime import UTC, datetime, timedelta
@@ -19,7 +19,7 @@ from tech_scout_storage.models import (
     ResearchRun,
 )
 
-from .models import Budget, ResearchError, RunView
+from .models import ResearchError, RunView
 
 DDL = """
 CREATE SCHEMA IF NOT EXISTS agent_runtime;
@@ -35,7 +35,6 @@ CREATE TABLE IF NOT EXISTS agent_runtime.research_run (
     node text,
     error jsonb,
     artifacts jsonb NOT NULL DEFAULT '{}',
-    budget jsonb NOT NULL,
     command jsonb,
     lease uuid,
     heartbeat timestamptz,
@@ -65,11 +64,6 @@ class Store:
         self.database = database
 
     async def create(self, run_id, question, conversation=None):
-        budget = Budget(
-            max_requests=self.config.research_max_requests,
-            max_seconds=self.config.research_max_seconds,
-            max_cny=self.config.research_max_cny,
-        ).model_dump()
         async with self.database.transaction() as conn:
             await transaction_lock(conn, run_id, 2)
             deleted = await conn.execute(
@@ -82,11 +76,9 @@ class Store:
                 .values(
                     run_id=run_id,
                     question=question,
-                    budget=budget,
                     artifacts={
                         "execution_config": self.config.execution_policy(),
                         "conversation": conversation or {},
-                        "reasoning": None,
                         "answer": None,
                     },
                 )
@@ -163,7 +155,6 @@ class Store:
                         "node",
                         "error",
                         "artifacts",
-                        "budget",
                         "lease",
                         "command",
                     )
@@ -252,16 +243,6 @@ class Store:
                 "command": payload,
                 "error": None,
             }
-            if action.kind == "retry":
-                budget = row["budget"]
-                budget["max_requests"] = max(
-                    budget["max_requests"], self.config.research_max_requests
-                )
-                budget["max_seconds"] = max(
-                    budget["max_seconds"], self.config.research_max_seconds
-                )
-                budget["max_cny"] = max(budget["max_cny"], self.config.research_max_cny)
-                changes["budget"] = budget
             if action.kind in {"confirm_plan", "start_companies"}:
                 payload = {**payload, "submitted_at": datetime.now(UTC).isoformat()}
                 artifacts = row["artifacts"]
@@ -270,57 +251,15 @@ class Store:
                 changes.update(command=payload, artifacts=artifacts)
             return await self.update(conn, row, action.kind, changes)
 
-    async def reserve(self, run_id, lease, cost):
+    async def heartbeat(self, run_id, lease):
         async with self.database.transaction() as conn:
             row = await self.row(conn, run_id, lock=True)
             if row["lease"] != lease:
                 raise ResearchError("LEASE_LOST", "执行租约已失效")
-            budget = row["budget"]
-            if (
-                budget["requests"] >= budget["max_requests"]
-                or budget["reserved_cny"] + cost > budget["max_cny"]
-            ):
-                raise ResearchError("BUDGET_EXCEEDED", "模型请求次数或费用预算不足")
-            budget["requests"] += 1
-            budget["reserved_cny"] += cost
-            await self.update(conn, row, "model_reserved", {"budget": budget})
-
-    async def usage(self, run_id, lease, usage, model):
-        async with self.database.transaction() as conn:
-            row = await self.row(conn, run_id, lock=True)
-            if row["lease"] != lease:
-                return
-            budget = row["budget"]
-            budget["input_tokens"] += usage.prompt_tokens
-            budget["output_tokens"] += usage.completion_tokens
-            policy = row["artifacts"]["execution_config"]
-            budget["estimated_cny"] += (
-                usage.prompt_tokens * policy["input_cny_per_million"]
-                + usage.completion_tokens * policy["output_cny_per_million"]
-            ) / 1_000_000
-            artifacts = row["artifacts"]
-            artifacts.setdefault("model_calls", []).append(
-                {
-                    "configured_model": policy["model"],
-                    "response_model": model,
-                    "input_tokens": usage.prompt_tokens,
-                    "output_tokens": usage.completion_tokens,
-                }
-            )
-            await self.update(
-                conn, row, "model_usage", {"budget": budget, "artifacts": artifacts}
-            )
-
-    async def heartbeat(self, run_id, lease, seconds):
-        async with self.database.transaction() as conn:
-            row = await self.row(conn, run_id, lock=True)
-            if row["lease"] != lease:
-                raise ResearchError("LEASE_LOST", "执行租约已失效")
-            row["budget"]["elapsed_seconds"] += seconds
             await conn.execute(
                 update(ResearchRun)
                 .where(ResearchRun.run_id == run_id)
-                .values(heartbeat=func.now(), budget=row["budget"])
+                .values(heartbeat=func.now())
             )
 
     async def pending(self):
@@ -334,15 +273,6 @@ class Store:
                 .with_for_update()
             )
             for row in [dict(r) for r in cursor.mappings()]:
-                # Charge time since heartbeat on crash; never reset a run's budget.
-                elapsed = (datetime.now(UTC) - row["heartbeat"]).total_seconds()
-                collecting = (
-                    row["node"] in {"snapshot", "company_snapshot"}
-                    and row["artifacts"].get("context", {}).get("source_mode")
-                    == "browser"
-                )
-                if not collecting:
-                    row["budget"]["elapsed_seconds"] += min(elapsed, 20)
                 await self.update(
                     conn,
                     row,

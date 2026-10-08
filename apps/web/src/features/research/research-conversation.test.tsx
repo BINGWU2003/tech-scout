@@ -71,7 +71,6 @@ it('完成后折叠过程，展开仍能回看超过 100 条的最早检索记�
   const events = Array.from({ length: 120 }, (_, i) => ({
     sequence: i + 1,
     kind: 'search_progress',
-    reasoning: null,
     answer: null,
     createdAt: '2026-09-10T01:00:00Z',
     status: 'running' as const,
@@ -167,7 +166,6 @@ it('工作台从左侧切换项目，确认前追问保留上下文，并在手�
       ready: true,
       node: 'plan_gate',
       error: null,
-      budget: null,
       releaseId: null,
       fromYear: 1800,
       toYear: 2026,
@@ -197,7 +195,6 @@ it('工作台从左侧切换项目，确认前追问保留上下文，并在手�
         id: run.id,
         runId: run.id,
         role: 'user' as const,
-        reasoning: null,
         answer: null,
         pending: false,
         text: run.question,
@@ -213,14 +210,6 @@ it('工作台从左侧切换项目，确认前追问保留上下文，并在手�
         runId: run.id,
         role: 'assistant' as const,
         answer: null,
-        reasoning: {
-          id: run.id,
-          status: 'completed' as const,
-          text: '结合研究范围，比较材料体系与离子传导机制。',
-          startedAt: now,
-          durationMs: 3200,
-          truncated: false,
-        },
         pending: false,
         text: '建议先从固态电解质入手，关注离子传导材料与界面稳定性。',
         createdAt: now,
@@ -278,7 +267,6 @@ it('工作台从左侧切换项目，确认前追问保留上下文，并在手�
     {
       sequence: 1,
       kind: 'planner_progress',
-      reasoning: null,
       answer: null,
       createdAt: now,
       status: 'running',
@@ -381,9 +369,6 @@ it('工作台从左侧切换项目，确认前追问保留上下文，并在手�
     recommendation.element().getBoundingClientRect().top
   )
   await expect
-    .element(screen.getByRole('button', { name: /思考已完成/ }))
-    .toHaveAttribute('aria-expanded', 'false')
-  await expect
     .element(screen.getByRole('button', { name: '刷新状态' }))
     .toBeVisible()
   await expect
@@ -394,7 +379,6 @@ it('工作台从左侧切换项目，确认前追问保留上下文，并在手�
     .not.toBeInTheDocument()
   await page.screenshot({ path: '__screenshots__/research-desktop.png' })
   await screen.getByRole('textbox', { name: '方向描述' }).fill('修改后的范围')
-  await screen.getByRole('button', { name: '深度思考' }).click()
   await screen.getByRole('textbox', { name: '继续研究' }).fill('只看近五年')
   await screen.getByRole('button', { name: '发送研究需求' }).click()
   await expect.poll(() => followup.mock.calls.length).toBe(1)
@@ -403,7 +387,6 @@ it('工作台从左侧切换项目，确认前追问保留上下文，并在手�
     expect.objectContaining({
       question: '只看近五年',
       parentRunId: firstId,
-      thinking: false,
     }),
   ])
   await expect

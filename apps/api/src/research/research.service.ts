@@ -72,7 +72,6 @@ export class ResearchService implements OnModuleInit, OnModuleDestroy {
             create: {
               question: input.question,
               requestKey: input.requestKey,
-              context: { thinking: input.thinking },
             },
           },
         },
@@ -91,35 +90,41 @@ export class ResearchService implements OnModuleInit, OnModuleDestroy {
           include: { runs: { orderBy: { createdAt: 'asc' } } },
         })
       })
-    if (
-      project.question !== input.question ||
-      object(project.runs[0].context).thinking !== input.thinking
-    )
+    if (project.question !== input.question)
       throw new ConflictException({
         code: 'IDEMPOTENCY_CONFLICT',
         message: '请求键已用于不同问题',
       })
-    await this.sync(project.runs[0])
+    const initialRun =
+      project.runs[0] ??
+      (await this.prisma.researchRun.upsert({
+        where: {
+          projectId_requestKey: {
+            projectId: project.id,
+            requestKey: input.requestKey,
+          },
+        },
+        update: {},
+        create: {
+          projectId: project.id,
+          requestKey: input.requestKey,
+          question: input.question,
+        },
+      }))
+    await this.sync(initialRun)
     return this.project(userId, project.id)
   }
 
   async list(userId: string) {
     const projects = await queries.listProjects(this.prisma, userId)
     return projects.map(
-      ({
-        runId,
-        status,
-        sequence,
-        node,
-        reasoning,
-        error,
-        acquisition,
-        ...p
-      }) => {
-        const label = researchActivityLabel(
-          { status, node, error, acquisition },
-          reasoning
-        )
+      ({ runId, status, sequence, node, error, acquisition, ...p }) => {
+        const label = researchActivityLabel({
+          status,
+          node,
+          error,
+          acquisition,
+        })
         return {
           ...p,
           createdAt: p.createdAt.toISOString(),
@@ -200,7 +205,6 @@ export class ResearchService implements OnModuleInit, OnModuleDestroy {
           existing.question !== input.question ||
           JSON.stringify(object(existing.context).keywordDirection ?? null) !==
             JSON.stringify(keywordDirection ?? null) ||
-          object(existing.context).thinking !== input.thinking ||
           Boolean(object(existing.context).startSearch) !==
             (searchRevision !== undefined) ||
           (searchRevision !== undefined &&
@@ -269,7 +273,6 @@ export class ResearchService implements OnModuleInit, OnModuleDestroy {
           context: json({
             workspace: true,
             ...(keywordDirection ? { keywordDirection } : {}),
-            thinking: input.thinking,
             selectedPlan: selected,
             selectedRevision: revision(workspace),
             messages: messageHistory,

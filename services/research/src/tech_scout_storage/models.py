@@ -31,7 +31,6 @@ class ResearchRun(Base):
     artifacts: Mapped[dict[str, Any]] = mapped_column(
         server_default=text("'{}'::jsonb")
     )
-    budget: Mapped[dict[str, Any]]
     command: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     lease: Mapped[UUID | None]
     heartbeat: Mapped[datetime | None]

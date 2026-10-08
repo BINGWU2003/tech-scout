@@ -48,7 +48,7 @@ describeChain(
         .post('/api/v1/research/projects')
         .set('Origin', 'http://localhost:5173')
         .set('x-csrf-token', csrf)
-        .send({ thinking: true, requestKey: randomUUID(), question })
+        .send({ requestKey: randomUUID(), question })
         .expect(201)
       return { agent, csrf, id: project.body.runs[0].id }
     }
@@ -70,10 +70,9 @@ describeChain(
       throw new Error('运行状态等待超时')
     }
 
-    it('确认计划后取得候选、引用快照、预算与可恢复事件', async () => {
+    it('确认计划后取得候选、引用快照与可恢复事件', async () => {
       const run = await begin('寻找工业视觉边缘推理公司')
       const paused = await waitFor(run, ['awaiting_plan'])
-      expect(paused.state.budget.requests).toBe(1)
       await run.agent
         .post(`/api/v1/research/runs/${run.id}/actions`)
         .set('Origin', 'http://localhost:5173')
@@ -96,7 +95,6 @@ describeChain(
         0
       )
       expect(finished.state.artifacts.result.release_id).toBe('test-v1')
-      expect(finished.state.budget.requests).toBeGreaterThanOrEqual(2)
       expect(finished.state.artifacts.snapshot.patents[0]).toHaveProperty(
         'source_sha256'
       )
@@ -107,7 +105,7 @@ describeChain(
         events.body.some((e: { kind: string }) => e.kind === 'awaiting_plan')
       ).toBe(true)
       expect(
-        events.body.some((e: { kind: string }) => e.kind === 'model_usage')
+        events.body.some((e: { kind: string }) => e.kind === 'answer_progress')
       ).toBe(true)
       expect(events.body.map((e: { sequence: number }) => e.sequence)).toEqual(
         events.body.map((_: unknown, i: number) => i + 1)
@@ -118,7 +116,6 @@ describeChain(
       const run = await begin('FAIL_MODEL')
       const failed = await waitFor(run, ['failed'])
       expect(failed.state.error.code).toBe('MODEL_REQUEST_FAILED')
-      expect(failed.state.budget.requests).toBe(1)
       expect(failed.state.artifacts).not.toHaveProperty('snapshot')
       expect(failed.state.artifacts).not.toHaveProperty('result')
     }, 30000)

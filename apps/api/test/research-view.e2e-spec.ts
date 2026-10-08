@@ -142,17 +142,6 @@ describe.skipIf(!enabled)(
         sequence: 2,
         node: 'finish',
         error: null,
-        budget: {
-          requests: 2,
-          reserved_cny: 0.2,
-          estimated_cny: 0.05,
-          elapsed_seconds: 40,
-          input_tokens: 1000,
-          output_tokens: 100,
-          max_requests: 300,
-          max_cny: 10,
-          max_seconds: 3600,
-        },
         artifacts: {
           plan,
           confirmed_plan: plan,
@@ -304,7 +293,6 @@ describe.skipIf(!enabled)(
         .expect(200)
       expect(queued.body).toMatchObject({
         ready: false,
-        budget: null,
         plan: null,
         status: 'queued',
       })
@@ -471,7 +459,6 @@ describe.skipIf(!enabled)(
         .expect(201)
       expect(repeated.body.sequence).toBe(response.body.sequence)
       const payload = {
-        thinking: true,
         requestKey: randomUUID(),
         question: '新一轮视觉研究',
       }

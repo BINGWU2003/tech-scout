@@ -1,10 +1,12 @@
 import asyncio
 from datetime import UTC, datetime
+from unittest.mock import AsyncMock
 from uuid import uuid4
 
 import pytest
 
 from tech_scout_intelligence.acquisition import Acquisition
+from tech_scout_intelligence.models import ResearchError
 
 
 class MemoryAcquisitionStore:
@@ -77,3 +79,25 @@ async def test_fast_search_logs_are_drained_and_resume_cursor_avoids_duplicates(
     seen.clear()
     await acquisition.collect(uuid4(), {}, publish, after=205)
     assert seen == []
+
+
+@pytest.mark.asyncio
+async def test_acquisition_timeout_pauses_job_and_allows_retry():
+    class WaitingStore(MemoryAcquisitionStore):
+        def __init__(self):
+            super().__init__({"patents": []})
+            self.jobs = [self.jobs[0]]
+            self.update = AsyncMock()
+
+    store = WaitingStore()
+    acquisition = Acquisition(store, poll_seconds=0.001, timeout_seconds=0.01)
+    run_id = uuid4()
+    progress = AsyncMock()
+    with pytest.raises(ResearchError) as error:
+        await acquisition.collect(run_id, {}, progress)
+    assert error.value.code == "ACQUISITION_TIMEOUT"
+    store.update.assert_awaited_once_with(
+        run_id,
+        "paused",
+        error={"code": "ACQUISITION_TIMEOUT", "message": "采集超过六小时时限，可重试"},
+    )

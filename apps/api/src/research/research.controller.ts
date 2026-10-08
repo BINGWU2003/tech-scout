@@ -105,7 +105,6 @@ export class ResearchController {
       {
         requestKey: input.requestKey,
         question: `生成“${input.direction.name}”的检索关键词`,
-        thinking: false,
       },
       undefined,
       input.direction

@@ -31,7 +31,6 @@ function run(overrides: Record<string, unknown> = {}) {
     candidates: null,
     confirmed: null,
     reply: '结合需求，建议从以下方向展开研究。',
-    reasoning: null,
     answer: null,
     intent: 'refresh_candidates',
     proposal: null,
@@ -117,14 +116,6 @@ describe('多轮推荐卡片', () => {
       plan: null,
       reply: null,
       intent: null,
-      reasoning: {
-        id: randomUUID(),
-        status: 'interrupted',
-        text: '正在分析',
-        startedAt: '2026-09-12T00:00:00Z',
-        durationMs: 1000,
-        truncated: false,
-      },
     })
     const result = await workspace([failed])
     expect(

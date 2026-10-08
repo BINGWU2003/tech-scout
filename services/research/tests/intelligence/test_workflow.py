@@ -11,17 +11,18 @@ from langgraph.types import Command
 from tech_scout_intelligence.models import (
     CompanyAssessment,
     CompanyAssessmentBatch,
+    DirectionDraft,
     DirectionProposal,
+    Keywords,
     PatentAssessment,
     PatentAssessmentBatch,
-    Keywords,
     Plan,
     ResearchError,
 )
 from tech_scout_intelligence.workflow import (
-    company_lead_workset,
     assignee_workset,
     build_graph,
+    company_lead_workset,
     conversation_update,
     patent_workset,
 )
@@ -224,36 +225,56 @@ class FakeLLM:
             return DirectionProposal(
                 reply="建议从工业视觉方向展开研究。",
                 directions=[
-                    {
-                        "domain_id": d.domain_id,
-                        "name": d.name,
-                        "explanation": d.explanation,
-                        "keywords": d.keywords,
-                    }
+                    DirectionDraft(
+                        domain_id=d.domain_id,
+                        name=d.name,
+                        explanation=d.explanation,
+                        keywords=d.keywords,
+                    )
                     for d in plan().directions
                 ],
             )
         if schema is Plan:
             return self.search_plan.model_copy(deep=True)
         if schema is PatentAssessmentBatch:
-            if self.fail_patent_batch_once and self.calls.count("PatentAssessmentBatch") == 2:
+            if (
+                self.fail_patent_batch_once
+                and self.calls.count("PatentAssessmentBatch") == 2
+            ):
                 self.fail_patent_batch_once = False
                 raise ResearchError("MODEL_REQUEST_FAILED", "模型暂时不可用")
-            return PatentAssessmentBatch(patents=[
-                PatentAssessment(patent_id=p["patent_id"], priority="high", reason="与研究方向相关")
-                for p in payload["patents"]
-            ])
+            return PatentAssessmentBatch(
+                patents=[
+                    PatentAssessment(
+                        patent_id=p["patent_id"],
+                        priority="high",
+                        reason="与研究方向相关",
+                    )
+                    for p in payload["patents"]
+                ]
+            )
         if schema is CompanyAssessmentBatch:
-            if self.fail_company_batch_once and self.calls.count("CompanyAssessmentBatch") == 2:
+            if (
+                self.fail_company_batch_once
+                and self.calls.count("CompanyAssessmentBatch") == 2
+            ):
                 self.fail_company_batch_once = False
                 raise ResearchError("MODEL_REQUEST_FAILED", "企业分析暂时不可用")
-            return CompanyAssessmentBatch(companies=[
-                CompanyAssessment(
-                    company_id=c["company_id"], priority="high", summary="值得进一步技术调研",
-                    patent_ids=["not-provided"] if self.invalid_analysis else
-                    list(dict.fromkeys(lead["patent_id"] for lead in c["leads"]))[:20],
-                ) for c in payload["companies"]
-            ])
+            return CompanyAssessmentBatch(
+                companies=[
+                    CompanyAssessment(
+                        company_id=c["company_id"],
+                        priority="high",
+                        summary="值得进一步技术调研",
+                        patent_ids=["not-provided"]
+                        if self.invalid_analysis
+                        else list(
+                            dict.fromkeys(lead["patent_id"] for lead in c["leads"])
+                        )[:20],
+                    )
+                    for c in payload["companies"]
+                ]
+            )
         raise AssertionError(schema)
 
 
@@ -275,7 +296,11 @@ def test_multiple_search_hits_remain_independent_leads():
     leads = company_lead_workset(snapshot, assignees, patents)
     assert {c["company_id"] for c in leads} == {"c1", "c2"}
     assert {r["patent_id"] for r in leads[0]["relations"]} == {"p1", "p2"}
-    assert all(r["basis"] in {"legal_name", "alias", "search_hit"} for c in leads for r in c["relations"])
+    assert all(
+        r["basis"] in {"legal_name", "alias", "search_hit"}
+        for c in leads
+        for r in c["relations"]
+    )
 
 
 @pytest.mark.asyncio
@@ -290,7 +315,13 @@ async def test_start_companies_assesses_all_patents_and_companies():
     assert len(result["patents"]) == 2
     assert {c["company_id"] for c in result["companies"]} == {"c1", "c2"}
     assert all("resolution_kind" not in c for c in result["companies"])
-    assert llm.calls == ["DirectionProposal", "Plan", "PatentAssessmentBatch", "CompanyAssessmentBatch"]
+    assert llm.calls == [
+        "DirectionProposal",
+        "Plan",
+        "PatentAssessmentBatch",
+        "CompanyAssessmentBatch",
+    ]
+    assert acquisition.company_targets is not None
     assert len(acquisition.company_targets) == 2
 
 
@@ -314,11 +345,17 @@ async def test_completed_patent_batch_is_reused_after_retry():
     for index in range(3, 22):
         patent_id = f"p{index}"
         data["patents"].append({**template, "patent_id": patent_id})
-        data["patent-classifications"].append({"patent_id": patent_id, "cpc_group": "G06N3/04"})
-        data["patent-domain-matches"].append({
-            "patent_id": patent_id, "domain_id": "vision", "total_score": 8,
-            "evaluation_id": f"e{index}",
-        })
+        data["patent-classifications"].append(
+            {"patent_id": patent_id, "cpc_group": "G06N3/04"}
+        )
+        data["patent-domain-matches"].append(
+            {
+                "patent_id": patent_id,
+                "domain_id": "vision",
+                "total_score": 8,
+                "evaluation_id": f"e{index}",
+            }
+        )
         data["assignee-candidates"][0]["patent_ids"].append(patent_id)
     llm.fail_patent_batch_once = True
     graph = build_graph(llm, store, InMemorySaver(), acquisition)
@@ -353,16 +390,22 @@ async def test_completed_company_batch_is_reused_after_retry():
     acquisition, llm, store = FakeAcquisition(), FakeLLM(), runtime_store()
     for index in range(3, 12):
         company_id = f"c{index}"
-        acquisition.data["companies"].append({
-            **acquisition.data["companies"][0],
-            "company_id": company_id,
-            "preferred_name": f"企业{index}",
-            "legal_name": f"企业{index}",
-        })
-        acquisition.data["company-search-hits"].append({
-            "assignee_id": "a1", "query_name": "示例科技有限公司",
-            "company_id": company_id, "provider_rank": index,
-        })
+        acquisition.data["companies"].append(
+            {
+                **acquisition.data["companies"][0],
+                "company_id": company_id,
+                "preferred_name": f"企业{index}",
+                "legal_name": f"企业{index}",
+            }
+        )
+        acquisition.data["company-search-hits"].append(
+            {
+                "assignee_id": "a1",
+                "query_name": "示例科技有限公司",
+                "company_id": company_id,
+                "provider_rank": index,
+            }
+        )
     llm.fail_company_batch_once = True
     graph = build_graph(llm, store, InMemorySaver(), acquisition)
     config = graph_config()
@@ -451,12 +494,12 @@ def test_workspace_refresh_and_partial_proposal_preserve_selected_directions():
             intent="refresh_candidates",
             reply="新候选",
             updates=[
-                {
-                    "domain_id": "new",
-                    "name": "新方向",
-                    "explanation": "推荐",
-                    "keywords": ["新方向"],
-                }
+                DirectionDraft(
+                    domain_id="new",
+                    name="新方向",
+                    explanation="推荐",
+                    keywords=["新方向"],
+                )
             ],
         ),
         conversation,
@@ -467,11 +510,9 @@ def test_workspace_refresh_and_partial_proposal_preserve_selected_directions():
             intent="propose_selected",
             reply="请应用修改",
             updates=[
-                {
-                    "domain_id": "vision",
-                    "name": "更新视觉",
-                    "explanation": "仅修改此项",
-                }
+                DirectionDraft(
+                    domain_id="vision", name="更新视觉", explanation="仅修改此项"
+                )
             ],
         ),
         conversation,

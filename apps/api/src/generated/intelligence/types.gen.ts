@@ -24,48 +24,6 @@ export type Action = {
 };
 
 /**
- * Budget
- */
-export type Budget = {
-    /**
-     * Requests
-     */
-    requests?: number;
-    /**
-     * Reserved Cny
-     */
-    reserved_cny?: number;
-    /**
-     * Estimated Cny
-     */
-    estimated_cny?: number;
-    /**
-     * Elapsed Seconds
-     */
-    elapsed_seconds?: number;
-    /**
-     * Input Tokens
-     */
-    input_tokens?: number;
-    /**
-     * Output Tokens
-     */
-    output_tokens?: number;
-    /**
-     * Max Requests
-     */
-    max_requests?: number;
-    /**
-     * Max Seconds
-     */
-    max_seconds?: number;
-    /**
-     * Max Cny
-     */
-    max_cny?: number;
-};
-
-/**
  * Direction
  */
 export type Direction = {
@@ -189,7 +147,6 @@ export type RunView = {
      */
     node?: string | null;
     error?: Failure | null;
-    budget: Budget;
     /**
      * Artifacts
      */

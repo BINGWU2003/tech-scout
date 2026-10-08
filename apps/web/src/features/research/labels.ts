@@ -40,8 +40,6 @@ export const eventLabels: Record<string, string> = {
   node_started: '步骤开始',
   node_completed: '状态已保存',
   analysis_progress: '报告分析进度已保存',
-  model_reserved: '预留调用预算',
-  model_usage: '记录模型用量',
   awaiting_plan: '等待计划确认',
   execution_stopped: '执行已停止',
   confirm_plan: '计划已确认',

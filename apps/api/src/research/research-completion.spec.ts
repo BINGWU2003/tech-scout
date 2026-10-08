@@ -41,7 +41,6 @@ describe('研究完成后的服务端保护', () => {
       research.newRun(randomUUID(), projectId, {
         requestKey: randomUUID(),
         question: '继续追问',
-        thinking: false,
       })
     ).rejects.toThrow('技术方向已确认')
     expect(tx.researchRun.create).not.toHaveBeenCalled()
@@ -96,7 +95,7 @@ describe('研究完成后的服务端保护', () => {
       research.newRun(
         userId,
         projectId,
-        { requestKey: randomUUID(), question: '开始研究', thinking: false },
+        { requestKey: randomUUID(), question: '开始研究' },
         0
       )
     ).rejects.toThrow('技术方向已确认')
@@ -104,7 +103,6 @@ describe('研究完成后的服务端保护', () => {
       research.newRun(userId, projectId, {
         requestKey: randomUUID(),
         question: '继续追问',
-        thinking: false,
       })
     ).rejects.toThrow('技术方向已确认')
     const workspace = new ResearchWorkspaceService(

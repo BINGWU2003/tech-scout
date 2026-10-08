@@ -127,18 +127,6 @@ class Failure(Model):
     node: str | None = None
 
 
-class Budget(Model):
-    requests: int = 0
-    reserved_cny: float = 0
-    estimated_cny: float = 0
-    elapsed_seconds: float = 0
-    input_tokens: int = 0
-    output_tokens: int = 0
-    max_requests: int = 300
-    max_seconds: int = 3600
-    max_cny: float = 10
-
-
 Status = Literal[
     "queued",
     "running",
@@ -158,7 +146,6 @@ class RunView(Model):
     sequence: int
     node: str | None = None
     error: Failure | None = None
-    budget: Budget
     artifacts: dict[str, Any] = Field(default_factory=dict)
 
 

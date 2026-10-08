@@ -3,7 +3,6 @@ import {
   researchPlanSchema,
   researchSummaryViewSchema,
   researchProcessSchema,
-  researchReasoningSchema,
   researchAnswerSchema,
   type ResearchViewQuery,
 } from '@tech-scout/contracts'
@@ -172,7 +171,6 @@ export class ResearchViewService {
       ready: Boolean(s.run_id),
       node: str(s.node),
       error: s.error ?? null,
-      budget: s.budget ?? null,
       releaseId: str(r.snapshotReleaseId),
       sourceMode: 'browser',
       acquisition: r.acquisition ?? null,
@@ -209,18 +207,8 @@ export class ResearchViewService {
         !['queued', 'running'].includes(event.status)
       )
         answer.status = 'interrupted'
-      const reasoning = researchReasoningSchema
-        .nullable()
-        .parse(event.reasoning)
-      if (
-        reasoning &&
-        !['queued', 'running'].includes(event.status) &&
-        ['thinking', 'answering'].includes(reasoning.status)
-      )
-        reasoning.status = 'interrupted'
       return {
         ...event,
-        reasoning,
         answer,
         process: researchProcessSchema.safeParse(event.process).data ?? null,
         acquisition:

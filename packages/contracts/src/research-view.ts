@@ -1,7 +1,6 @@
 import { z } from 'zod'
 import {
   researchPlanSchema,
-  researchReasoningSchema,
   researchAnswerSchema,
   researchStateSchema,
   researchStatusSchema,
@@ -28,7 +27,6 @@ export const researchSummaryViewSchema = z.object({
   ready: z.boolean(),
   node: z.string().nullable(),
   error: researchStateSchema.shape.error,
-  budget: researchStateSchema.shape.budget.nullable(),
   releaseId: z.string().nullable(),
   sourceMode: z.literal('browser').default('browser'),
   acquisition: z
@@ -97,7 +95,6 @@ export const researchProgressViewSchema = z.object({
   node: z.string().nullable(),
   error: researchStateSchema.shape.error,
   process: researchProcessSchema.nullable().optional(),
-  reasoning: researchReasoningSchema.nullable(),
   answer: researchAnswerSchema.nullable(),
   acquisition: researchSummaryViewSchema.shape.acquisition.optional(),
 })

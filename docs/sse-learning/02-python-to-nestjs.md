@@ -22,7 +22,7 @@ async with stream:
         ...
 ```
 
-SDK 将模型流解析为 chunk，`async for` 类似 JS 的 `for await`。代码读取 `choice.delta`，累积正文 `content`，并用 `partial_reply(content)` 从尚未完整的 JSON 中提取可展示的 reply。开启思考时，还会累积 `reasoning_content`。
+SDK 将模型流解析为 chunk，`async for` 类似 JS 的 `for await`。代码读取 `choice.delta`，累积正文 `content`，并用 `partial_reply(content)` 从尚未完整的 JSON 中提取可展示的 reply。
 
 模型 chunk 不等于研究事件。回答首次出现时立即发布；之后有内容变化，且距上次发布至少 0.3 秒时，再调用 `publish_answer("streaming")`。思考首次出现或更新距上次发布至少 0.5 秒时会发布思考进度。这些是新 chunk 到达时检查的条件，不是固定计时器。
 
@@ -37,7 +37,7 @@ await self.store.publish(
 )
 ```
 
-`{**current.artifacts, ...}` 类似 JS 的对象展开。思考内容则由同文件的 `publish()` 包装为 `reasoning_progress`。这里的“发布”最终是写入事件表，不是直接向 NestJS 的连接写数据。
+`{**current.artifacts, ...}` 类似 JS 的对象展开。这里的“发布”最终是写入事件表，不是直接向 NestJS 的连接写数据。
 
 ### sequence 在写入时生成
 
@@ -95,18 +95,18 @@ Python 这个 stream handler 没有“任务完成即退出”的条件；客户
 
 ### stream_events 的 Python 语法与执行顺序
 
-| 代码 | 作用，以及前后端开发中的类比 |
-| --- | --- |
-| `@app.get(...)` | 注册路由，类似 NestJS `@Get(...)` |
-| `run_id: UUID` | 解析并校验路径中的 UUID |
-| `after: int = Query(default=0, ge=0)` | 整数查询参数，默认 0，不能小于 0 |
-| `cast(Store, request.app.state.store)` | 给动态状态属性补静态类型，不创建或转换对象 |
-| `await store.get(run_id)` | 在发送流响应头前确认任务存在 |
-| `async def generate()` | 定义闭包，能访问外层的 store、run_id、after |
-| `yield ...` | 逐段交出内容，类似 JS 异步生成器的 yield；不是 return |
-| `json.dumps(event, ensure_ascii=False)` | 类似 JSON.stringify，并保留中文字符 |
-| `await asyncio.sleep(1)` | 暂停当前协程，让出执行权，不阻塞整个服务 |
-| `StreamingResponse(generate(), ...)` | 消费生成器，将每次 yield 的内容写入 HTTP 响应 |
+| 代码                                    | 作用，以及前后端开发中的类比                          |
+| --------------------------------------- | ----------------------------------------------------- |
+| `@app.get(...)`                         | 注册路由，类似 NestJS `@Get(...)`                     |
+| `run_id: UUID`                          | 解析并校验路径中的 UUID                               |
+| `after: int = Query(default=0, ge=0)`   | 整数查询参数，默认 0，不能小于 0                      |
+| `cast(Store, request.app.state.store)`  | 给动态状态属性补静态类型，不创建或转换对象            |
+| `await store.get(run_id)`               | 在发送流响应头前确认任务存在                          |
+| `async def generate()`                  | 定义闭包，能访问外层的 store、run_id、after           |
+| `yield ...`                             | 逐段交出内容，类似 JS 异步生成器的 yield；不是 return |
+| `json.dumps(event, ensure_ascii=False)` | 类似 JSON.stringify，并保留中文字符                   |
+| `await asyncio.sleep(1)`                | 暂停当前协程，让出执行权，不阻塞整个服务              |
+| `StreamingResponse(generate(), ...)`    | 消费生成器，将每次 yield 的内容写入 HTTP 响应         |
 
 因为函数包含 yield，调用 `generate()` 得到的是异步生成器对象，不是把整个循环一次执行完。响应框架逐步消费它，类似 NestJS 持续调用 `response.write()`；生成器正常结束后，响应也会结束。
 

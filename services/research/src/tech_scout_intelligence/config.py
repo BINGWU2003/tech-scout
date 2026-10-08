@@ -22,12 +22,7 @@ class Settings(BaseSettings):
     deepseek_api_key: SecretStr = SecretStr("")
     deepseek_base_url: str = "https://api.deepseek.com"
     deepseek_model: str = "deepseek-v4-flash"
-    research_max_seconds: int = Field(default=3600, ge=1, le=7200)
-    research_max_requests: int = Field(default=300, ge=1, le=1000)
-    research_max_cny: float = Field(default=10, gt=0, le=100)
     research_output_tokens: int = Field(default=8192, ge=128, le=8192)
-    research_input_cny_per_million: float = Field(default=3, gt=0)
-    research_output_cny_per_million: float = Field(default=9, gt=0)
     research_model_timeout_seconds: int = Field(default=60, ge=1, le=300)
     research_max_parallel: int = Field(default=2, ge=1, le=10)
 
@@ -37,9 +32,6 @@ class Settings(BaseSettings):
             "base_url": self.deepseek_base_url,
             "output_tokens": self.research_output_tokens,
             "timeout_seconds": self.research_model_timeout_seconds,
-            "input_cny_per_million": self.research_input_cny_per_million,
-            "output_cny_per_million": self.research_output_cny_per_million,
-            "thinking": "conversation-controlled",
             "workflow_version": "browser-v3",
             "prompt_version": "research-advisor-v2",
         }

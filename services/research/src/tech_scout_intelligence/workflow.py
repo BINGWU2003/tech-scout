@@ -10,8 +10,8 @@ from .models import (
     ConversationReply,
     DirectionProposal,
     Keywords,
-    Plan,
     PatentAssessmentBatch,
+    Plan,
     ResearchError,
     SelectedPlan,
 )
@@ -42,7 +42,8 @@ class State(TypedDict, total=False):
 
 def identity_name(value):
     return "".join(
-        char for char in unicodedata.normalize("NFKC", value).casefold()
+        char
+        for char in unicodedata.normalize("NFKC", value).casefold()
         if char.isalnum()
     )
 
@@ -226,7 +227,9 @@ def company_lead_workset(snapshot, assignees, patents):
     assignee_by_id = {item["assignee_id"]: item for item in assignees}
     aliases: dict[str, set[str]] = {}
     for row in snapshot["company-aliases"]:
-        aliases.setdefault(row["company_id"], set()).add(identity_name(row["alias_name"]))
+        aliases.setdefault(row["company_id"], set()).add(
+            identity_name(row["alias_name"])
+        )
     hits: dict[str, list[dict]] = {}
     for hit in snapshot["company-search-hits"]:
         if hit["assignee_id"] in assignee_by_id:
@@ -245,12 +248,14 @@ def company_lead_workset(snapshot, assignees, patents):
                 else "search_hit"
             )
             for patent_id in sorted(set(assignee["patent_ids"]) & patent_ids):
-                relations.append({
-                    "patent_id": patent_id,
-                    "assignee_id": assignee["assignee_id"],
-                    "assignee_name": assignee["name"],
-                    "basis": basis,
-                })
+                relations.append(
+                    {
+                        "patent_id": patent_id,
+                        "assignee_id": assignee["assignee_id"],
+                        "assignee_name": assignee["name"],
+                        "basis": basis,
+                    }
+                )
         result.append({**company, "relations": relations})
     return result
 
@@ -512,92 +517,195 @@ def build_graph(llm, store, checkpointer, acquisition):
         return {"assignees": assignee_workset(state["snapshot"], state["patents"])}
 
     async def company(state, config):
-        return {"company_leads": company_lead_workset(
-            state["snapshot"], state["assignees"], state["patents"]
-        )}
+        return {
+            "company_leads": company_lead_workset(
+                state["snapshot"], state["assignees"], state["patents"]
+            )
+        }
 
     async def assess_patents(state, config):
         run_id, lease = identity(config)
         current = await store.get(run_id)
-        saved = {item["patent_id"]: item for item in current.artifacts.get("patent_assessments", [])}
+        saved = {
+            item["patent_id"]: item
+            for item in current.artifacts.get("patent_assessments", [])
+        }
         patents = sorted(state["patents"], key=lambda item: item["patent_id"])
         for offset in range(0, len(patents), 20):
-            batch = [item for item in patents[offset:offset + 20] if item["patent_id"] not in saved]
+            batch = [
+                item
+                for item in patents[offset : offset + 20]
+                if item["patent_id"] not in saved
+            ]
             if not batch:
                 continue
-            payload = {"question": state["question"], "directions": state["confirmed_plan"]["directions"],
-                "patents": [{"patent_id": p["patent_id"], "title": p["patent_title"],
-                    "abstract": p.get("abstract"), "claims": (p.get("claims") or "")[:2000],
-                    "cpcs": p["cpcs"], "matches": p["matches"]} for p in batch]}
-            generated = await llm.generate(run_id, lease,
-                "逐件评估专利对本次研究问题的技术参考价值。每件都返回 high、medium 或 low 和基于所给专利事实的理由；"
+            payload = {
+                "question": state["question"],
+                "directions": state["confirmed_plan"]["directions"],
+                "patents": [
+                    {
+                        "patent_id": p["patent_id"],
+                        "title": p["patent_title"],
+                        "abstract": p.get("abstract"),
+                        "claims": (p.get("claims") or "")[:2000],
+                        "cpcs": p["cpcs"],
+                        "matches": p["matches"],
+                    }
+                    for p in batch
+                ],
+            }
+            generated = await llm.generate(
+                run_id,
+                lease,
+                "逐件评估专利对本次研究问题的技术参考价值。"
+                "每件都返回 high、medium 或 low 和基于所给专利事实的理由；"
                 "不推断法律有效性、技术新颖性、商业收入或企业权属。不得增删专利 ID。",
-                payload, PatentAssessmentBatch)
+                payload,
+                PatentAssessmentBatch,
+            )
             rows = [item.model_dump() for item in generated.patents]
             ids = [item["patent_id"] for item in rows]
             if len(ids) != len(set(ids)) or set(ids) != {p["patent_id"] for p in batch}:
                 raise ResearchError("MODEL_OUTPUT_INVALID", "模型改变了专利集合")
             saved.update((item["patent_id"], item) for item in rows)
             current = await store.get(run_id)
-            await store.publish(run_id, lease=lease, kind="analysis_progress",
-                artifacts={**current.artifacts, "patent_assessments": list(saved.values())})
+            await store.publish(
+                run_id,
+                lease=lease,
+                kind="analysis_progress",
+                artifacts={
+                    **current.artifacts,
+                    "patent_assessments": list(saved.values()),
+                },
+            )
         return {"patent_assessments": list(saved.values())}
 
     async def analyze(state, config):
         run_id, lease = identity(config)
         current = await store.get(run_id)
-        saved = {item["company_id"]: item for item in current.artifacts.get("company_assessments", [])}
+        saved = {
+            item["company_id"]: item
+            for item in current.artifacts.get("company_assessments", [])
+        }
         assessments = {item["patent_id"]: item for item in state["patent_assessments"]}
         companies = sorted(state["company_leads"], key=lambda item: item["company_id"])
         for offset in range(0, len(companies), 10):
-            batch = [item for item in companies[offset:offset + 10] if item["company_id"] not in saved]
+            batch = [
+                item
+                for item in companies[offset : offset + 10]
+                if item["company_id"] not in saved
+            ]
             if not batch:
                 continue
-            payload = {"question": state["question"], "companies": [{
-                "company_id": c["company_id"], "name": c["legal_name"],
-                "business_info": c["business_info"],
-                "leads": [{**relation, "patent_assessment": assessments[relation["patent_id"]]}
-                    for relation in c["relations"]],
-            } for c in batch]}
-            generated = await llm.generate(run_id, lease,
+            payload = {
+                "question": state["question"],
+                "companies": [
+                    {
+                        "company_id": c["company_id"],
+                        "name": c["legal_name"],
+                        "business_info": c["business_info"],
+                        "leads": [
+                            {
+                                **relation,
+                                "patent_assessment": assessments[relation["patent_id"]],
+                            }
+                            for relation in c["relations"]
+                        ],
+                    }
+                    for c in batch
+                ],
+            }
+            generated = await llm.generate(
+                run_id,
+                lease,
                 "逐家评估进一步技术与专利调研的优先级。查询命中只是调研线索，同一权利人可以命中多家企业；"
-                "不得声称企业拥有线索专利、不得推断财务或投资价值。每家返回 high、medium 或 low、理由及所给线索中的专利引用；"
-                "不得增删企业 ID。", payload, CompanyAssessmentBatch)
+                "不得声称企业拥有线索专利、不得推断财务或投资价值。"
+                "每家返回 high、medium 或 low、理由及所给线索中的专利引用；"
+                "不得增删企业 ID。",
+                payload,
+                CompanyAssessmentBatch,
+            )
             rows = [item.model_dump() for item in generated.companies]
             ids = [item["company_id"] for item in rows]
-            allowed = {c["company_id"]: {r["patent_id"] for r in c["relations"]} for c in batch}
+            allowed = {
+                c["company_id"]: {r["patent_id"] for r in c["relations"]} for c in batch
+            }
             if len(ids) != len(set(ids)) or set(ids) != set(allowed):
                 raise ResearchError("MODEL_OUTPUT_INVALID", "模型改变了企业集合")
-            if any(not set(item["patent_ids"]) <= allowed[item["company_id"]] for item in rows):
-                raise ResearchError("MODEL_CITATION_INVALID", "模型引用不属于企业查询线索")
+            if any(
+                not set(item["patent_ids"]) <= allowed[item["company_id"]]
+                for item in rows
+            ):
+                raise ResearchError(
+                    "MODEL_CITATION_INVALID", "模型引用不属于企业查询线索"
+                )
             saved.update((item["company_id"], item) for item in rows)
             current = await store.get(run_id)
-            await store.publish(run_id, lease=lease, kind="analysis_progress",
-                artifacts={**current.artifacts, "company_assessments": list(saved.values())})
+            await store.publish(
+                run_id,
+                lease=lease,
+                kind="analysis_progress",
+                artifacts={
+                    **current.artifacts,
+                    "company_assessments": list(saved.values()),
+                },
+            )
         return {"company_assessments": list(saved.values())}
 
     async def finish(state, config):
-        patents = {item["patent_id"]: item for item in state.get("patent_assessments", [])}
-        companies = {item["company_id"]: item for item in state.get("company_assessments", [])}
-        if len(patents) != len(state["patents"]) or len(companies) != len(state.get("company_leads", [])):
+        patents = {
+            item["patent_id"]: item for item in state.get("patent_assessments", [])
+        }
+        companies = {
+            item["company_id"]: item for item in state.get("company_assessments", [])
+        }
+        if len(patents) != len(state["patents"]) or len(companies) != len(
+            state.get("company_leads", [])
+        ):
             raise ResearchError("ANALYSIS_INCOMPLETE", "报告分析尚未覆盖全部专利和企业")
         priority = {"high": 0, "medium": 1, "low": 2}
-        ranked_patents = sorted(patents.values(), key=lambda p: (priority[p["priority"]], p["patent_id"]))
-        ranked_companies = sorted(({
-            **lead, **companies[lead["company_id"]],
-        } for lead in state.get("company_leads", [])), key=lambda c: (
-            priority[c["priority"]],
-            min((priority[patents[r["patent_id"]]["priority"]] for r in c["relations"]), default=3),
-            c["company_id"],
-        ))
-        return {"result": {
-            "companies": ranked_companies, "patents": ranked_patents,
-            "patent_count": len(state["patents"]),
-            "release_id": state["snapshot"]["release"]["release_id"],
-            "missing": ["专利权属核验", "完整法律状态", "产品与客户", "财务与市场信息"],
-            "empty_reason": "没有符合条件的专利；可修改并确认新计划" if not state["patents"] else None,
-            "workflow_version": "browser-v3", "prompt_version": "browser-v3",
-        }}
+        ranked_patents = sorted(
+            patents.values(), key=lambda p: (priority[p["priority"]], p["patent_id"])
+        )
+        ranked_companies = sorted(
+            (
+                {
+                    **lead,
+                    **companies[lead["company_id"]],
+                }
+                for lead in state.get("company_leads", [])
+            ),
+            key=lambda c: (
+                priority[c["priority"]],
+                min(
+                    (
+                        priority[patents[r["patent_id"]]["priority"]]
+                        for r in c["relations"]
+                    ),
+                    default=3,
+                ),
+                c["company_id"],
+            ),
+        )
+        return {
+            "result": {
+                "companies": ranked_companies,
+                "patents": ranked_patents,
+                "patent_count": len(state["patents"]),
+                "release_id": state["snapshot"]["release"]["release_id"],
+                "missing": [
+                    "专利权属核验",
+                    "完整法律状态",
+                    "产品与客户",
+                    "财务与市场信息",
+                ],
+                "empty_reason": "没有符合条件的专利；可修改并确认新计划"
+                if not state["patents"]
+                else None,
+                "workflow_version": "browser-v3",
+                "prompt_version": "browser-v3",
+            }
+        }
 
     builder = StateGraph(State)
     nodes = {
@@ -623,7 +731,7 @@ def build_graph(llm, store, checkpointer, acquisition):
             await store.publish(run_id, lease=lease, kind="node_started", node=name)
             result = await fn(state, config)
             # Validate the lease again before LangGraph commits this node's state.
-            await store.heartbeat(run_id, lease, 0)
+            await store.heartbeat(run_id, lease)
             return result
 
         builder.add_node(name, wrapped)

@@ -19,17 +19,6 @@ describe('Intelligence 内部响应隔离', () => {
         node: null,
         error: null,
         artifacts: {},
-        budget: {
-          requests: 0,
-          reserved_cny: 0,
-          estimated_cny: 0,
-          elapsed_seconds: 0,
-          input_tokens: 0,
-          output_tokens: 0,
-          max_requests: 6,
-          max_seconds: 300,
-          max_cny: 1,
-        },
       }
       const body =
         method === 'events'

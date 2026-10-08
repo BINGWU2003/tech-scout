@@ -1,19 +1,16 @@
 /** Shared by the project list and live run updates. Terminal states take precedence. */
-export function researchActivityLabel(
-  run: {
-    status: string | null
-    node?: string | null
-    error?: unknown
-    ready?: boolean
-    acquisition?: {
-      stage?: string | null
-      status?: string | null
-      completed?: number | null
-      total?: number | null
-    } | null
-  },
-  reasoning?: string | null
-): string {
+export function researchActivityLabel(run: {
+  status: string | null
+  node?: string | null
+  error?: unknown
+  ready?: boolean
+  acquisition?: {
+    stage?: string | null
+    status?: string | null
+    completed?: number | null
+    total?: number | null
+  } | null
+}): string {
   const labels: Record<string, string> = {
     awaiting_plan: '待确认计划',
     awaiting_companies: '专利已就绪 · 待查询企业',
@@ -61,10 +58,5 @@ export function researchActivityLabel(
     analyze: '正在分析企业调研优先级',
     finish: '正在生成研究报告',
   }
-  return (
-    nodes[run.node ?? ''] ??
-    (['answering', 'completed'].includes(reasoning ?? '')
-      ? '正在生成回答…'
-      : '正在思考…')
-  )
+  return nodes[run.node ?? ''] ?? '正在生成回答…'
 }

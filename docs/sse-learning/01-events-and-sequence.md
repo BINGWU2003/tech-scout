@@ -4,7 +4,7 @@
 
 ## 一条事件是什么
 
-研究执行中产生的状态变化或进度更新，会保存为事件，例如 `planner_progress`、`search_progress`、`reasoning_progress`、`answer_progress`。一项业务步骤可以产生很多事件。
+研究执行中产生的状态变化或进度更新，会保存为事件，例如 `planner_progress`、`search_progress`、`answer_progress`。一项业务步骤可以产生很多事件。
 
 Python 保存的事件包含序号、类型、时间和当时的研究状态快照。NestJS 接收后保存到应用侧事件表，UI 查询时再提取展示需要的字段。
 
@@ -22,11 +22,11 @@ sequence=150 回答继续更新
 
 ## sequence、after、Last-Event-ID
 
-| 名称 | 谁产生 | 表示什么 |
-| --- | --- | --- |
-| `sequence` | Python 保存新事件时递增 | 当前任务内的事件序号，随事件持久化 |
-| `after` | 调用方传入；服务端发送过程中也推进本地游标 | 本次读取从哪个序号之后开始 |
-| `Last-Event-ID` | 浏览器 EventSource 自动重连时携带 | 该对象最后接收到的 SSE `id` |
+| 名称            | 谁产生                                     | 表示什么                           |
+| --------------- | ------------------------------------------ | ---------------------------------- |
+| `sequence`      | Python 保存新事件时递增                    | 当前任务内的事件序号，随事件持久化 |
+| `after`         | 调用方传入；服务端发送过程中也推进本地游标 | 本次读取从哪个序号之后开始         |
+| `Last-Event-ID` | 浏览器 EventSource 自动重连时携带          | 该对象最后接收到的 SSE `id`        |
 
 本项目把 SSE `id` 设置为事件的 `sequence`，因此这些值能关联起来。相同序号可以出现在不同任务里，要结合 `runId` 识别事件。
 
@@ -65,11 +65,11 @@ LIMIT 100
 
 ### JSON 提取
 
-| SQL | 近似 JavaScript 含义 | 返回类型 |
-| --- | --- | --- |
-| `e.data->>'status'` | `data.status` | 文本 |
-| `e.data->'error'` | `data.error` | JSON |
-| `e.data #> '{artifacts,answer}'` | `data.artifacts?.answer` | JSON |
+| SQL                              | 近似 JavaScript 含义     | 返回类型 |
+| -------------------------------- | ------------------------ | -------- |
+| `e.data->>'status'`              | `data.status`            | 文本     |
+| `e.data->'error'`                | `data.error`             | JSON     |
+| `e.data #> '{artifacts,answer}'` | `data.artifacts?.answer` | JSON     |
 
 `'{artifacts,answer}'` 是路径数组，依次进入两层字段。SQL `NULL` 与 JavaScript `undefined` 并不相同，这里只是用访问方式作类比。
 
@@ -84,16 +84,15 @@ e.data #>> '{artifacts,answer,text}'
 
 ### CASE 决定每个进度列的内容
 
-| 输出列 | 提取条件 |
-| --- | --- |
-| `process` | `planner_progress` 或 `search_progress` |
-| `acquisition` | `acquisition_progress` |
-| `reasoning` | `reasoning_progress`，或状态不再是 `queued/running` |
-| `answer` | `answer_progress`，或状态不再是 `queued/running` |
+| 输出列        | 提取条件                                         |
+| ------------- | ------------------------------------------------ |
+| `process`     | `planner_progress` 或 `search_progress`          |
+| `acquisition` | `acquisition_progress`                           |
+| `answer`      | `answer_progress`，或状态不再是 `queued/running` |
 
 每个 `CASE` 独立计算，不是互斥的 `if/else`。没有 `ELSE`，条件不满足时返回 SQL `NULL`。满足条件但 JSON 路径不存在时也可能为空。
 
-例如运行中的 `answer_progress` 通常只提取 `answer`；当状态不再是 `queued/running` 时，会同时尝试提取 `reasoning` 和 `answer`。
+例如运行中的 `answer_progress` 通常只提取 `answer`；当状态不再是 `queued/running` 时，也会提取最终 `answer`。
 
 其余固定字段包括 `sequence`、`kind`，以及从 JSON 顶层提取的 `status`、`node`、`error`。时间通过 `AT TIME ZONE 'UTC'` 和 `to_char` 格式化为如 `2026-09-30T08:30:12.123Z` 的字符串，别名 `"createdAt"` 保留驼峰大小写。
 

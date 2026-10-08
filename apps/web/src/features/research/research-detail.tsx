@@ -638,7 +638,6 @@ function ProjectWorkspace({
       : workspace.data
 
   const [question, setQuestion] = useState('')
-  const [thinking, setThinking] = useState(true)
   const [generatingKeywords, setGeneratingKeywords] = useState(false)
   const requestKey = useRef({ signature: '', id: createRequestId() })
   const client = useQueryClient(),
@@ -646,14 +645,13 @@ function ProjectWorkspace({
   const create = useMutation({
     mutationFn: async () => {
       if (draft) await savePlan(draft.plan)
-      const signature = JSON.stringify([question.trim(), latest?.id, thinking])
+      const signature = JSON.stringify([question.trim(), latest?.id])
       if (requestKey.current.signature !== signature)
         requestKey.current = { signature, id: createRequestId() }
       return researchApi.newRun(projectId, {
         question: question.trim(),
         requestKey: requestKey.current.id,
         parentRunId: latest?.id,
-        thinking,
       })
     },
     onSuccess: async (run) => {
@@ -981,8 +979,6 @@ function ProjectWorkspace({
                   busy={create.isPending}
                   blocked={blocked || change.isPending || generatingKeywords}
                   autoSave={dirty}
-                  thinking={thinking}
-                  onThinkingChange={setThinking}
                   followUp
                 />
               ))

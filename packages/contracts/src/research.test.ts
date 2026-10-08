@@ -8,12 +8,12 @@ import {
 } from './research.js'
 
 describe('阶段 2 输入契约', () => {
-  it('要求显式的思考选项和消息状态，不接受缺少新字段的旧记录', () => {
+  it('创建研究只需问题和幂等键，消息仍需要回答状态', () => {
     const input = { requestKey: crypto.randomUUID(), question: '视觉研究' }
-    expect(researchCreateSchema.safeParse(input).success).toBe(false)
+    expect(researchCreateSchema.safeParse(input).success).toBe(true)
     expect(
-      researchCreateSchema.safeParse({ ...input, thinking: false }).success
-    ).toBe(true)
+      researchCreateSchema.safeParse({ ...input, thinking: true }).success
+    ).toBe(false)
     const message = {
       id: 'message',
       runId: null,
@@ -28,7 +28,6 @@ describe('阶段 2 输入契约', () => {
     expect(
       researchConversationMessageSchema.safeParse({
         ...message,
-        reasoning: null,
         answer: null,
         pending: false,
       }).success
@@ -39,7 +38,6 @@ describe('阶段 2 输入契约', () => {
       researchCreateSchema.safeParse({
         requestKey: '423c8a2b-afc5-40e7-9da4-4135c272fc48',
         question: '   ',
-        thinking: true,
       }).success
     ).toBe(false)
     expect(

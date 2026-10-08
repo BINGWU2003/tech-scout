@@ -24,7 +24,6 @@ const run = researchSummaryViewSchema.parse({
   ready: true,
   node: 'snapshot',
   error: null,
-  budget: null,
   releaseId: null,
   fromYear: 2020,
   toYear: 2026,
@@ -57,7 +56,6 @@ const event = (
   status: 'running',
   node: 'snapshot',
   error: null,
-  reasoning: null,
   answer: null,
   ...overrides,
 })

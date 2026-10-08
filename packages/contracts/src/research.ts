@@ -45,7 +45,6 @@ export const researchCreateSchema = z
     requestKey: z.uuid(),
     question: z.string().trim().min(1).max(2000),
     parentRunId: z.uuid().optional(),
-    thinking: z.boolean(),
   })
   .strict()
 export const researchActionSchema = z
@@ -91,17 +90,6 @@ export const researchStateSchema = z
       })
       .nullable()
       .default(null),
-    budget: z.object({
-      requests: z.number().int().nonnegative(),
-      reserved_cny: z.number().nonnegative(),
-      estimated_cny: z.number().nonnegative(),
-      elapsed_seconds: z.number().nonnegative(),
-      input_tokens: z.number().int().nonnegative(),
-      output_tokens: z.number().int().nonnegative(),
-      max_requests: z.number().int().positive(),
-      max_seconds: z.number().positive(),
-      max_cny: z.number().positive(),
-    }),
     artifacts: z.record(z.string(), z.unknown()),
   })
   .strict()
@@ -189,15 +177,6 @@ export const researchWorkspaceActionSchema = z.discriminatedUnion('kind', [
     })
     .strict(),
 ])
-export const researchReasoningSchema = z.object({
-  id: z.uuid(),
-  status: z.enum(['thinking', 'answering', 'completed', 'interrupted']),
-  text: z.string().max(64000),
-  startedAt: z.string(),
-  durationMs: z.number().nonnegative(),
-  truncated: z.boolean(),
-})
-export type ResearchReasoning = z.infer<typeof researchReasoningSchema>
 export const researchAnswerSchema = z.object({
   id: z.uuid(),
   startedAt: z.string(),
@@ -210,7 +189,6 @@ export const researchConversationMessageSchema = z.object({
   runId: z.uuid().nullable(),
   role: z.enum(['user', 'assistant']),
   text: z.string(),
-  reasoning: researchReasoningSchema.nullable(),
   answer: researchAnswerSchema.nullable(),
   pending: z.boolean(),
   failed: z.boolean().optional(),

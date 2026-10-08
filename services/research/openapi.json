@@ -431,58 +431,6 @@
         ],
         "title": "Action"
       },
-      "Budget": {
-        "properties": {
-          "requests": {
-            "type": "integer",
-            "title": "Requests",
-            "default": 0
-          },
-          "reserved_cny": {
-            "type": "number",
-            "title": "Reserved Cny",
-            "default": 0
-          },
-          "estimated_cny": {
-            "type": "number",
-            "title": "Estimated Cny",
-            "default": 0
-          },
-          "elapsed_seconds": {
-            "type": "number",
-            "title": "Elapsed Seconds",
-            "default": 0
-          },
-          "input_tokens": {
-            "type": "integer",
-            "title": "Input Tokens",
-            "default": 0
-          },
-          "output_tokens": {
-            "type": "integer",
-            "title": "Output Tokens",
-            "default": 0
-          },
-          "max_requests": {
-            "type": "integer",
-            "title": "Max Requests",
-            "default": 6
-          },
-          "max_seconds": {
-            "type": "integer",
-            "title": "Max Seconds",
-            "default": 300
-          },
-          "max_cny": {
-            "type": "number",
-            "title": "Max Cny",
-            "default": 1
-          }
-        },
-        "additionalProperties": false,
-        "type": "object",
-        "title": "Budget"
-      },
       "Direction": {
         "properties": {
           "domain_id": {
@@ -705,9 +653,6 @@
               }
             ]
           },
-          "budget": {
-            "$ref": "#/components/schemas/Budget"
-          },
           "artifacts": {
             "additionalProperties": true,
             "type": "object",
@@ -719,8 +664,7 @@
         "required": [
           "run_id",
           "status",
-          "sequence",
-          "budget"
+          "sequence"
         ],
         "title": "RunView"
       },

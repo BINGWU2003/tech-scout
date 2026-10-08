@@ -82,7 +82,6 @@ async def test_model_error_is_not_retried_or_exposed():
     assert failure.value.code == "MODEL_REQUEST_FAILED"
     assert "secret" not in failure.value.message
     assert route.call_count == 1
-    store.reserve.assert_awaited_once()
 
 
 @pytest.mark.asyncio
@@ -121,4 +120,3 @@ async def test_empty_truncated_or_schema_invalid_output_fails(content, reason):
     with pytest.raises(ResearchError) as failure:
         await DeepSeek(config(), store).generate(uuid4(), uuid4(), "计划", {}, Plan)
     assert failure.value.code == "MODEL_OUTPUT_INVALID"
-    store.usage.assert_awaited_once()
