@@ -18,7 +18,7 @@ from tech_scout_storage.database import Database
 
 from .acquisition import Acquisition
 from .config import settings
-from .llm import DeepSeek
+from .llm import ResearchLLM
 from .models import Action, Event, ResearchError, RunView, Start
 from .runtime import Runtime
 from .store import Store
@@ -55,7 +55,7 @@ async def lifespan(app: FastAPI):
         store = Store(pool, config, database)
         saver = AsyncPostgresSaver(pool)
         graph = build_graph(
-            DeepSeek(config, store),
+            ResearchLLM(config, store),
             store,
             saver,
             acquisition=Acquisition(acquisition_store),

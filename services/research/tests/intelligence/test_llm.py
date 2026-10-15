@@ -9,7 +9,7 @@ import pytest
 import respx
 from pydantic import SecretStr
 
-from tech_scout_intelligence.llm import DeepSeek, partial_reply
+from tech_scout_intelligence.llm import ResearchLLM, partial_reply
 from tech_scout_intelligence.models import (
     ConversationReply,
     DirectionProposal,
@@ -26,7 +26,13 @@ def chunk(delta=None, finish=None, usage=None):
                 "object": "chat.completion.chunk",
                 "created": 1,
                 "model": "deepseek-test",
-                "choices": [{"index": 0, "delta": delta or {}, "finish_reason": finish}]
+                "choices": [
+                    {
+                        "index": 0,
+                        "delta": {"role": "assistant", **(delta or {})},
+                        "finish_reason": finish,
+                    }
+                ]
                 if usage is None
                 else [],
                 "usage": usage,
@@ -65,7 +71,7 @@ def setup_model():
         },
     )
     state.artifacts["execution_config"] = config.execution_policy()
-    return DeepSeek(config, store), state
+    return ResearchLLM(config, store), state
 
 
 @pytest.mark.asyncio
@@ -127,7 +133,7 @@ async def test_provider_failure_is_interrupted_not_success(setup_model):
     respx.post("https://model.test/chat/completions").mock(
         return_value=httpx.Response(503)
     )
-    with pytest.raises(ResearchError, match="DeepSeek 请求失败"):
+    with pytest.raises(ResearchError, match="模型请求失败"):
         await model.generate(uuid4(), uuid4(), "研究助手", {}, ConversationReply)
     assert state.artifacts["answer"]["status"] == "interrupted"
 

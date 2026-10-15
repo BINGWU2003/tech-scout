@@ -77,10 +77,10 @@ async def test_postgres_restart_resume_and_event_receipts(setup_runtime):
     first = await store.action(run_id, action)
     second = await store.action(run_id, action)
     assert first.sequence == second.sequence
-    runtime.config.deepseek_model = "changed-after-run-start"
+    runtime.config.llm_model = "changed-after-run-start"
     assert (await store.get(run_id)).artifacts["execution_config"][
         "model"
-    ] == "deepseek-v4-flash"
+    ] == "gpt-6.1-sol"
     # A new graph/runtime instance consumes the persisted checkpoint and command.
     resumed = Runtime(build_graph(llm, store, saver, catalog), store, runtime.config)
     await resumed.execute(run_id)

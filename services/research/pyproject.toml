@@ -5,7 +5,7 @@ description = "TechScout research, intelligence and browser acquisition service"
 requires-python = ">=3.13,<3.14"
 dependencies = [
   "fastapi>=0.135,<1",
-  "httpx>=0.28,<1",
+  "httpx[socks]>=0.28,<1",
   "langgraph>=1.1,<2",
   "langgraph-checkpoint-postgres>=3,<4",
   "openai>=2.29,<3",
@@ -17,6 +17,10 @@ dependencies = [
   "structlog>=25.5,<26",
   "uvicorn[standard]>=0.41,<1",
   "sqlalchemy[asyncio]>=2.0,<2.1",
+  "langchain>=1.4.6,<2",
+  "langchain-openai>=1.7.2,<2",
+  "langchain-anthropic>=1.7.6,<2",
+  "langchain-deepseek>=1.1.1,<2",
 ]
 
 [project.scripts]
