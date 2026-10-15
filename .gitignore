@@ -48,3 +48,5 @@ __pycache__/
 # Vitest artifacts (browser screenshots/attachments)
 **/__screenshots__/
 .vitest-attachments/
+
+key/
