@@ -88,7 +88,7 @@ async def test_postgres_restart_resume_and_event_receipts(setup_runtime):
     state = await store.get(run_id)
     assert state.status == "completed", state.error
     assert len(state.artifacts["result"]["companies"][0]["patent_ids"]) == 2
-    assert llm.calls.count("Plan") == 1
+    assert llm.calls.count("SearchConditions") == 1
     events, after = [], 0
     while batch := await store.events(run_id, after):
         events.extend(batch)
@@ -119,7 +119,7 @@ async def test_failed_planner_allows_manual_directions_then_generates_conditions
     assert (await store.get(run_id)).status == "completed"
     assert llm.calls == [
         "DirectionProposal",
-        "Plan",
+        "SearchConditions",
         "PatentAssessmentBatch",
         "CompanyAssessmentBatch",
     ]
@@ -406,7 +406,7 @@ async def test_search_planner_failure_restart_and_explicit_retry(setup_runtime):
             plan=edited,
         ),
     )
-    llm.fail = "Plan"
+    llm.fail = "SearchConditions"
     await runtime.execute(run_id)
     failed = await store.get(run_id)
     assert failed.status == "failed"
@@ -423,7 +423,7 @@ async def test_search_planner_failure_restart_and_explicit_retry(setup_runtime):
     resumed = Runtime(build_graph(llm, store, saver, catalog), store, runtime.config)
     await resumed.execute(run_id)
     assert (await store.get(run_id)).status == "awaiting_companies"
-    assert llm.calls == ["DirectionProposal", "Plan", "Plan"]
+    assert llm.calls == ["DirectionProposal", "SearchConditions", "SearchConditions"]
     assert catalog.reads == 1
 
 

@@ -18,7 +18,7 @@ class Acquisition:
         return {
             "source_mode": "browser",
             "domains": [],
-            "period_from_year": 1800,
+            "period_from_year": 1949,
             "period_to_year": datetime.now(UTC).year,
         }
 

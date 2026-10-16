@@ -8,11 +8,13 @@ from langgraph.types import interrupt
 from .models import (
     CompanyAssessmentBatch,
     ConversationReply,
+    Direction,
     DirectionProposal,
     Keywords,
     PatentAssessmentBatch,
     Plan,
     ResearchError,
+    SearchConditions,
     SelectedPlan,
 )
 from .prompts import CONVERSATION_PROMPT, DIRECTION_PROMPT
@@ -286,6 +288,8 @@ def build_graph(llm, store, checkpointer, acquisition):
             }
         if conversation.get("startSearch"):
             plan = Plan.model_validate(conversation["selectedPlan"])
+            plan.from_year = state["context"]["period_from_year"]
+            plan.to_year = state["context"]["period_to_year"]
             validate_plan(plan, state["context"])
             return {
                 "plan": plan.model_dump(),
@@ -301,21 +305,15 @@ def build_graph(llm, store, checkpointer, acquisition):
                 {
                     "question": state["question"],
                     "conversation": conversation,
-                    "context": state["context"],
                 },
                 ConversationReply,
             )
             update = conversation_update(response, conversation)
             for key in ("candidate_plan", "proposal_plan"):
                 value = update.get(key)
-                if value and (
-                    value["to_year"] > state["context"]["period_to_year"]
-                    or value["from_year"]
-                    < state["context"].get("period_from_year", 1800)
-                ):
-                    raise ResearchError(
-                        "MODEL_OUTPUT_INVALID", "建议年份超出可检索范围"
-                    )
+                if value:
+                    value["from_year"] = state["context"]["period_from_year"]
+                    value["to_year"] = state["context"]["period_to_year"]
             candidate = update.get("candidate_plan")
             return {
                 **update,
@@ -346,14 +344,13 @@ def build_graph(llm, store, checkpointer, acquisition):
             DIRECTION_PROMPT,
             {
                 "question": state["question"],
-                "context": state["context"],
                 "conversation": state.get("conversation", {}),
             },
             DirectionProposal,
         )
         plan = Plan(
             directions=proposal.model_dump()["directions"],
-            from_year=state["context"].get("period_from_year", 1800),
+            from_year=state["context"]["period_from_year"],
             to_year=state["context"]["period_to_year"],
         )
         validate_plan(plan, state["context"])
@@ -371,6 +368,8 @@ def build_graph(llm, store, checkpointer, acquisition):
             payload = interrupt({"kind": "plan", "plan": state.get("plan")})
             confirmed = payload["plan"]
         plan = Plan.model_validate(confirmed)
+        plan.from_year = state["context"]["period_from_year"]
+        plan.to_year = state["context"]["period_to_year"]
         validate_plan(plan, state["context"])
         for direction in plan.directions:
             if not direction.keywords:
@@ -410,35 +409,44 @@ def build_graph(llm, store, checkpointer, acquisition):
             run_id,
             lease,
             "根据用户最终确认的 directions 生成 Google Patents 检索条件。"
-            "保持方向 domain_id、名称和描述不变，不增删方向。"
-            "保留用户确认的 keywords 原值，只生成排除词、IPC 和公开年份。"
+            "每个方向只返回原 domain_id、排除词 excluded_keywords "
+            "和分类号 cpc_prefixes。"
+            "不得新增、遗漏或重复方向。不返回名称、描述、关键词、年份或采集页数。"
             "关键词组内 OR，关键词与 IPC 条件 AND，方向间 OR，避免过窄条件。"
-            "年份不得超出 context 范围，不能表达的限制记录在 risks。",
+            "年份和采集页数由服务端管理，不能表达的限制记录在 risks。",
             {
                 "directions": directions,
                 "question": state["question"],
                 "conversation": state.get("conversation", {}),
-                "context": state["context"],
             },
-            Plan,
+            SearchConditions,
         )
-        if [d.domain_id for d in generated.directions] != [
+        ids = [d.domain_id for d in generated.directions]
+        if len(ids) != len(set(ids)) or set(ids) != {
             d.domain_id for d in confirmed.directions
-        ]:
+        }:
             raise ResearchError(
                 "MODEL_PLAN_INVALID", "检索条件改变了已确认方向，请重试"
             )
-        for output, original in zip(
-            generated.directions, confirmed.directions, strict=True
-        ):
-            output.name = original.name
-            output.explanation = original.explanation
-            output.keywords = original.keywords
-        validate_plan(generated, state["context"])
-        generated.pages_per_keyword = confirmed.pages_per_keyword
-        for direction in generated.directions:
-            direction.keywords = list(dict.fromkeys(direction.keywords))
-        return {"confirmed_plan": generated.model_dump()}
+        conditions = {d.domain_id: d for d in generated.directions}
+        plan = Plan(
+            directions=[
+                Direction.model_validate(
+                    {
+                        **direction.model_dump(),
+                        **conditions[direction.domain_id].model_dump(),
+                        "keywords": list(dict.fromkeys(direction.keywords)),
+                    }
+                )
+                for direction in confirmed.directions
+            ],
+            from_year=state["context"]["period_from_year"],
+            to_year=state["context"]["period_to_year"],
+            pages_per_keyword=confirmed.pages_per_keyword,
+            risks=generated.risks,
+        )
+        validate_plan(plan, state["context"])
+        return {"confirmed_plan": plan.model_dump()}
 
     async def collect_snapshot(state, config, phase, company_targets=None):
         run_id, lease = identity(config)

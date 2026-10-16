@@ -13,11 +13,13 @@ from tech_scout_intelligence.models import (
     CompanyAssessmentBatch,
     DirectionDraft,
     DirectionProposal,
+    DirectionSearchConditions,
     Keywords,
     PatentAssessment,
     PatentAssessmentBatch,
     Plan,
     ResearchError,
+    SearchConditions,
 )
 from tech_scout_intelligence.workflow import (
     assignee_workset,
@@ -183,7 +185,7 @@ class FakeAcquisition:
             "source_mode": "browser",
             "domains": [],
             "period_to_year": 2026,
-            "period_from_year": 1800,
+            "period_from_year": 1949,
         }
 
     async def collect(
@@ -234,8 +236,18 @@ class FakeLLM:
                     for d in plan().directions
                 ],
             )
-        if schema is Plan:
-            return self.search_plan.model_copy(deep=True)
+        if schema is SearchConditions:
+            return SearchConditions(
+                directions=[
+                    DirectionSearchConditions(
+                        domain_id=d.domain_id,
+                        excluded_keywords=d.excluded_keywords,
+                        cpc_prefixes=d.cpc_prefixes,
+                    )
+                    for d in self.search_plan.directions
+                ],
+                risks=self.search_plan.risks,
+            )
         if schema is PatentAssessmentBatch:
             if (
                 self.fail_patent_batch_once
@@ -317,12 +329,70 @@ async def test_start_companies_assesses_all_patents_and_companies():
     assert all("resolution_kind" not in c for c in result["companies"])
     assert llm.calls == [
         "DirectionProposal",
-        "Plan",
+        "SearchConditions",
         "PatentAssessmentBatch",
         "CompanyAssessmentBatch",
     ]
     assert acquisition.company_targets is not None
     assert len(acquisition.company_targets) == 2
+
+
+@pytest.mark.asyncio
+async def test_search_assembles_server_years_without_requesting_model_years():
+    acquisition, llm = FakeAcquisition(), FakeLLM()
+    llm.search_plan.from_year = 2020
+    llm.search_plan.to_year = 2025
+    graph = build_graph(llm, runtime_store(), InMemorySaver(), acquisition)
+    config = graph_config()
+    await run_to_company_gate(graph, config)
+    confirmed = (await graph.aget_state(config)).values["confirmed_plan"]
+    assert confirmed["from_year"] == 1949
+    assert confirmed["to_year"] == 2026
+    assert all("context" not in payload for payload in llm.payloads)
+    properties = SearchConditions.model_json_schema()["properties"]
+    assert set(properties) == {"directions", "risks"}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("invalid_ids", [["unknown"], ["vision", "vision"]])
+async def test_search_conditions_reject_changed_or_duplicate_directions(invalid_ids):
+    llm = FakeLLM()
+    original = llm.search_plan.directions[0]
+    llm.search_plan.directions = [
+        original.model_copy(update={"domain_id": domain_id})
+        for domain_id in invalid_ids
+    ]
+    graph = build_graph(llm, runtime_store(), InMemorySaver(), FakeAcquisition())
+    with pytest.raises(ResearchError, match="改变了已确认方向"):
+        await run_to_company_gate(graph, graph_config())
+
+
+@pytest.mark.asyncio
+async def test_search_conditions_match_by_id_and_preserve_confirmed_content():
+    selected = plan()
+    selected.pages_per_keyword = 10
+    second = selected.directions[0].model_copy(
+        update={"domain_id": "second", "name": "第二方向", "keywords": ["vision"]}
+    )
+    selected.directions.append(second)
+    llm = FakeLLM()
+    llm.search_plan = selected.model_copy(deep=True)
+    llm.search_plan.directions.reverse()
+    llm.search_plan.directions[0].excluded_keywords = ["排除第二方向噪声"]
+    llm.search_plan.directions[1].cpc_prefixes = ["G06V"]
+    graph = build_graph(llm, runtime_store(), InMemorySaver(), FakeAcquisition())
+    config = graph_config()
+    await graph.ainvoke({"question": "工业视觉"}, config)
+    await graph.ainvoke(Command(resume={"plan": selected.model_dump()}), config)
+    confirmed = (await graph.aget_state(config)).values["confirmed_plan"]
+    assert confirmed["pages_per_keyword"] == 10
+    for actual, expected in zip(
+        confirmed["directions"], selected.directions, strict=True
+    ):
+        for key in ("domain_id", "name", "explanation", "keywords"):
+            assert actual[key] == expected.model_dump()[key]
+    assert confirmed["directions"][0]["cpc_prefixes"] == ["G06V"]
+    assert confirmed["directions"][1]["excluded_keywords"] == ["排除第二方向噪声"]
 
 
 @pytest.mark.asyncio
@@ -430,7 +500,7 @@ async def test_no_patents_finishes_empty_without_report_agent_calls():
     assert result["patent_count"] == 0
     assert result["empty_reason"]
     assert acquisition.reads == 1
-    assert llm.calls == ["DirectionProposal", "Plan"]
+    assert llm.calls == ["DirectionProposal", "SearchConditions"]
 
 
 @pytest.mark.asyncio
@@ -443,7 +513,7 @@ async def test_search_conditions_use_final_description_and_retry_without_collect
     edited = plan()
     edited.directions[0].name = "边缘视觉"
     edited.directions[0].explanation = "仅关注边缘设备神经网络视觉处理"
-    llm.fail = "Plan"
+    llm.fail = "SearchConditions"
     with pytest.raises(ResearchError):
         await graph.ainvoke(Command(resume={"plan": edited.model_dump()}), config)
     assert (await graph.aget_state(config)).next == ("search_planner",)

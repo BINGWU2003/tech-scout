@@ -49,6 +49,25 @@ class Direction(Model):
     explanation: str = Field(max_length=2000)
 
 
+class DirectionSearchConditions(Model):
+    domain_id: str = Field(min_length=1, max_length=100)
+    excluded_keywords: list[
+        Annotated[
+            str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)
+        ]
+    ] = Field(default_factory=list, max_length=12)
+    cpc_prefixes: list[
+        Annotated[
+            str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)
+        ]
+    ] = Field(default_factory=list, max_length=12)
+
+
+class SearchConditions(Model):
+    directions: list[DirectionSearchConditions] = Field(min_length=1, max_length=3)
+    risks: list[str] = Field(default_factory=list, max_length=20)
+
+
 class Plan(Model):
     pages_per_keyword: Literal[3, 5, 10] = 5
     directions: list[Direction] = Field(min_length=1, max_length=3)

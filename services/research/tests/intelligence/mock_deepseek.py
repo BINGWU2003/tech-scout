@@ -18,35 +18,30 @@ async def completions(request: Request):
         )
     if "direction" in payload:
         data = {"keywords": [payload["direction"]["name"]]}
-    elif "context" in payload:
-        context = payload["context"]
-        directions = (
-            payload.get("directions")
-            or [
+    elif "directions" in payload:
+        data = {
+            "directions": [
                 {
                     "domain_id": d["domain_id"],
-                    "name": d["name"],
-                    "explanation": "固定测试方向描述",
+                    "excluded_keywords": [],
+                    "cpc_prefixes": [],
                 }
-                for d in context.get("domains", [])[:2]
-            ]
-            or [{"domain_id": "fixture", "name": "测试方向", "explanation": "测试范围"}]
-        )
-        directions = [
-            {**d, "keywords": d.get("keywords") or [d["name"]]} for d in directions
-        ]
-        data = {"directions": directions}
-        if "directions" not in payload:
-            data = {"reply": "结合研究需求，推荐以下技术方向。", **data}
-        if "directions" in payload:
-            data.update(
-                from_year=context.get("period_from_year", 1800),
-                to_year=context.get("period_to_year", 2026),
-                risks=[],
-            )
-            data["directions"] = [
-                {**d, "excluded_keywords": [], "cpc_prefixes": []} for d in directions
-            ]
+                for d in payload["directions"]
+            ],
+            "risks": [],
+        }
+    elif "companies" not in payload:
+        data = {
+            "reply": "结合研究需求，推荐以下技术方向。",
+            "directions": [
+                {
+                    "domain_id": "fixture",
+                    "name": "测试方向",
+                    "explanation": "测试范围",
+                    "keywords": ["测试方向"],
+                }
+            ],
+        }
     else:
         data = {
             "companies": [
