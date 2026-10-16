@@ -11,7 +11,7 @@ from langchain_core.callbacks import AsyncCallbackHandler
 from langchain_core.runnables.utils import AddableDict
 from langchain_core.utils.function_calling import convert_to_openai_tool
 from openai import ContentFilterFinishReasonError, LengthFinishReasonError
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 from pydantic_core import from_json
 
 from .models import ConversationReply, DirectionProposal, ResearchError
@@ -75,7 +75,14 @@ class ResearchLLM:
         self.config = config
         self.store = store
 
-    async def generate(self, run_id, lease, instruction, payload, schema):
+    async def generate[ModelT: BaseModel](
+        self,
+        run_id,
+        lease,
+        instruction: str,
+        payload: dict[str, Any],
+        schema: type[ModelT],
+    ) -> ModelT:
         state = await self.store.get(run_id)
         policy = state.artifacts["execution_config"]
         visible = schema in (ConversationReply, DirectionProposal)
@@ -191,7 +198,7 @@ class ResearchLLM:
             raise ResearchError(
                 "MODEL_OUTPUT_INVALID", "模型输出不符合结构化契约或未完整结束"
             ) from exc
-        if visible:
+        if isinstance(result, (ConversationReply, DirectionProposal)):
             answer["text"] = result.reply
             await publish_answer("completed")
         return result

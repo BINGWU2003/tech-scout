@@ -340,7 +340,7 @@ def build_graph(llm, store, checkpointer, acquisition):
             )
 
         await explain("正在结合研究需求与历史条件，生成技术方向与范围描述。")
-        proposal = await llm.generate(
+        proposal: DirectionProposal = await llm.generate(
             run_id,
             lease,
             DIRECTION_PROMPT,
